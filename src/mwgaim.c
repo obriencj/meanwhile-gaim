@@ -58,7 +58,6 @@ USA. */
 /* plugin preference names */
 #define MW_PRPL_OPT_BASE          "/plugins/prpl/meanwhile"
 #define MW_PRPL_OPT_BLIST_ACTION  MW_PRPL_OPT_BASE "/blist_action"
-#define MW_PRPL_OPT_ACTIVE_MSG    MW_PRPL_OPT_BASE "/active_msg"
 
 
 /* stages of connecting-ness */
@@ -90,8 +89,14 @@ USA. */
 
 
 /* keys to get/set gaim plugin information */
-#define MW_KEY_HOST       "server"
-#define MW_KEY_PORT       "port"
+#define MW_KEY_HOST        "server"
+#define MW_KEY_PORT        "port"
+#define MW_KEY_ACTIVE_MSG  "active_msg"
+
+
+#ifndef PLUGIN_DEFAULT_ACTIVE_MSG
+#define PLUGIN_DEFAULT_ACTIVE_MSG  "Talk to me"
+#endif
 
 
 /** default host for the gaim plugin. You can specialize a build to
@@ -575,6 +580,75 @@ static void fetch_blist(struct mwServiceStorage *srvc) {
 }
 
 
+static void mw_set_away(GaimConnection *gc, const char *state,
+			const char *message) {
+
+  struct mwSession *s = GC_TO_SESSION(gc);
+  struct mwUserStatus stat;
+
+  const char *m = NULL;
+
+  mwUserStatus_clone(&stat, &s->status);
+
+  if(state != NULL) {
+    /* when we go to/from a standard state, the state indicates
+       whether we're away or not */
+
+    if(! strcmp(state, GAIM_AWAY_CUSTOM)) {
+      /* but when we go to/from a custom state, then it's the message
+	 which indicates whether we're away or not */
+
+      if(message != NULL) {
+	stat.status = mwStatus_AWAY;
+	m = message;
+
+      } else {
+	stat.status = mwStatus_ACTIVE;
+      }
+      
+    } else if(! strcmp(state, MW_STATE_AWAY)) {
+      stat.status = mwStatus_AWAY;
+      m = MW_STATE_AWAY;
+      
+    } else if(! strcmp(state, MW_STATE_BUSY)) {
+      stat.status = mwStatus_BUSY;
+      m = MW_STATE_BUSY;
+
+    } else {
+      stat.status = mwStatus_ACTIVE;
+    }
+
+  } else {
+    stat.status = mwStatus_ACTIVE;
+  }
+
+  /* clean out existing status desc */
+  g_free(stat.desc);
+  g_free(gc->away);
+
+  /* put in the new status desc if necessary */
+  if(m != NULL) {
+    char *um = gaim_markup_strip_html(m);
+    stat.desc = um;
+    gc->away = g_strdup(um);
+  } else {
+    stat.desc = NULL;
+    gc->away = NULL;
+  }
+
+  if(stat.status == mwStatus_ACTIVE) {
+    GaimAccount *acct = gaim_connection_get_account(gc);
+    const char *desc = gaim_account_get_string(acct, MW_KEY_ACTIVE_MSG,
+					       PLUGIN_DEFAULT_ACTIVE_MSG);
+    stat.time = 0;
+    stat.desc = g_strdup(desc);
+  }
+
+  mwSession_setUserStatus(s, &stat);
+  mwUserStatus_clear(&stat);
+}
+
+
 static void on_loginAck(struct mwSession *s, struct mwMsgLoginAck *msg) {
   GaimConnection *gc = SESSION_TO_GC(s);
   struct mw_plugin_data *pd = (struct mw_plugin_data *) gc->proto_data;
@@ -582,6 +656,9 @@ static void on_loginAck(struct mwSession *s, struct mwMsgLoginAck *msg) {
   gaim_connection_update_progress(gc, MW_CONNECT_6, 6, MW_CONNECT_STEPS);
   gaim_connection_set_state(gc, GAIM_CONNECTED);
   serv_finish_login(gc);
+
+  /* trigger the initial status as active, with optional message */
+  mw_set_away(gc, MW_STATE_ACTIVE, NULL);
 
   /* later this won't be necessary, as the session will auto-start
      services on receipt of the service available message */
@@ -1101,72 +1178,6 @@ static int mw_send_typing(GaimConnection *gc, const char *name, int typing) {
 }
 
 
-static void mw_set_away(GaimConnection *gc, const char *state,
-			const char *message) {
-
-  struct mwSession *s = GC_TO_SESSION(gc);
-  struct mwUserStatus stat;
-
-  const char *m = NULL;
-
-  mwUserStatus_clone(&stat, &s->status);
-
-  if(state != NULL) {
-    /* when we go to/from a standard state, the state indicates
-       whether we're away or not */
-
-    if(! strcmp(state, GAIM_AWAY_CUSTOM)) {
-      /* but when we go to/from a custom state, then it's the message
-	 which indicates whether we're away or not */
-
-      if(message != NULL) {
-	stat.status = mwStatus_AWAY;
-	m = message;
-
-      } else {
-	stat.status = mwStatus_ACTIVE;
-      }
-      
-    } else if(! strcmp(state, MW_STATE_AWAY)) {
-      stat.status = mwStatus_AWAY;
-      m = MW_STATE_AWAY;
-      
-    } else if(! strcmp(state, MW_STATE_BUSY)) {
-      stat.status = mwStatus_BUSY;
-      m = MW_STATE_BUSY;
-
-    } else {
-      stat.status = mwStatus_ACTIVE;
-    }
-
-  } else {
-    stat.status = mwStatus_ACTIVE;
-  }
-
-  /* clean out existing status desc */
-  g_free(stat.desc);
-  g_free(gc->away);
-
-  /* put in the new status desc if necessary */
-  if(m != NULL) {
-    char *um = gaim_markup_strip_html(m);
-    stat.desc = um;
-    gc->away = g_strdup(um);
-  } else {
-    stat.desc = NULL;
-    gc->away = NULL;
-  }
-
-  if(stat.status == mwStatus_ACTIVE) {
-    stat.time = 0;
-    stat.desc = g_strdup(gaim_prefs_get_string(MW_PRPL_OPT_ACTIVE_MSG));
-  }
-
-  mwSession_setUserStatus(s, &stat);
-  mwUserStatus_clear(&stat);
-}
-
-
 static void mw_convo_closed(GaimConnection *gc, const char *name) {
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
 
@@ -1350,21 +1361,23 @@ static int mw_chat_send(GaimConnection *gc, int id, const char *message) {
 
 
 static void mw_set_active_message(GaimConnection *gc, char *txt) {
-  gaim_prefs_set_string(MW_PRPL_OPT_ACTIVE_MSG, txt);
+  GaimAccount *acct = gaim_connection_get_account(gc);
 
-  /* @todo if connection state is mwStatus_ACTIVE, then call
-     mw_set_status to update the active message */
+  gaim_account_set_string(acct, MW_KEY_ACTIVE_MSG, txt);
 
-  if(! strcmp(gc->away_state, MW_STATE_ACTIVE))
+  if(!gc->away_state || !strcmp(gc->away_state, MW_STATE_ACTIVE))
     mw_set_away(gc, MW_STATE_ACTIVE, NULL);
 }
 
 
 static void mw_show_set_active_message(GaimPluginAction *act) {
   GaimConnection *gc = act->context;
+  GaimAccount *acct = gaim_connection_get_account(gc);
+  const char *desc = gaim_account_get_string(acct, MW_KEY_ACTIVE_MSG,
+					     PLUGIN_DEFAULT_ACTIVE_MSG);
 
   gaim_request_input(gc, NULL, "Active Message:", NULL,
-		     gaim_prefs_get_string(MW_PRPL_OPT_ACTIVE_MSG),
+		     desc,
 		     TRUE, FALSE, NULL,
 		     _("OK"), G_CALLBACK(mw_set_active_message),
 		     _("Cancel"), NULL,
@@ -1534,7 +1547,6 @@ static void init_plugin(GaimPlugin *plugin) {
   /* set up the prefs for blist options */
   gaim_prefs_add_none(MW_PRPL_OPT_BASE);
   gaim_prefs_add_int(MW_PRPL_OPT_BLIST_ACTION, BLIST_CHOICE_NONE);
-  gaim_prefs_add_string(MW_PRPL_OPT_ACTIVE_MSG, "Talk to me");
 
   /* silence plugin and meanwhile library logging for win32 
 		 sd, where debugging isn't enabled */

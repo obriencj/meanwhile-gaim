@@ -45,7 +45,7 @@ rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root,-)
-%{_libdir}/gaim/libmwgaim.*
+%{_libdir}/gaim/libmwgaim.so
 %{_datadir}/pixmaps/gaim/status/default/meanwhile.png
 
 

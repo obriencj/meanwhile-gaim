@@ -1,7 +1,7 @@
 
 /*
-  Meanwhile Gaim Protocol Plugin (prpl).
-  Adds Lotus Sametime support to Gaim.
+  Meanwhile Protocol Plugin for Gaim
+  Adds Lotus Sametime support to Gaim using the Meanwhile library
 
   Copyright (C) 2004 Christopher (siege) O'Brien <siege@preoccupied.net>
   
@@ -186,7 +186,7 @@ struct mwGaimPluginData {
   /** map of GaimGroup:mwAwareList */
   GHashTable *group_map;
 
-  /** event id for the save callback */
+  /** event id for the buddy list save callback */
   guint save_event;
 
   /** socket fd */
@@ -370,6 +370,7 @@ static gboolean blist_save_cb(gpointer data) {
 }
 
 
+/** schedules the buddy list to be saved to the server */
 static void blist_save(struct mwGaimPluginData *pd) {
   if(pd->save_event) return;
 
@@ -401,6 +402,8 @@ static void list_on_aware(struct mwAwareList *list,
 }
 
 
+/** Ensures that an Aware List is associated with the given group, and
+    returns that list. */
 static struct mwAwareList *
 ensure_list(struct mwGaimPluginData *pd, GaimGroup *group) {
 
@@ -420,6 +423,8 @@ ensure_list(struct mwGaimPluginData *pd, GaimGroup *group) {
 }
 
 
+/** Actually add a buddy to the aware service, and schedule the buddy
+    list to be saved to the server */
 static void add_buddy(struct mwGaimPluginData *pd,
 		      GaimBuddy *buddy) {
 
@@ -456,6 +461,9 @@ static GaimBuddy *ensure_buddy(GaimConnection *gc, GaimGroup *group,
   const char *id = mwSametimeUser_getUser(stuser);
   const char *name = mwSametimeUser_getShortName(stuser);
   const char *alias = mwSametimeUser_getAlias(stuser);
+
+  g_return_val_if_fail(id != NULL, NULL);
+  g_return_val_if_fail(strlen(id) > 0, NULL);
 
   buddy = gaim_find_buddy_in_group(acct, id, group);
   if(! buddy) {
@@ -886,7 +894,7 @@ static void mw_conf_closed(struct mwConference *conf, guint32 reason) {
 
   serv_got_chat_left(gc, CONF_TO_ID(conf));
 
-  /* @todo send a GAIM_MESSAGE_ERROR for the reason */
+  /** @todo send a GAIM_MESSAGE_ERROR for the reason */
 }
 
 
@@ -1826,12 +1834,13 @@ static void add_buddy_resolved(struct mwServiceResolve *srvc,
 
   if(!code && results) {
     res = results->data;
-    
+
+    /** @todo prompt user if more than one match was returned */
+
     if(res->matches) {
       match = res->matches->data;
 
-      g_free(buddy->name);
-      buddy->name = g_strdup(match->id);
+      gaim_blist_rename_buddy(buddy, match->id);
 
       g_free(buddy->server_alias);
       buddy->server_alias = g_strdup(match->name);
@@ -1841,8 +1850,10 @@ static void add_buddy_resolved(struct mwServiceResolve *srvc,
     }
   }
 
-  /* fall-through indicates that we couldn't find a matching buddy in
+  /* fall-through indicates that we couldn't find a matching user in
      the resolve service, so we remove this buddy */
+
+  /** @todo inform the user if their added buddy wasn't resolved */
 
   DEBUG_INFO("no such buddy in community\n");
   gaim_blist_remove_buddy(buddy);
@@ -1878,12 +1889,16 @@ static void mw_prpl_add_buddy(GaimConnection *gc,
 static void mw_prpl_add_buddies(GaimConnection *gc,
 				GList *buddies, GList *groups) {
 
-  /* @todo make this use a single call to each mwAwareList */
+  /** @todo make this use a single call to each mwAwareList */
 
   struct mwGaimPluginData *pd;
   pd = gc->proto_data;
 
   DEBUG_INFO("mw_prpl_add_buddies\n");
+
+  /* we don't bother performing the resolve check, because this
+     function is used to populate the list automatically, and for
+     moving groups around */
 
   while(buddies) {
     add_buddy(pd, buddies->data);

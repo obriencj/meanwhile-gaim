@@ -207,6 +207,9 @@ static int mw_handler_write(struct mwSessionHandler *this,
   struct mw_handler *h = (struct mw_handler *) this;
   int ret = 0;
 
+  if(! h->sock_fd)
+    return 0;
+
   while(n) {
     ret = write(h->sock_fd, b, n);
     if(ret <= 0) break;
@@ -217,6 +220,7 @@ static int mw_handler_write(struct mwSessionHandler *this,
     /* if there's data left over, something must have failed */
     DEBUG_ERROR("mw_handler_write returning %i\n", ret);
     gaim_connection_error(h->gc, "Connection died");
+    mw_handler_close(this);
     return -1;
 
   } else {
@@ -228,6 +232,7 @@ static int mw_handler_write(struct mwSessionHandler *this,
 static void mw_handler_close(struct mwSessionHandler *this) {
   struct mw_handler *h = (struct mw_handler *) this;
   close(h->sock_fd);
+  h->sock_fd = 0;
 }
 
 

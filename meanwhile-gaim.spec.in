@@ -1,7 +1,7 @@
 Summary: Meanwhile Gaim
 Name: @PACKAGE@
-Version: @VERSION@
 Epoch: 0
+Version: @VERSION@
 Release: 0
 License: GPL
 Group: Applications/Internet

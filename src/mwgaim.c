@@ -406,13 +406,13 @@ static GaimBuddy *ensure_buddy(GaimConnection *gc, GaimGroup *group,
     buddy->server_alias = g_strdup(name);
     gaim_blist_add_buddy(buddy, NULL, group, NULL);
 
-    /* why doesn't the above trigger this? */
-    /* serv_add_buddy(gc, buddy); */
+    /* why doesn't the above trigger this? need to let meanwhile know
+       about these buddies. */
+    serv_add_buddy(gc, buddy);
   }
 
   return buddy;
 }
-
 
 
 static void export_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
@@ -806,11 +806,11 @@ static void got_join(struct mwConference *conf, struct mwIdBlock *id) {
   GaimConversation *conv;
 
   conv = (GaimConversation *) g_hash_table_lookup(pd->convo_map, conf);
-  g_return_if_fail(conv);
-
-  DEBUG_INFO(" got join\n");
-  gaim_conv_chat_add_user(GAIM_CONV_CHAT(conv), id->user,
-			  NULL, GAIM_CBFLAGS_NONE);
+  if(conv) {
+    DEBUG_INFO(" got join\n");
+    gaim_conv_chat_add_user(GAIM_CONV_CHAT(conv), id->user,
+			    NULL, GAIM_CBFLAGS_NONE);
+  }
 }
 
 

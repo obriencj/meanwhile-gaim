@@ -59,6 +59,6 @@ AM_PATH_GLIB_2_0(2.0.0,,AC_MSG_ERROR([
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
-AC_OUTPUT([Makefile src/Makefile pixmaps/Makefile gaim-meanwhile.spec])
+AC_OUTPUT([Makefile src/Makefile pixmaps/Makefile gaim-meanwhile.spec dist/Makefile])
 
 

@@ -20,7 +20,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
 USA. */
 
 
-#define GAIM_PLUGINS
 #include <gaim.h>
 #include <accountopt.h>
 #include <conversation.h>
@@ -651,18 +650,23 @@ static void on_admin(struct mwSession *s, struct mwMsgAdmin *msg) {
 static void got_error(struct mwServiceIM *srvc,
 		      struct mwIdBlock *who, unsigned int err) {
 
-  GaimConversation *conv = gaim_find_conversation(who->user);
-  char *text, *tmp;
-
-  g_return_if_fail(conv);
-
-  tmp = mwError(err);
-  text = g_strconcat("Unable to send message: ", tmp, NULL);
-
-  gaim_conversation_write(conv, who->user, text,
-			  GAIM_MESSAGE_SYSTEM,time(NULL));
-  g_free(tmp);
-  g_free(text);
+	GaimConversation *conv = gaim_find_conversation(who->user);
+	char *text, *tmp;
+	
+	g_return_if_fail(conv);
+	
+	tmp = mwError(err);
+	text = g_strconcat("Unable to send message: ", tmp, NULL);
+	
+	if (!gaim_conv_present_error(who->user, conv->account, text)) {
+		g_free(text);
+		text = g_strdup_printf(_("Unable to send message to %s:"), who->user ? who->user : "(unknown)");
+		gaim_notify_error(gaim_account_get_connection(conv->account), NULL, text,
+						  tmp ? tmp : _("Unknown reason."));
+	}
+	
+	g_free(tmp);
+	g_free(text);
 }
 
 
@@ -820,8 +824,10 @@ static void got_conf_text(struct mwConference *conf, struct mwIdBlock *id,
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
   GaimConversation *conv;
 
-  conv = (GaimConversation *) g_hash_table_lookup(pd->convo_map, conf);
-  g_return_if_fail(conv);
+  conv = g_hash_table_lookup(pd->convo_map, conf);
+  g_return_if_fail(conv != NULL);
+
+  if(! text) return;
 
   serv_got_chat_in(gc, gaim_conv_chat_get_id(GAIM_CONV_CHAT(conv)),
 		   id->user, 0, text, time(NULL));
@@ -1227,8 +1233,11 @@ static void mw_add_buddy(GaimConnection *gc,
   GaimGroup *found = gaim_find_buddys_group(buddy);
   list = ensure_list(gc, found);
 
-  mwAwareList_addAware(list, &t, 1);
-  schedule_stlist_save(gc);
+  if( mwAwareList_addAware(list, &t, 1) ) {
+    schedule_stlist_save(gc);
+  } else {
+    gaim_blist_remove_buddy(buddy);
+  }
 }
 
 

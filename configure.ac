@@ -36,8 +36,8 @@ if test "$enable_debug" = yes; then
 fi
 
 
-CFLAGS="$CFLAGS -Wall -Werror"
-AC_SUBST(CFLAGS)
+
+
 
 
 

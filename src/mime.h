@@ -56,19 +56,18 @@ GaimMimeDocument *gaim_mime_document_new();
 
 
 /** Parse a MIME document from a NUL-terminated string
-    @param doc  the MIME Document
-    @param buf  the NUL-terminated string containing the MIME-encoded data
+    @param buf  the NULL-terminated string containing the MIME-encoded data
+    @returns MIME document
  */
-void gaim_mime_document_parse(GaimMimeDocument *doc, const char *buf);
+GaimMimeDocument *gaim_mime_document_parse(const char *buf);
 
 
 /** Parse a MIME document from a string
-    @param doc  the MIME Document
     @param buf  the string containing the MIME-encoded data
     @param len  length of buf
+    @returns MIME document
  */
-void gaim_mime_document_parse_len(GaimMimeDocument *doc,
-				  const char *buf, gsize len);
+GaimMimeDocument *gaim_mime_document_parsen(const char *buf, gsize len);
 
 
 /** The list of fields in the header of a document
@@ -87,6 +86,18 @@ const GList *gaim_mime_document_get_fields(GaimMimeDocument *doc);
 */
 const char *gaim_mime_document_get_field(GaimMimeDocument *doc,
 					 const char *field);
+
+
+/** Set or replace the value of a specific field in the header of a
+    document
+    @param doc    the MIME document
+    @param field  case-insensitive field name
+    @param value  value to associate with the indicated header field,
+                  of NULL to remove the field
+*/
+void gaim_mime_document_set_field(GaimMimeDocument *doc,
+				  const char *field,
+				  const char *value);
 
 
 /** The list of parts in a multipart document
@@ -120,9 +131,21 @@ const char *gaim_mime_part_get_field(GaimMimePart *part,
 				     const char *field);
 
 
+/** Set or replace the value of a specific field in the header of a
+    document
+    @param doc    the MIME document
+    @param field  case-insensitive field name
+    @param value  value to associate with the indicated header field,
+                  of NULL to remove the field
+*/
+void gaim_mime_part_set_field(GaimMimePart *part,
+			      const char *field,
+			      const char *value);
+
+
 /** Get the (possibly encoded) data portion of a MIME document part
     @param part   the MIME document part
-    @returns      NUL-terminated data found in the document part
+    @returns      NULL-terminated data found in the document part
  */
 const char *gaim_mime_part_get_data(GaimMimePart *part);
 

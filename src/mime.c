@@ -57,7 +57,7 @@ struct _GaimMimePart {
 };
 
 
-static void fields_put(struct mime_fields *mf,
+static void fields_set(struct mime_fields *mf,
 		       const char *key, const char *val) {
   char *k, *v;
 
@@ -73,8 +73,8 @@ static void fields_put(struct mime_fields *mf,
   }
 
   /* important to use insert. If the key is already in the table, then
-     it's already in the keys list. Insert will free this instance of
-     the key rather than the old instance. */
+     it's already in the keys list. Insert will free the new instance
+     of the key rather than the old instance. */
   g_hash_table_insert(mf->map, k, v);
 }
 
@@ -132,7 +132,7 @@ static void fields_loadline(struct mime_fields *mf,
   val = g_strstrip(val);
   g_strfreev(tokens);
   
-  fields_put(mf, key, val);
+  fields_set(mf, key, val);
 
   g_free(key);
   g_free(val);
@@ -243,6 +243,13 @@ const char *gaim_mime_part_get_field(GaimMimePart *part,
 }
 
 
+void gaim_mime_part_set_field(GaimMimePart *part,
+			      const char *field,
+			      const char *value) {
+  g_return_if_fail(part != NULL);
+  fields_set(&part->fields, field, value);
+}
+
 const char *gaim_mime_part_get_data(GaimMimePart *part) {
   g_return_val_if_fail(part != NULL, NULL);
   g_assert(part->data != NULL);
@@ -304,35 +311,38 @@ static void doc_parts_load(GaimMimeDocument *doc,
 }
 
 
-void gaim_mime_document_parse_len(GaimMimeDocument *doc,
-				  const char *buf, gsize len) {
+GaimMimeDocument *gaim_mime_document_parsen(const char *buf, gsize len) {
+
+  GaimMimeDocument *doc;
+
   char *b = (char *) buf;
   gsize n = len;
 
-  g_return_if_fail(doc != NULL);
-  g_return_if_fail(buf != NULL);
+  g_return_val_if_fail(buf != NULL, NULL);
 
-  if(! len) return;
+  doc = gaim_mime_document_new();
+
+  if(! len) return doc;
 
   fields_load(&doc->fields, &b, &n);
 
   {
-    const char *ct = fields_get(&doc->fields, "Content-Type");
-    if(g_str_has_prefix(ct, "multipart")) {
+    const char *ct = fields_get(&doc->fields, "content-type");
+    if(ct && g_str_has_prefix(ct, "multipart")) {
       char *bd = strrchr(ct, '=');
       if(bd++) {
 	doc_parts_load(doc, bd, b, n);
       }      
     }
   }
+
+  return doc;
 }
 
 
-void gaim_mime_document_parse(GaimMimeDocument *doc,const char *buf) {
-  g_return_if_fail(doc != NULL);
-  g_return_if_fail(buf != NULL);
-
-  gaim_mime_document_parse_len(doc, buf, strlen(buf));
+GaimMimeDocument *gaim_mime_document_parse(const char *buf) {
+  g_return_val_if_fail(buf != NULL, NULL);
+  return gaim_mime_document_parsen(buf, strlen(buf));
 }
 
 
@@ -346,6 +356,14 @@ const char *gaim_mime_document_get_field(GaimMimeDocument *doc,
 					 const char *field) {
   g_return_val_if_fail(doc != NULL, NULL);
   return fields_get(&doc->fields, field);
+}
+
+
+void gaim_mime_document_set_field(GaimMimeDocument *doc,
+				  const char *field,
+				  const char *value) {
+  g_return_if_fail(doc != NULL);
+  fields_set(&doc->fields, field, value);
 }
 
 

@@ -1597,8 +1597,7 @@ static void im_recv_mime(struct mwConversation *conv,
 
   str = g_string_new(NULL);
   
-  doc = gaim_mime_document_new();
-  gaim_mime_document_parse_len(doc, data->data, data->len);
+  doc = gaim_mime_document_parsen(data->data, data->len);
 
   /* handle all the MIME parts */
   parts = gaim_mime_document_get_parts(doc);

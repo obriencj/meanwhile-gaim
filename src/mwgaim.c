@@ -1311,8 +1311,6 @@ static void convo_features(struct mwConversation *conv) {
 
   feat = gaim_conversation_get_features(gconv);
 
-  DEBUG_INFO("features 0x%04x\n", feat);
-
   if(MW_CONVO_IS_OPEN(conv) &&
      mwConversation_supports(conv, mwImSend_HTML)) {
 
@@ -1324,7 +1322,7 @@ static void convo_features(struct mwConversation *conv) {
     feat &= ~GAIM_CONNECTION_NO_IMAGES;
   }
 
-  DEBUG_INFO("features 0x%04x\n", feat);
+  DEBUG_INFO("conversation features set to 0x%04x\n", feat);
 
   gaim_conversation_set_features(gconv, feat);
 #else
@@ -1333,6 +1331,9 @@ static void convo_features(struct mwConversation *conv) {
 }
 
 
+/** triggered from mw_conversation_opened if the appropriate plugin
+    preference is set. This will open a window for the conversation
+    before the first message is sent. */
 static void do_psychic(struct mwConversation *conv) {
   struct mwServiceIm *srvc;
   struct mwSession *session;
@@ -1882,7 +1883,13 @@ static GList *mw_prpl_away_states(GaimConnection *gc) {
 
 static GList *mw_prpl_blist_node_menu(GaimBlistNode *node) {
   /** @todo blist menu options */
-  /* Initiate Conference */
+
+  /* Buddy:
+     Invite to Conference
+     
+     Group:
+     Invite Group to Conference
+  */
 
   return NULL;
 }

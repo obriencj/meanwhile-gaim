@@ -250,10 +250,19 @@ static void mw_handler_init(struct mw_handler *h, int sock_fd,
 static void mw_read_callback(gpointer data, gint source,
 			     GaimInputCondition cond) {
 
-  GaimConnection *gc = (GaimConnection *) data;
-  struct mwSession *session = GC_TO_SESSION(gc);
-  struct mw_handler *h = SESSION_HANDLER(session);
+  GaimConnection *gc;
+  struct mwSession *session;
+  struct mw_handler *h;
   
+  gc = (GaimConnection *) data;
+  g_return_if_fail(gc != NULL);
+
+  session = GC_TO_SESSION(gc);
+  g_return_if_fail(session != NULL);
+
+  h = SESSION_HANDLER(session);
+  g_return_if_fail(h != NULL);
+
   if(cond & GAIM_INPUT_READ) {
     char buf[READ_BUFFER_SIZE];
     int len = READ_BUFFER_SIZE;
@@ -1154,6 +1163,16 @@ static void mw_convo_closed(GaimConnection *gc, const char *name) {
   mwServiceIM_closeChat(pd->srvc_im, &t);
 }
 
+static const char *
+mw_normalize(const GaimAccount *account, const char *str)
+{
+	static char buf[BUF_LEN];
+
+	/* code elsewhere assumes that the return value points to different memory than the passed value. */
+	strncpy(buf, str, sizeof(buf));
+
+	return buf;
+}
 
 static struct mwAwareList *ensure_list(GaimConnection *gc, GaimGroup *group) {
 
@@ -1389,7 +1408,7 @@ static GaimPluginProtocolInfo prpl_info = {
   NULL,                     /* mw_rename_group, */
   NULL,                     /* mw_buddy_free, */
   mw_convo_closed,
-  NULL,                     /* normalize */
+  mw_normalize,             /* normalize */
   NULL,                     /* set buddy icon */
   NULL,                     /* remove group */
   NULL,                     /* get chat buddy real name */

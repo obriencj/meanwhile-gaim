@@ -21,26 +21,26 @@ USA. */
 
 
 #define GAIM_PLUGINS
-#include <gaim/gaim.h>
-#include <gaim/accountopt.h>
-#include <gaim/conversation.h>
-#include <gaim/debug.h>
-#include <gaim/internal.h>
-#include <gaim/notify.h>
-#include <gaim/plugin.h>
-#include <gaim/prpl.h>
-#include <gaim/util.h>
+#include <gaim.h>
+#include <accountopt.h>
+#include <conversation.h>
+#include <debug.h>
+#include <internal.h>
+#include <notify.h>
+#include <plugin.h>
+#include <prpl.h>
+#include <util.h>
 
 #include <glib.h>
 #include <glib/ghash.h>
 #include <glib/glist.h>
 
-#include <meanwhile/meanwhile.h>
-#include <meanwhile/st_list.h>
-#include <meanwhile/srvc_aware.h>
-#include <meanwhile/srvc_conf.h>
-#include <meanwhile/srvc_im.h>
-#include <meanwhile/srvc_store.h>
+#include <meanwhile.h>
+#include <st_list.h>
+#include <srvc_aware.h>
+#include <srvc_conf.h>
+#include <srvc_im.h>
+#include <srvc_store.h>
 
 
 /* considering that there's no display of this information for prpls,

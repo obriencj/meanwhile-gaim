@@ -1058,7 +1058,7 @@ static void mw_conversation_recv(struct mwConversation *conv,
     break;
 
   case mwImSend_TYPING:
-    im_recv_typing(conv, pd, (gboolean) msg);
+    im_recv_typing(conv, pd, !! msg);
     break;
 
   case mwImSend_HTML:

@@ -3,6 +3,10 @@ version 0.82 (cvs)
 
 	- gaim/multi.h removed from includes
 	
+	- removed os_read/os_write/os_close as they were unnecessary
+	
+	- updates to prpl structure as per Gaim API change
+	
 version 0.81 (2004-08-06)
 
 	- Changed away status handling to strip the HTML from the away

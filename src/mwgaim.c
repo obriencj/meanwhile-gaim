@@ -147,36 +147,6 @@ USA. */
    " enabling. Loading takes effect at login.")
 
 
-/* there's probably a better way, I just never bothered finding it */
-#ifndef os_write
-# ifndef _WIN32
-#  define os_write(fd, buffer, len) write(fd, buffer, len)
-# else
-#  define os_write(fd, buffer, len) send(fd, buffer, len, 0)
-# endif
-#endif
-
-
-/* there's probably a better way, I just never bothered finding it */
-#ifndef os_read
-# ifndef _WIN32
-#  define os_read(fd, buffer, size) read(fd, buffer, size)
-# else
-#  define os_read(fd, buffer, size) recv(fd, buffer, size, 0)
-# endif
-#endif
-
-
-/* there's probably a better way, I just never bothered finding it */
-#ifndef os_close
-# ifndef _WIN32
-#  define os_close(fd) close(fd)
-# else
-#  define os_close(fd) closesocket(fd)
-# endif
-#endif
-
-
 #define DEBUG_ERROR(a...)  gaim_debug_error(G_LOG_DOMAIN, a)
 #define DEBUG_INFO(a...)   gaim_debug_info(G_LOG_DOMAIN, a)
 #define DEBUG_MISC(a...)   gaim_debug_misc(G_LOG_DOMAIN, a)
@@ -237,7 +207,7 @@ static int mw_handler_write(struct mwSessionHandler *this,
   int ret = 0;
 
   while(n) {
-    ret = os_write(h->sock_fd, b, n);
+    ret = write(h->sock_fd, b, n);
     if(ret <= 0) break;
     n -= ret;
   }
@@ -256,7 +226,7 @@ static int mw_handler_write(struct mwSessionHandler *this,
 
 static void mw_handler_close(struct mwSessionHandler *this) {
   struct mw_handler *h = (struct mw_handler *) this;
-  os_close(h->sock_fd);
+  close(h->sock_fd);
 }
 
 
@@ -284,7 +254,7 @@ static void mw_read_callback(gpointer data, gint source,
 
     /* note, don't use gsize. len might be -1 */
 
-    len = os_read(h->sock_fd, buf, len);
+    len = read(h->sock_fd, buf, len);
     if(len > 0) {
       DEBUG_INFO("read %i bytes\n",len);
       mwSession_recv(session, buf, (gsize) len);
@@ -305,7 +275,7 @@ static void mw_login_callback(gpointer data, gint source,
   struct mw_handler *h;
 
   if(! g_list_find(gaim_connections_get_all(), data)) {
-    os_close(source);
+    close(source);
     g_return_if_reached();
   }
 
@@ -680,8 +650,9 @@ static void got_text(struct mwServiceIM *srvc,
   /* if user@community split, compose buddy name */
 
   struct mwSession *s = srvc->service.session;
-
-  serv_got_im(SESSION_TO_GC(s), who->user, text, 0, time(NULL));
+  char *esc = gaim_escape_html(text);
+  serv_got_im(SESSION_TO_GC(s), who->user, esc, 0, time(NULL));
+  g_free(esc);
 }
 
 
@@ -1378,12 +1349,13 @@ static GaimPluginProtocolInfo prpl_info = {
   mw_away_states,
   NULL,                     /* mw_buddy_menu, */
   mw_chat_info,
+  /* NULL, */                     /* mw_chat_info_defaults, */
   mw_login,
   mw_close,
   mw_im_send,
-  NULL,                     /* mw_set_info, */
+  NULL,                     /* get info, */
   mw_send_typing,
-  NULL,                     /* mw_get_info, */
+  NULL,                     /* set info, */
   mw_set_away,
   mw_set_idle,
   NULL,                     /* change password, */

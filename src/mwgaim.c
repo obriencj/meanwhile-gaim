@@ -37,6 +37,7 @@
 #include <glib/ghash.h>
 #include <glib/glist.h>
 
+#include <mw_cipher.h>
 #include <mw_common.h>
 #include <mw_error.h>
 #include <mw_service.h>
@@ -1067,6 +1068,8 @@ static struct mwGaimPluginData *mwGaimPluginData_new(GaimConnection *gc) {
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_resolve));
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_store));
 
+  mwSession_addCipher(pd->session, mwCipher_new_RC2_40(pd->session));
+
   mwSession_setClientData(pd->session, pd, NULL);
   gc->proto_data = pd;
 
@@ -1092,6 +1095,8 @@ static void mwGaimPluginData_free(struct mwGaimPluginData *pd) {
   mwService_free(MW_SERVICE(pd->srvc_im));
   mwService_free(MW_SERVICE(pd->srvc_resolve));
   mwService_free(MW_SERVICE(pd->srvc_store));
+
+  mwCipher_free(mwSession_getCipher(pd->session, mwCipher_RC2_40));
 
   mwSession_free(pd->session);
 
@@ -1711,7 +1716,7 @@ static struct mwConference *conf_find(struct mwServiceConference *srvc,
   ll = mwServiceConference_getConferences(srvc);
   for(l = ll; l; l = l->next) {
     struct mwConference *c = l->data;
-    if(! strcmp(name, mwConference_getName(conf))) {
+    if(! strcmp(name, mwConference_getName(c))) {
       conf = c;
       break;
     }

@@ -964,6 +964,8 @@ static const char *mw_blist_icon(GaimAccount *a, GaimBuddy *b) {
   /* then, throw all of that away and use sodipodi to make a new
      icon. You know, LIKE A REAL MAN. */
 
+  /** @todo meanwhile-group icon */
+
   return "meanwhile";
 }
 

@@ -134,9 +134,9 @@ USA. */
 
 /* testing for the above */
 #define BLIST_CHOICE_IS(n) (gaim_prefs_get_int(MW_PRPL_OPT_BLIST_ACTION)==(n))
-#define BLIST_CHOICE_IS_NONE  BLIST_CHOICE_IS(BLIST_CHOICE_NONE)
-#define BLIST_CHOICE_IS_LOAD  BLIST_CHOICE_IS(BLIST_CHOICE_LOAD)
-#define BLIST_CHOICE_IS_SAVE  BLIST_CHOICE_IS(BLIST_CHOICE_SAVE)
+#define BLIST_CHOICE_IS_NONE() BLIST_CHOICE_IS(BLIST_CHOICE_NONE)
+#define BLIST_CHOICE_IS_LOAD() BLIST_CHOICE_IS(BLIST_CHOICE_LOAD)
+#define BLIST_CHOICE_IS_SAVE() BLIST_CHOICE_IS(BLIST_CHOICE_SAVE)
 
 
 /** warning text placed next to plugin option */
@@ -483,7 +483,7 @@ static void save_blist(GaimConnection *gc) {
   g_return_if_fail(storage != NULL);
 
   /* check if we should do this, according to user prefs */
-  if(! BLIST_CHOICE_IS_SAVE) {
+  if(! BLIST_CHOICE_IS_SAVE()) {
     DEBUG_INFO("preferences indicate not to save remote blist\n");
     return;
   }
@@ -528,7 +528,7 @@ static void import_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
   GList *gl, *gtl, *ul, *utl;
 
   /* check our preferences for loading */
-  if(BLIST_CHOICE_IS_NONE) {
+  if(BLIST_CHOICE_IS_NONE()) {
     DEBUG_INFO("preferences indicate not to load remote buddy list\n");
     return;
   }

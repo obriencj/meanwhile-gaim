@@ -1,11 +1,11 @@
 
-version 0.81  Chris O'Brien  <siege@preoccupied.net>
+version 0.81 (2004-08-06)
 
 	- Changed away status handling to strip the HTML from the away
 	message, making multi-line messages display correctly.
 	
-	- Changed all logging functions to GAIM_DEBUG calls (patch by
-	Stephen Dawkins)
+	- Changed all logging to gaim_debug calls (patch by Stephen
+	Dawkins)
 	
 version 0.80  Chris O'Brien  <siege@preoccupied.net>
 
@@ -28,11 +28,11 @@ version 0.79  Chris O'Brien  <siege@preoccupied.net>
 
 	* mwgaim.c: prpl_info structure includes new icon spec field
 	
-	2004-06-16: Patches from nosnilmot to sync up with changes to
-	Gaim CVS, and to add some options to the configure script
+	2004-06-16: Patches from nosnilmot to sync up with changes to Gaim
+	CVS, and to add some options to the configure script
 
-	* mwgaim.c: mw_list_status_text had a C99-ism that needed to
-	be removed. mw_add_buddy, mw_add_buddies, mw_remove_buddy, and
+	* mwgaim.c: mw_list_status_text had a C99-ism that needed to be
+	removed. mw_add_buddy, mw_add_buddies, mw_remove_buddy, and
 	mw_remove_buddies added GaimGroup params
 
 	* mwgaim.h: pretty unnecessary, so removed.

@@ -1,4 +1,6 @@
 
+# this doesn't perfectly describe where to find the gaim plugin dir,
+# but it's the best I can currently come up with
 pkgdir = $(libdir)/gaim
 
 pkg_LTLIBRARIES = libmwgaim.la
@@ -6,15 +8,16 @@ pkg_LTLIBRARIES = libmwgaim.la
 libmwgaim_la_SOURCES = mwgaim.c
 
 libmwgaim_la_CFLAGS = \
-	-Wall -Werror \
-	$(GLIB_CFLAGS) $(GAIM_CFLAGS) $(MEANWHILE_CFLAGS)
+	$(DEBUG_CFLAGS) \
+	$(GLIB_CFLAGS) \
+	$(GAIM_CFLAGS) $(MEANWHILE_CFLAGS)
 
-libmwgaim_la_LDFLAGS = -module -avoid-version -no-undefined
+libmwgaim_la_LDFLAGS = \
+	-module -avoid-version -no-undefined
 
-#TODO remove -lmeanwhile when using meanwhile >= 0.4
 libmwgaim_la_LIBADD = \
-	$(GLIB_LIBS) $(GAIM_LIBS) \
-	$(MEANWHILE_LIBS) -lmeanwhile
+	$(GLIB_LIBS) \
+	$(GAIM_LIBS) $(MEANWHILE_LIBS)
 
 AM_CPPFLAGS = \
 	-DG_LOG_DOMAIN=\"@PACKAGE@\" \

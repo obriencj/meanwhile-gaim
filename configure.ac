@@ -66,7 +66,7 @@ export PKG_CONFIG_PATH
 
 
 
-dnl debug mode
+# debug mode
 AC_ARG_ENABLE(debug,
 	[  --enable-debug	  compile with debugging support],,
 	enable_debug=no)
@@ -77,7 +77,7 @@ fi
 
 
 
-dnl Check for Gaim
+# Check for Gaim
 PKG_CHECK_MODULES(GAIM, gaim,
 [
 	AC_DEFINE(HAVE_GAIM, 1, [Define if we've found gaim.])
@@ -87,7 +87,7 @@ AC_SUBST(GAIM_CFLAGS)
 
 
 
-dnl Check for Meanwhile
+# Check for Meanwhile
 PKG_CHECK_MODULES(MEANWHILE, meanwhile,
 [
 	AC_DEFINE(HAVE_MEANWHILE, 1, [Define if we've found meanwhile.])
@@ -98,7 +98,7 @@ AC_SUBST(MEANWHILE_LIBS)
 
 
 
-dnl Check for GLib
+# Check for GLib
 AM_PATH_GLIB_2_0(2.0.0,,AC_MSG_ERROR([
 *** GLib 2.0 is required.]))
 

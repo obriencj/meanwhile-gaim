@@ -87,6 +87,7 @@
 #define CHAT_KEY_INVITE   "chat.invite"
 
 
+/* key for associating a mwLoginType with a buddy */
 #define BUDDY_KEY_CLIENT  "buddy.client"
 
 

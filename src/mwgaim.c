@@ -253,7 +253,7 @@ static void mw_read_callback(gpointer data, gint source,
     len = os_read(h->sock_fd, buf, len);
     if(len > 0) {
       gaim_debug_info(G_LOG_DOMAIN, "read %i bytes\n", len);
-      mwSession_recv(session, buf, (unsigned int) len);
+      mwSession_recv(session, buf, (gsize) len);
       return;
     }
   }
@@ -727,7 +727,7 @@ static void got_invite(struct mwConference *conf, struct mwIdBlock *id,
 
 
 static void got_welcome(struct mwConference *conf, struct mwIdBlock *members,
-			unsigned int count) {
+			gsize count) {
 
   GaimConnection *gc = SESSION_TO_GC(conf->channel->session);
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);

@@ -3419,6 +3419,7 @@ static void remote_group_done(struct mwGaimPluginData *pd,
   gaim_blist_add_group(group, NULL);
 
   add_group(pd, group);
+  blist_schedule(pd);
 }
 
 

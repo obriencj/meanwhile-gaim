@@ -1,7 +1,10 @@
 
 version 0.79  Chris O'Brien  <siege@preoccupied.net>
 
-	2004-06-23: The server-side buddy list is now imported on login.
+	2004-06-23: The server-side buddy list is now imported on
+	login. Had to work around an apparent bug in the mw_add_buddy
+	call, in that the GaimGroup param was sometimes NULL. This caused
+	much consternation.
 	
 	2004-06-21: Changes to work with evolving Meanwhile API. Gaim is
 	in string-freeze for a 0.79 release targeted for the 24th.

@@ -1026,9 +1026,11 @@ static struct mwAwareList *ensure_list(GaimConnection *gc, GaimGroup *group) {
 
   list = (struct mwAwareList *) g_hash_table_lookup(pd->list_map, group);
   if(! list) {
+
+    g_message("creating aware list for group %s", group->name);
     list = mwAwareList_new(pd->srvc_aware);
     mwAwareList_setOnAware(list, got_aware, gc);
-    g_hash_table_insert(pd->list_map, group, list);
+    g_hash_table_replace(pd->list_map, group, list);
   }
   
   return list;
@@ -1039,8 +1041,11 @@ static void mw_add_buddy(GaimConnection *gc,
 			 GaimBuddy *buddy, GaimGroup *group) {
 
   struct mwAwareIdBlock t = { mwAware_USER, (char *) buddy->name, NULL };
-  struct mwAwareList *list = ensure_list(gc, group);
-  
+  struct mwAwareList *list;
+
+  GaimGroup *found = gaim_find_buddys_group(buddy);
+  list = ensure_list(gc, found);
+
   mwAwareList_addAware(list, &t, 1);
 }
 
@@ -1050,6 +1055,9 @@ static void mw_remove_buddy(GaimConnection *gc,
   
   struct mwAwareIdBlock t = { mwAware_USER, (char *) buddy->name, NULL };
   struct mwAwareList *list = ensure_list(gc, group);
+
+  GaimGroup *found = gaim_find_buddys_group(buddy);
+  list = ensure_list(gc, found);
 
   mwAwareList_removeAware(list, &t, 1);
 }

@@ -84,7 +84,7 @@
 #define MW_STATE_BUSY     _("Do Not Disturb")
 #define MW_STATE_IDLE     _("Idle")
 #define MW_STATE_UNKNOWN  _("Unknown")
-#define MW_STATE_ENLIGHTENED  _("Buddha")
+#define MW_STATE_ENLIGHTENED  "Buddha"
 
 
 /* keys to get/set chat information */
@@ -97,9 +97,13 @@
 /* key for associating a mwLoginType with a buddy */
 #define BUDDY_KEY_CLIENT  "meanwhile.client"
 
+/* store the remote alias so that we can re-create it easily */
+#define BUDDY_KEY_NAME  "meanwhile.shortname"
+
 /* key for the real group name for a meanwhile group */
 #define GROUP_KEY_NAME  "meanwhile.group"
 
+/* key gtk blist uses to indicate a collapsed group */
 #define GROUP_KEY_COLLAPSED  "collapsed"
 
 
@@ -130,6 +134,9 @@
 
 /** blist storage option, load and save to server */
 #define BLIST_CHOICE_SAVE  3
+
+/** the default blist storage option */
+#define BLIST_CHOICE_DEFAULT BLIST_CHOICE_SAVE
 
 
 /* testing for the above */
@@ -400,7 +407,7 @@ static void export_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
 	  stu = mwSametimeUser_new(stg, mwSametimeUser_NORMAL, &idb);
 	  mwSametimeUser_setShortName(stu, bdy->server_alias);
 	  mwSametimeUser_setAlias(stu, bdy->alias);
-	}	
+	}
       }
     }
   }  
@@ -520,7 +527,9 @@ static GaimBuddy *ensure_buddy(GaimConnection *gc, GaimGroup *group,
   }
   
   gaim_blist_alias_buddy(buddy, alias);
+
   gaim_blist_server_alias_buddy(buddy, name);
+  gaim_blist_node_set_string((GaimBlistNode *) buddy, BUDDY_KEY_NAME, name);
 
   return buddy;
 }
@@ -1765,10 +1774,6 @@ static struct mwGaimPluginData *mwGaimPluginData_new(GaimConnection *gc) {
 
   g_return_val_if_fail(gc != NULL, NULL);
 
-  printf("mwGaimPluginData_new (printf)\n");
-  DEBUG_INFO("mwGaimPluginData_new (gaim_info)\n");
-  g_warning("mwGaimPluginData_new (g_warning)");
-
   pd = g_new0(struct mwGaimPluginData, 1);
   pd->gc = gc;
   pd->session = mwSession_new(&mw_session_handler);
@@ -2274,8 +2279,8 @@ static void add_resolved_done(const char *id, const char *name,
 
   gaim_blist_rename_buddy(buddy, id);
   
-  g_free(buddy->server_alias);
-  buddy->server_alias = name? g_strdup(name): NULL;
+  gaim_blist_server_alias_buddy(buddy, name);
+  gaim_blist_node_set_string((GaimBlistNode *) buddy, BUDDY_KEY_NAME, name);
   
   add_buddy(pd, buddy);
 }
@@ -2500,7 +2505,14 @@ static void mw_prpl_add_buddies(GaimConnection *gc,
      moving groups around */
 
   while(buddies) {
-    add_buddy(pd, buddies->data);
+    GaimBuddy *b = buddies->data;
+    const char *fn;
+
+    /* nab the saved server alias and stick it on the buddy */
+    fn = gaim_blist_node_get_string((GaimBlistNode *) b, BUDDY_KEY_NAME);
+    gaim_blist_server_alias_buddy(b, fn);
+
+    add_buddy(pd, b);
 
     buddies = buddies->next;
     groups = groups->next;
@@ -3249,7 +3261,7 @@ static void mw_plugin_init(GaimPlugin *plugin) {
 
   /* set up the prefs for blist options */
   gaim_prefs_add_none(MW_PRPL_OPT_BASE);
-  gaim_prefs_add_int(MW_PRPL_OPT_BLIST_ACTION, BLIST_CHOICE_NONE);
+  gaim_prefs_add_int(MW_PRPL_OPT_BLIST_ACTION, BLIST_CHOICE_DEFAULT);
   gaim_prefs_add_bool(MW_PRPL_OPT_PSYCHIC, FALSE);
 
   /* forward all our g_log messages to gaim. Generally all the logging

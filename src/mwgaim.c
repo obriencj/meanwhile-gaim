@@ -2511,8 +2511,6 @@ static void add_buddy_resolved(struct mwServiceResolve *srvc,
   GaimConnection *gc;
   struct mwGaimPluginData *pd;
 
-  DEBUG_INFO("add_buddy_resolved\n");
-
   gc = gaim_account_get_connection(buddy->account);
   pd = gc->proto_data;
 
@@ -2522,6 +2520,9 @@ static void add_buddy_resolved(struct mwServiceResolve *srvc,
     if(res->matches) {
       if(g_list_length(res->matches) == 1) {
 	struct mwResolveMatch *match = res->matches->data;
+
+	DEBUG_INFO("searched for %s, got only %s\n",
+		   res->name, match->id);
 
 	/* only one? that might be the right one! */
 	if(strcmp(res->name, match->id)) {
@@ -2552,12 +2553,13 @@ static void add_buddy_resolved(struct mwServiceResolve *srvc,
   gaim_blist_remove_buddy(buddy);
   blist_schedule(pd);
 
-  { /* compose and display an error message */
+  if(res->name) {
+    /* compose and display an error message */
     char *msgA, *msgB;
 
     msgA = "Unable to add user: user not found.";
 
-    msgB = ("The identifier '%s' did not match any users in the"
+    msgB = ("The identifier '%s' did not match any users in your"
 	   " Sametime community. This entry has been removed from"
 	   " your buddy list.");
     msgB = g_strdup_printf(msgB, res->name);

@@ -1,6 +1,6 @@
 
 AC_INIT
-AM_INIT_AUTOMAKE(gaim-meanwhile, 0.80)
+AM_INIT_AUTOMAKE(gaim-meanwhile, 0.81)
 
 RELEASE=cvs
 AC_SUBST(RELEASE)

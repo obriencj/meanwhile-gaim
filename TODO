@@ -1,0 +1,8 @@
+
+Add protocol action "Get Server Info"
+ - fqdn, IP
+ - server ID
+ - server versioning
+ - connected since ...
+
+

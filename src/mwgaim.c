@@ -166,7 +166,10 @@ struct mw_plugin_data {
   struct mwSession *session;
 
   struct mwServiceIM *srvc_im;
+
   struct mwServiceAware *srvc_aware;
+  struct mwAwareList *aware_list;
+
   struct mwServiceConf *srvc_conf;
 
   GHashTable *convo_map;
@@ -271,7 +274,7 @@ static void mw_login_callback(gpointer data, gint source,
   session->handler = (struct mwSessionHandler *) h;
 
   gc->inpa = gaim_input_add(source, GAIM_INPUT_READ, mw_read_callback, gc);
-  mwSession_initConnect(session);
+  mwSession_start(session);
 }
 
 
@@ -298,7 +301,7 @@ static void on_initConnect(struct mwSession *s) {
   GaimConnection *gc = SESSION_TO_GC(s);
 
   gaim_connection_update_progress(gc, MW_CONNECT_2, 2, MW_CONNECT_STEPS);
-  initConnect_sendHandshake(s);
+  onStart_sendHandshake(s);
 }
 
 
@@ -315,7 +318,7 @@ static void on_handshakeAck(struct mwSession *s,
   GaimConnection *gc = SESSION_TO_GC(s);
 
   gaim_connection_update_progress(gc, MW_CONNECT_4, 4, MW_CONNECT_STEPS);
-  handshakeAck_sendLogin(s, msg);
+  onHandshakeAck_sendLogin(s, msg);
 }
 
 
@@ -328,10 +331,17 @@ static void on_login(struct mwSession *s, struct mwMsgLogin *msg) {
 
 static void on_loginAck(struct mwSession *s, struct mwMsgLoginAck *msg) {
   GaimConnection *gc = SESSION_TO_GC(s);
+  struct mw_plugin_data *pd = (struct mw_plugin_data *) gc->proto_data;
 
   gaim_connection_update_progress(gc, MW_CONNECT_6, 6, MW_CONNECT_STEPS);
   gaim_connection_set_state(gc, GAIM_CONNECTED);
   serv_finish_login(gc);
+
+  /* later this won't be necessary, as the session will auto-start
+     services on receipt of the service available message */
+  mwService_start(MW_SERVICE(pd->srvc_aware));
+  mwService_start(MW_SERVICE(pd->srvc_conf));
+  mwService_start(MW_SERVICE(pd->srvc_im));
 }
 
 
@@ -429,11 +439,10 @@ static void got_typing(struct mwServiceIM *srvc,
 }
 
 
-static void update_buddy(struct mwSession *s,
-			 struct mwSnapshotAwareIdBlock *idb) {
+static void got_aware(struct mwAwareList *list,
+		      struct mwSnapshotAwareIdBlock *idb, gpointer data) {
 
-  GaimConnection *gc = SESSION_TO_GC(s);
-
+  GaimConnection *gc = (GaimConnection *) data;
   time_t idle = 0;
 
   /* deadbeef or 0 from the client means not idle (unless the status
@@ -455,14 +464,6 @@ static void update_buddy(struct mwSession *s,
 
   serv_got_update(gc, idb->id.user, idb->online,
 		  0, 0, idle, idb->status.status);
-}
-
-
-static void got_aware(struct mwServiceAware *srvc,
-		      struct mwSnapshotAwareIdBlock *idb, unsigned int c) {
-
-  struct mwSession *s = srvc->service.session;
-  while(c--) update_buddy(s, idb + c);
 }
 
 
@@ -592,6 +593,7 @@ static void mw_login(GaimAccount *acct) {
   struct mw_plugin_data *pd;
   struct mwSession *session;
   struct mwServiceAware *srvc_aware;
+  struct mwAwareList *aware_list;
   struct mwServiceIM *srvc_im;
   struct mwServiceConf *srvc_conf;
   
@@ -608,8 +610,8 @@ static void mw_login(GaimAccount *acct) {
   session->on_handshakeAck = on_handshakeAck;
   session->on_login = on_login;
   session->on_loginAck = on_loginAck;
-  session->on_initConnect = on_initConnect;
-  session->on_closeConnect = on_closeConnect;
+  session->on_start = on_initConnect;
+  session->on_stop = on_closeConnect;
   session->on_setUserStatus = on_setUserStatus;
   session->on_admin = on_admin;
 
@@ -619,8 +621,10 @@ static void mw_login(GaimAccount *acct) {
 
   /* aware service and call-backs */
   pd->srvc_aware = srvc_aware = mwServiceAware_new(session);
-  srvc_aware->got_aware = got_aware;
   mwSession_putService(session, (struct mwService *) srvc_aware);
+
+  pd->aware_list = aware_list = mwAwareList_new(srvc_aware);
+  mwAwareList_setOnAware(aware_list, got_aware, gc);
 
   /* im service and call-backs */
   pd->srvc_im = srvc_im = mwServiceIM_new(session);
@@ -663,12 +667,12 @@ static void mw_close(GaimConnection *gc) {
 
   session = GC_TO_SESSION(gc);
   if(session) {
-    mwSession_closeConnect(session, ERR_SUCCESS);
+    mwSession_stop(session, ERR_SUCCESS);
     
     /* we created it, so we need to clean it up */
     g_free(session->handler);
     session->handler = NULL;
-    mwSession_free(&session);
+    mwSession_free(session);
   }
 
   gc->proto_data = NULL;
@@ -745,7 +749,7 @@ static char *mw_status_text(GaimBuddy *b) {
 static char *mw_list_status_text(GaimBuddy *b) {
   GaimConnection *gc = b->account->gc;
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
-  struct mwIdBlock i = { b->name, NULL};
+  struct mwAwareIdBlock i = { mwAware_USER, b->name, NULL };
   const char *t;
 
   t = mwServiceAware_getText(pd->srvc_aware, &i);
@@ -757,7 +761,7 @@ static char *mw_tooltip_text(GaimBuddy *b) {
   GaimConnection *gc = b->account->gc;
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
 
-  struct mwIdBlock t = { b->name, NULL };
+  struct mwAwareIdBlock t = { mwAware_USER, b->name, NULL };
 
   char *stat, *ret;
   stat = mw_status_text(b);
@@ -903,30 +907,31 @@ static void mw_add_buddy(GaimConnection *gc, GaimBuddy *buddy,
 			 GaimGroup *group) {
 
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
+  struct mwAwareIdBlock t = { mwAware_USER, (char *) buddy->name, NULL };
 
-  /* later support name@community splits */
-  struct mwIdBlock t = { (char *) buddy->name, NULL };
-
-  mwServiceAware_add(pd->srvc_aware, &t, 1);
+  mwAwareList_addAware(pd->aware_list, &t, 1);
 }
 
 
-static void mw_add_buddies(GaimConnection *gc, GList *buddies,
-			  GList *groups) {
-  GaimBuddy *buddy;
+static void mw_add_buddies(GaimConnection *gc,
+			   GList *buddies, GList *groups) {
+
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
   unsigned int count, c;
-  struct mwIdBlock *t;
+  struct mwAwareIdBlock *t;
 
   count = g_list_length(buddies);
-  t = g_new0(struct mwIdBlock, count);
+  t = g_new0(struct mwAwareIdBlock, count);
 
   for(c = count; c--; buddies = buddies->next) {
-	buddy = buddies->data;
-    (t + c)->user = buddy->name;
+    struct mwAwareIdBlock *b = t + c;
+    GaimBuddy *buddy = (GaimBuddy *) buddies->data;
+
+    b->type = mwAware_USER;
+    b->user = buddy->name;
   }
   
-  mwServiceAware_add(pd->srvc_aware, t, count);
+  mwAwareList_addAware(pd->aware_list, t, count);
   g_free(t);
 }
 
@@ -935,30 +940,31 @@ static void mw_remove_buddy(GaimConnection *gc,
 			    GaimBuddy *buddy, GaimGroup *group) {
   
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
+  struct mwAwareIdBlock t = { mwAware_USER, (char *) buddy->name, NULL };
 
-  /* later support name@community splits */
-  struct mwIdBlock t = { (char *) buddy->name, NULL };
-
-  mwServiceAware_remove(pd->srvc_aware, &t, 1);
+  mwAwareList_removeAware(pd->aware_list, &t, 1);
 }
 
 
-static void mw_remove_buddies(GaimConnection *gc, GList *buddies,
-			      GList *groups) {
-  GaimBuddy *buddy;
+static void mw_remove_buddies(GaimConnection *gc,
+			      GList *buddies, GList *groups) {
+
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
   unsigned int count, c;
-  struct mwIdBlock *t;
+  struct mwAwareIdBlock *t;
 
   count = g_list_length(buddies);
-  t = g_new0(struct mwIdBlock, count);
+  t = g_new0(struct mwAwareIdBlock, count);
 
   for(c = count; c--; buddies = buddies->next) {
-	buddy = buddies->data;
-    (t + c)->user = (char *) buddy->name;
+    struct mwAwareIdBlock *b = t + c;
+    GaimBuddy *buddy = buddies->data;
+
+    b->type = mwAware_USER;
+    b->user = buddy->name;
   }
   
-  mwServiceAware_remove(pd->srvc_aware, t, count);
+  mwAwareList_removeAware(pd->aware_list, t, count);
   g_free(t);
 }
 

@@ -147,8 +147,12 @@ AC_SUBST(MEANWHILE_LIBS)
 
 
 # Check for GLib
-AM_PATH_GLIB_2_0(2.0.0,,AC_MSG_ERROR([
-*** GLib 2.0 is required.]))
+PKG_CHECK_MODULES(GLIB,
+[glib-2.0 >= 2.0.0],
+[
+	AC_DEFINE(HAVE_GLIB, 1, [Define if we've found glib.])
+])
+
 
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)

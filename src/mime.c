@@ -287,14 +287,22 @@ static void doc_parts_load(GaimMimeDocument *doc,
   gsize bl;
 
   bnd = g_strdup_printf("--%s", boundary);
-  bl = strlen(bnd) + 2; /* skip the trailing \r\n as well */
+  bl = strlen(bnd);
 
   while( (b = g_strstr_len(b, n, bnd)) ) {
     char *tail;
 
+    /* skip the boundary */
     b += bl;
     n -= bl;
 
+    /* skip the trailing \r\n or -- as well */
+    if(n >= 2) {
+      b += 2;
+      n -= 2;
+    }
+
+    /* find the next boundary */
     tail = g_strstr_len(b, n, bnd);
 
     if(tail) {

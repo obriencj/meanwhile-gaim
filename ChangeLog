@@ -3,6 +3,8 @@ version 1.0.2.99 (cvs)
 
 	- slightly better handling of server_alias data from loading of
 	buddy list from server
+
+	- patch #1076834 Away/available state and debug logging
 	
 version 1.0.2 (2004-11-09)
 	

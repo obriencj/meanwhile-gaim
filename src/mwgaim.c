@@ -71,7 +71,6 @@ USA. */
 
 
 /* stages of conciousness */
-#define UC_NORMAL  0x10
 #define MW_STATE_OFFLINE  _("Offline")
 #define MW_STATE_ACTIVE   _("Active")
 #define MW_STATE_AWAY     _("Away")
@@ -784,11 +783,12 @@ static void got_aware(struct mwAwareList *list,
 
   GaimConnection *gc = (GaimConnection *) data;
   time_t idle = 0;
+  guint type = idb->status.status;
 
+#if 0
   /* deadbeef or 0 from the client means not idle (unless the status
      indicates otherwise), but deadbeef to the blist causes idle with
      no time */
-#if 0
   unsigned int i = idb->status.time;
 
   if( (idb->status.status == mwStatus_IDLE) ||
@@ -798,12 +798,17 @@ static void got_aware(struct mwAwareList *list,
   }
 #endif
 
-  /* idle times unused until fixed in a later release */
-  if(idb->status.status == mwStatus_IDLE)
+  if(type == mwStatus_IDLE) {
+    /* idle times unused until fixed in a later release */
     idle = -1;
 
-  serv_got_update(gc, idb->id.user, idb->online,
-		  0, 0, idle, idb->status.status);
+  } else if(type == mwStatus_AWAY || type == mwStatus_BUSY) {
+    /* flip that extra bit so that that gaim core knows these count as
+       'unavailable' status */
+    type |= UC_UNAVAILABLE;
+  }
+  
+  serv_got_update(gc, idb->id.user, idb->online, 0, 0, idle, type);
 }
 
 
@@ -1071,9 +1076,9 @@ static void mw_blist_emblems(GaimBuddy *b,
 
   if(! GAIM_BUDDY_IS_ONLINE(b)) {
     *se = "offline";
-  } else if(status == mwStatus_AWAY) {
+  } else if(status == (mwStatus_AWAY | UC_UNAVAILABLE)) {
     *se = "away";
-  } else if(status == mwStatus_BUSY) {
+  } else if(status == (mwStatus_BUSY | UC_UNAVAILABLE)) {
     *se = "dnd";
   }
 }
@@ -1085,13 +1090,13 @@ static char *mw_status_text(GaimBuddy *b) {
 
   if(! GAIM_BUDDY_IS_ONLINE(b) ) {
     ret = MW_STATE_OFFLINE;
-  } else if( status == mwStatus_AWAY) {
+  } else if(status == (mwStatus_AWAY | UC_UNAVAILABLE)) {
     ret = MW_STATE_AWAY;
-  } else if( status == mwStatus_BUSY) {
+  } else if(status == (mwStatus_BUSY | UC_UNAVAILABLE)) {
     ret = MW_STATE_BUSY;
-  } else if( status == mwStatus_IDLE) {
+  } else if(status == mwStatus_IDLE) {
     ret = MW_STATE_IDLE;
-  } else if( status == mwStatus_ACTIVE) {
+  } else if(status == mwStatus_ACTIVE) {
     ret = MW_STATE_ACTIVE;
   } else {
     ret = MW_STATE_UNKNOWN;
@@ -1531,13 +1536,26 @@ static GaimPluginInfo info = {
 };
 
 
-#if defined(_WIN32) && !defined(DEBUG) 
-/* quiet down win32 builds, to keep a DOS window from opening */
-static void dummy_log_handler(const gchar *d, GLogLevelFlags flags,
+static void debug_log_handler(const gchar *d, GLogLevelFlags flags,
 			      const gchar *m, gpointer data) {
+#if defined(DEBUG)
+  gchar *nl = g_strconcat(m, "\n", NULL);
+
+  /* handle g_log requests via gaim's built-in debug logging */
+  if(flags & G_LOG_LEVEL_ERROR) {
+    gaim_debug_error(d, nl);
+  } else if(flags & G_LOG_LEVEL_WARNING) {
+    gaim_debug_warning(d, nl);
+  } else {
+    gaim_debug_info(d, nl);
+  }
+
+  g_free(nl);
+  
+#else
   ; /* nothing at all */
-}
 #endif
+}
 
 
 static void init_plugin(GaimPlugin *plugin) {
@@ -1555,16 +1573,13 @@ static void init_plugin(GaimPlugin *plugin) {
   gaim_prefs_add_none(MW_PRPL_OPT_BASE);
   gaim_prefs_add_int(MW_PRPL_OPT_BLIST_ACTION, BLIST_CHOICE_NONE);
 
-  /* silence plugin and meanwhile library logging for win32 
-		 sd, where debugging isn't enabled */
-#if defined(_WIN32) && !defined(DEBUG)
+  /* use gaim's debug logging */
   g_log_set_handler(G_LOG_DOMAIN,
 		    G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION,
-		    dummy_log_handler, NULL);
+		    debug_log_handler, NULL);
   g_log_set_handler("meanwhile",
 		    G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION,
-		    dummy_log_handler, NULL);
-#endif
+		    debug_log_handler, NULL);
 }
 
 

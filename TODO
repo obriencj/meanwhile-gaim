@@ -5,4 +5,17 @@ Add protocol action "Get Server Info"
  - server versioning
  - connected since ...
 
+Cache Client ID (mwLoginType) in GaimBuddy
+ - display in buddy info
+
+Feature detection in Aware Service
+ - display in buddy info
+
+Check user_add against Resolve service
+ - call-back to actual add
+ - only on single-user additions, multi-user gets no checking
+
+Conditional compilation
+ - buddy search feature and dialogue
+   --enable-search
 

@@ -81,10 +81,13 @@
 
 
 /* keys to get/set chat information */
-#define CHAT_CREATOR_KEY  "chat_creator"
-#define CHAT_NAME_KEY     "chat_name"
-#define CHAT_TOPIC_KEY    "chat_topic"
-#define CHAT_INVITE_KEY   "chat_invite"
+#define CHAT_KEY_CREATOR  "chat.creator"
+#define CHAT_KEY_NAME     "chat.name"
+#define CHAT_KEY_TOPIC    "chat.topic"
+#define CHAT_KEY_INVITE   "chat.invite"
+
+
+#define BUDDY_KEY_CLIENT  "buddy.client"
 
 
 /* keys to get/set gaim plugin information */
@@ -589,16 +592,16 @@ static void mw_conf_invited(struct mwConference *conf,
   ht = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_free);
 
   c_inviter = g_strdup(inviter->user_id);
-  g_hash_table_insert(ht, CHAT_CREATOR_KEY, c_inviter);
+  g_hash_table_insert(ht, CHAT_KEY_CREATOR, c_inviter);
 
   c_name = g_strdup(mwConference_getName(conf));
-  g_hash_table_insert(ht, CHAT_NAME_KEY, c_name);
+  g_hash_table_insert(ht, CHAT_KEY_NAME, c_name);
 
   c_topic = g_strdup(mwConference_getTitle(conf));
-  g_hash_table_insert(ht, CHAT_TOPIC_KEY, c_topic);
+  g_hash_table_insert(ht, CHAT_KEY_TOPIC, c_topic);
 
   c_invitation = g_strdup(invitation);
-  g_hash_table_insert(ht, CHAT_INVITE_KEY, c_invitation);
+  g_hash_table_insert(ht, CHAT_KEY_INVITE, c_invitation);
 
   DEBUG_INFO("received invitation from '%s' to join ('%s','%s'): '%s'\n",
 	     c_inviter, c_name, c_topic, c_invitation);
@@ -929,6 +932,16 @@ static void mw_conversation_opened(struct mwConversation *conv) {
       mwConversation_close(conv, ERR_SUCCESS);
 
   } else {
+    GaimBuddy *buddy;
+    struct mwLoginInfo *info;
+    info = mwConversation_getTargetInfo(conv);
+
+    buddy = gaim_find_buddy(acct, info->user_id);
+    if(buddy) {
+      gaim_blist_node_set_int((GaimBlistNode *) buddy,
+			      BUDDY_KEY_CLIENT, info->type);
+    }
+
     convo_data_new(conv);
     /* @todo psychic mode */
   }
@@ -1287,7 +1300,7 @@ static GList *mw_prpl_chat_info(GaimConnection *gc) {
   
   pce = g_new0(struct proto_chat_entry, 1);
   pce->label = "Topic:";
-  pce->identifier = CHAT_TOPIC_KEY;
+  pce->identifier = CHAT_KEY_TOPIC;
   l = g_list_append(l, pce);
   
   return l;
@@ -1678,23 +1691,60 @@ ensure_list(struct mwGaimPluginData *pd, GaimGroup *group) {
 }
 
 
-static void mw_prpl_add_buddy(GaimConnection *gc,
-			      GaimBuddy *buddy, GaimGroup *group) {
+static void add_buddy_resolved(struct mwServiceResolve *srvc,
+			       guint32 id, guint32 code, GList *results,
+			       gpointer buddy) {
 
-  struct mwGaimPluginData *pd;
+  /* if we couldn't find a matching buddy in the resolve service, then
+     we remove this buddy */
+  if(! code) gaim_blist_remove_buddy(buddy);
+}
+
+
+static void add_buddy(struct mwGaimPluginData *pd,
+		      GaimBuddy *buddy, GaimGroup *group) {
+
   struct mwAwareIdBlock idb = { mwAware_USER, (char *) buddy->name, NULL };
   struct mwAwareList *list;
 
   GList *add = g_list_prepend(NULL, &idb);
 
-  pd = gc->proto_data;
   group = gaim_find_buddys_group(buddy);
   list = ensure_list(pd, group);
 
-  mwAwareList_addAware(list, add);
-  blist_save(pd);
+  if(mwAwareList_addAware(list, add)) {
+    blist_save(pd);
+  } else {
+    gaim_blist_remove_buddy(buddy);
+  }
 
-  g_list_free(add);
+  g_list_free(add);  
+}
+
+
+static void mw_prpl_add_buddy(GaimConnection *gc,
+			      GaimBuddy *buddy, GaimGroup *group) {
+
+  struct mwGaimPluginData *pd;
+  struct mwServiceResolve *srvc;
+  GList *query;
+  enum mwResolveFlag flags;
+  guint32 req;
+
+  pd = gc->proto_data;
+  srvc = pd->srvc_resolve;
+
+  query = g_list_prepend(NULL, buddy->name);
+  flags = mwResolveFlag_FIRST | mwResolveFlag_USERS;
+
+  req = mwServiceResolve_resolve(srvc, query, flags, add_buddy_resolved,
+				 buddy, NULL);
+
+  if(req == SEARCH_ERROR) {
+    gaim_blist_remove_buddy(buddy);
+  } else {
+    add_buddy(pd, buddy, group);
+  }
 }
 
 
@@ -1773,7 +1823,7 @@ static void mw_prpl_join_chat(GaimConnection *gc,
   pd = gc->proto_data;
   srvc = pd->srvc_conf;
 
-  c = g_hash_table_lookup(components, CHAT_NAME_KEY);
+  c = g_hash_table_lookup(components, CHAT_KEY_NAME);
 
   if(c) {
     DEBUG_INFO("accepting conference invitation\n");
@@ -1782,7 +1832,7 @@ static void mw_prpl_join_chat(GaimConnection *gc,
 
   } else {
     DEBUG_INFO("creating new conference\n");
-    c = g_hash_table_lookup(components, CHAT_TOPIC_KEY);
+    c = g_hash_table_lookup(components, CHAT_KEY_TOPIC);
     conf = mwConference_new(srvc, c);
     mwConference_open(conf);
   }
@@ -1799,7 +1849,7 @@ static void mw_prpl_reject_chat(GaimConnection *gc,
   pd = gc->proto_data;
   srvc = pd->srvc_conf;
 
-  c = g_hash_table_lookup(components, CHAT_NAME_KEY);
+  c = g_hash_table_lookup(components, CHAT_KEY_NAME);
   if(c) {
     struct mwConference *conf = conf_find(srvc, c);
     if(conf) mwConference_reject(conf, ERR_SUCCESS, "Declined");
@@ -1808,7 +1858,7 @@ static void mw_prpl_reject_chat(GaimConnection *gc,
 
 
 static char *mw_prpl_get_chat_name(GHashTable *components) {
-  return g_hash_table_lookup(components, CHAT_NAME_KEY);
+  return g_hash_table_lookup(components, CHAT_KEY_NAME);
 }
 
 

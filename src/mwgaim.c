@@ -1481,7 +1481,7 @@ static void mw_conversation_opened(struct mwConversation *conv) {
     convo_queue_send(conv);
   
     if(! convo_get_gconv(conv)) {
-      mwConversation_close(conv, ERR_SUCCESS);
+      mwConversation_free(conv);
       return;
     }
 
@@ -1920,11 +1920,10 @@ static const char *status_text(GaimBuddy *b) {
 static char *mw_prpl_tooltip_text(GaimBuddy *b) {
   GaimConnection *gc;
   struct mwGaimPluginData *pd;
-  struct mwAwareIdBlock t = { mwAware_USER, b->name, NULL };
+  struct mwAwareIdBlock idb = { mwAware_USER, b->name, NULL };
 
   GString *str;
   const char *tmp;
-  guint32 type;
 
   gc = b->account->gc;
   pd = gc->proto_data;
@@ -1934,18 +1933,8 @@ static char *mw_prpl_tooltip_text(GaimBuddy *b) {
   tmp = status_text(b);
   g_string_append_printf(str, "\n<b>Status:</b> %s", tmp);
 
-  tmp = mwServiceAware_getText(pd->srvc_aware, &t);
+  tmp = mwServiceAware_getText(pd->srvc_aware, &idb);
   if(tmp) g_string_append_printf(str, "\n<b>Message</b>: %s", tmp);
-
-  type = gaim_blist_node_get_int((GaimBlistNode *) b, BUDDY_KEY_CLIENT);
-  if(type) {
-    tmp = mwLoginType_getName(type);
-    if(tmp) {
-      g_string_append_printf(str, "\n<b>Client</b>: %s", tmp);
-    } else {
-      g_string_append_printf(str, "\n<b>Client ID</b>: 0x%04x", type);
-    }
-  }
 
   tmp = str->str;
   g_string_free(str, FALSE);
@@ -2073,9 +2062,6 @@ static void mw_prpl_close(GaimConnection *gc) {
   pd = gc->proto_data;
   g_return_if_fail(pd != NULL);
 
-  /* stop watching for conversations */
-  ;
-
   /* get rid of the blist save timeout */
   if(pd->save_event) {
     gaim_timeout_remove(pd->save_event);
@@ -2168,7 +2154,7 @@ static int mw_prpl_send_typing(GaimConnection *gc, const char *name,
 static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
 
   struct mwGaimPluginData *pd;
-  struct mwAwareIdBlock t = { mwAware_USER, who, NULL };
+  struct mwAwareIdBlock idb = { mwAware_USER, who, NULL };
 
   GaimAccount *acct;
   GaimBuddy *b;
@@ -2186,31 +2172,47 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
 
   str = g_string_new(NULL);
 
-  tmp = status_text(b);
-  g_string_append_printf(str, "\n<b>Status:</b> %s", tmp);
+  g_string_append_printf(str, "<b>User ID:</b> %s<br>", b->name);
 
-  tmp = mwServiceAware_getText(pd->srvc_aware, &t);
-  if(tmp) g_string_append_printf(str, "\n<b>Message</b>: %s", tmp);
+  if(b->server_alias) {
+    g_string_append_printf(str, "<b>Full Name:</b> %s<br>",
+			   b->server_alias);
+  }
+
+  /* @todo capabilities string */
 
   type = gaim_blist_node_get_int((GaimBlistNode *) b, BUDDY_KEY_CLIENT);
   if(type) {
-
-    g_string_append(str, "\n<b>Last Known Client</b>: ");
+    g_string_append(str, "<b>Last Known Client:</b> ");
 
     tmp = mwLoginType_getName(type);
     if(tmp) {
       g_string_append(str, tmp);
+      g_string_append(str, "<br>");
+
     } else {
-      g_string_append_printf(str, "0x%04x", type);
+      g_string_append_printf(str, "Unknown (0x%04x)<br>", type);
     }
   }
 
-  tmp = str->str;
+  tmp = status_text(b);
+  g_string_append_printf(str, "<b>Status:</b> %s", tmp);
+
+  g_string_append(str, "<hr>");
+
+  tmp = mwServiceAware_getText(pd->srvc_aware, &idb);
+  g_string_append(str, tmp);
 
   /* 1: trigger the event */
   /* 2: if the event returned TRUE, display info */
-  gaim_notify_formatted(gc, NULL, "Information", NULL, str->str, NULL, NULL);
+  
+  tmp = (b->server_alias)? b->server_alias: b->name;
+  tmp = g_strdup_printf("Info for %s", tmp);
 
+  gaim_notify_formatted(gc, tmp, _("Buddy Information"), NULL,
+			str->str, NULL, NULL);
+
+  g_free(tmp);
   g_string_free(str, TRUE);
 }
 
@@ -2848,7 +2850,7 @@ static void mw_prpl_convo_closed(GaimConnection *gc, const char *who) {
   if(! conv) return;
 
   if(MW_CONVO_IS_OPEN(conv))
-    mwConversation_close(conv, ERR_SUCCESS);
+    mwConversation_free(conv);
 }
 
 

@@ -106,8 +106,12 @@ AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
 
+AC_CONFIG_FILES(
+	[Makefile dist/Makefile pixmaps/Makefile src/Makefile]
+	[gaim-meanwhile.spec]
+)
 
-AC_OUTPUT([Makefile src/Makefile pixmaps/Makefile gaim-meanwhile.spec dist/Makefile])
+AC_OUTPUT()
 
 
 # The End.

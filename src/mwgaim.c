@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
 USA. */
 
 
+#define GAIM_PLUGINS
 #include <gaim.h>
 #include <accountopt.h>
 #include <conversation.h>

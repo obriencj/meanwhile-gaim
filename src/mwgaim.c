@@ -638,7 +638,6 @@ static void got_error(struct mwServiceIM *srvc,
 
   gaim_conversation_write(conv, who->user, text,
 			  GAIM_MESSAGE_SYSTEM,time(NULL));
-
   g_free(tmp);
   g_free(text);
 }

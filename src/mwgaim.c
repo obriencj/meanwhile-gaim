@@ -507,7 +507,7 @@ static void add_buddy(struct mwGaimPluginData *pd,
 static GaimBuddy *ensure_buddy(GaimConnection *gc, GaimGroup *group,
 			       struct mwSametimeUser *stuser) {
 
-  struct mwGaimPlginData *pd = gc->proto_data;
+  struct mwGaimPluginData *pd = gc->proto_data;
   GaimBuddy *buddy;
   GaimAccount *acct = gaim_connection_get_account(gc);
 

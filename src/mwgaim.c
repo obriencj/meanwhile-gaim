@@ -1292,6 +1292,11 @@ static void mw_chat_reject(GaimConnection *gc, GHashTable *components) {
   }
 }
 
+static char *mw_chat_name(GHashTable *components) {
+	char *name = g_hash_table_lookup(components, CHAT_NAME_KEY);
+	
+	return name;
+}
 
 static void mw_chat_invite(GaimConnection *gc, int id,
 			   const char *message, const char *who) {
@@ -1394,7 +1399,7 @@ static GaimPluginProtocolInfo prpl_info = {
   NULL,                     /* mw_warn */
   mw_chat_join,
   mw_chat_reject,
-  NULL,                     /* mw_chat_name, */
+  mw_chat_name,
   mw_chat_invite,
   mw_chat_leave,
   NULL,                     /* mw_chat_whisper, */

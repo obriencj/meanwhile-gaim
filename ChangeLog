@@ -1,9 +1,14 @@
 
-version cvs
+version 1.0.1 (2004-10-14)
 
-	- patch [ 1034727 ] Add mw_chat_name
+	- fix #1045727 gaim crash in mwgaim.c:mw_read_callback after
+	disconnect
 
-	- patch [ 1044218 ] Gaim_normalize called for meanwhile: add
+	- fix #1043849 CPU at 100% on reconnect
+	
+	- patch #1034727 Add mw_chat_name
+
+	- patch #1044218 Gaim_normalize called for meanwhile: add
 	mw_normalize
 
 version 1.0.0 (2004-09-18)

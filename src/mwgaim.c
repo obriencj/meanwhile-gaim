@@ -154,24 +154,29 @@ USA. */
 #define DEBUG_WARN(a...)   gaim_debug_warning(G_LOG_DOMAIN, a)
 
 
+#ifndef NSTR
+# define NSTR(str) ((str)? (str): "(null)")
+#endif
+
+
 /** get the mw_handler from a mwSession */
 #define SESSION_HANDLER(session) \
-  ((struct mw_handler *) (session)->handler)
+  (session? (struct mw_handler *) session->handler: NULL)
 
 
 /** get the mw_plugin_data from a GaimConnection */
 #define PLUGIN_DATA(gc) \
-  ((struct mw_plugin_data *) (gc)->proto_data)
+  (gc? ((struct mw_plugin_data *)((GaimConnection *)gc)->proto_data): NULL)
 
 
 /** get the mwSession from a GaimConnection */
 #define GC_TO_SESSION(gc) \
-  ((PLUGIN_DATA(gc))->session)
+  ((PLUGIN_DATA(gc))? PLUGIN_DATA(gc)->session: NULL)
 
 
 /** get the GaimConnection from a mwSession */
 #define SESSION_TO_GC(session) \
-  ((SESSION_HANDLER(session))->gc)
+  ((SESSION_HANDLER(session))? SESSION_HANDLER(session)->gc: NULL)
 
 
 struct mw_plugin_data {
@@ -215,7 +220,7 @@ static int mw_handler_write(struct mwSessionHandler *this,
   int ret = 0;
 
   if(! h->sock_fd)
-    return 0;
+    return -1;
 
   while(n) {
     ret = write(h->sock_fd, b, n);
@@ -249,12 +254,10 @@ static void mw_handler_init(struct mw_handler *h, int sock_fd,
 
 static void mw_read_callback(gpointer data, gint source,
 			     GaimInputCondition cond) {
-
-  GaimConnection *gc;
+  GaimConnection *gc = data;
   struct mwSession *session;
   struct mw_handler *h;
   
-  gc = (GaimConnection *) data;
   g_return_if_fail(gc != NULL);
 
   session = GC_TO_SESSION(gc);
@@ -279,6 +282,11 @@ static void mw_read_callback(gpointer data, gint source,
 
   /* fall-through indicates an error */
   gaim_connection_destroy(gc);
+
+  if(gc->inpa) {
+    gaim_input_remove(gc->inpa);
+    gc->inpa = 0;
+  }
 }
 
 
@@ -493,9 +501,6 @@ static void save_blist(GaimConnection *gc) {
   mwSametimeList_free(stlist);
 
   unit = mwStorageUnit_newString(mwStore_AWARE_LIST, buf);
-  /* g_message("----- begin export blist -----\n"
-	    "%s\n"
-	    "------ end export blist ------", buf); */
   g_free(buf);
 
   mwServiceStorage_save(storage, unit, NULL, NULL);
@@ -743,9 +748,8 @@ static void got_invite(struct mwConference *conf, struct mwIdBlock *id,
   g_hash_table_insert(ht, CHAT_INVITE_KEY, d);
 
   DEBUG_INFO("Got invite: '%s', name: '%s', topic: '%s', text: '%s'\n",
-	     a, b, c, d);
+	     NSTR(a), NSTR(b), NSTR(c), NSTR(d));
 
-  DEBUG_INFO(" triggering serv_got_invite\n");
   serv_got_chat_invite(gc, c, a, d, ht);
 }
 
@@ -756,8 +760,6 @@ static void got_welcome(struct mwConference *conf, struct mwIdBlock *members,
   GaimConnection *gc = SESSION_TO_GC(conf->channel->session);
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
   GaimConversation *conv;
-
-  DEBUG_INFO(" got welcome\n");
 
   conv = serv_got_joined_chat(gc, conf->channel->id, conf->topic);
   gaim_conv_chat_set_id(GAIM_CONV_CHAT(conv), conf->channel->id);
@@ -778,8 +780,6 @@ static void got_closed(struct mwConference *conf) {
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
   GaimConversation *conv;
 
-  DEBUG_INFO(" got closed\n");
-
   conv = (GaimConversation *) g_hash_table_lookup(pd->convo_map, conf);
 
   /* TODO: tell the conv that it's been closed */
@@ -795,7 +795,6 @@ static void got_join(struct mwConference *conf, struct mwIdBlock *id) {
 
   conv = (GaimConversation *) g_hash_table_lookup(pd->convo_map, conf);
   if(conv) {
-    DEBUG_INFO(" got join\n");
     gaim_conv_chat_add_user(GAIM_CONV_CHAT(conv), id->user,
 			    NULL, GAIM_CBFLAGS_NONE, TRUE);
   }
@@ -810,7 +809,6 @@ static void got_part(struct mwConference *conf, struct mwIdBlock *id) {
   conv = (GaimConversation *) g_hash_table_lookup(pd->convo_map, conf);
   g_return_if_fail(conv);
 
-  DEBUG_INFO(" got part\n");
   gaim_conv_chat_remove_user(GAIM_CONV_CHAT(conv), id->user, NULL);
 }
 
@@ -913,27 +911,33 @@ static void mw_close(GaimConnection *gc) {
 
   g_return_if_fail(pd != NULL);
 
+  gc->proto_data = NULL;
+
   if(pd->save_event) {
     gaim_timeout_remove(pd->save_event);
     pd->save_event = 0;
+    save_blist(gc);
   }
 
-  save_blist(gc);
-
+  /* kill the session and services */
   session = pd->session;
   if(session) {
     mwSession_stop(session, ERR_SUCCESS);
-
-    mwService_free(MW_SERVICE(pd->srvc_aware));
-    mwService_free(MW_SERVICE(pd->srvc_conf));
-    mwService_free(MW_SERVICE(pd->srvc_im));
-    mwService_free(MW_SERVICE(pd->srvc_store));
-
     g_free(session->handler);
     mwSession_free(session);
   }
 
-  gc->proto_data = NULL;
+  mwService_free(MW_SERVICE(pd->srvc_aware));
+  mwService_free(MW_SERVICE(pd->srvc_conf));
+  mwService_free(MW_SERVICE(pd->srvc_im));
+  mwService_free(MW_SERVICE(pd->srvc_store));
+
+  /* remove any remaining input checking */
+  if(gc->inpa) {
+    gaim_input_remove(gc->inpa);
+    gc->inpa = 0;
+  }
+
   g_hash_table_destroy(pd->convo_map);
   g_free(pd);
 }
@@ -1207,7 +1211,7 @@ static void schedule_stlist_save(GaimConnection *gc) {
   g_return_if_fail(pd != NULL);
 
   /* only schedule one save at a time. */
-  if(pd->save_event == 0) {
+  if(! pd->save_event) {
     pd->save_event = gaim_timeout_add(BLIST_SAVE_SECONDS * 1000,
 				      cb_stlist_save, gc);
   }
@@ -1297,6 +1301,11 @@ static char *mw_chat_name(GHashTable *components) {
 	
 	return name;
 }
+
+static char *mw_chat_name(GHashTable *components) {
+  return g_hash_table_lookup(components, CHAT_NAME_KEY);
+}
+
 
 static void mw_chat_invite(GaimConnection *gc, int id,
 			   const char *message, const char *who) {

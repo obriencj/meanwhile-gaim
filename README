@@ -1,16 +1,13 @@
 
 Assuming you've built Gaim from source:
 
-	./autogen.sh
-	PKG_CONFIG_PATH=/usr/local/include ./configure
-	make all
+	./autogen.sh && make all
 	su -c "make install"
 
 and eveything should be fine. If Gaim is installed from an RPM, then:
 
-	./autogen.sh && ./configure
-	make dist
-	su -c "rpmbuild -tb gaim-meanwhile-0.81.tar.gz"
+	./autogen.sh && make dist
+	su -c "rpmbuild -tb gaim-meanwhile-*.tar.gz"
 
 should create binary RPMs. Installing those should get Meanwhile working.
 

@@ -992,6 +992,9 @@ static void mw_conf_invited(struct mwConference *conf,
 }
 
 
+/* The following mess helps us relate a mwConference to a GaimConvChat
+   in the various forms by which either may be indicated */
+
 #define CONF_TO_ID(conf)   (GPOINTER_TO_INT(conf))
 #define ID_TO_CONF(pd, id) (find_conf_by_id((pd), (id)))
 
@@ -1065,6 +1068,7 @@ static void mw_conf_closed(struct mwConference *conf, guint32 reason) {
   GaimConnection *gc;
 
   const char *n = mwConference_getName(conf);
+  char *msg = mwError(reason);
 
   DEBUG_INFO("conf %s closed, 0x%08x\n", n, reason);
 
@@ -1075,7 +1079,8 @@ static void mw_conf_closed(struct mwConference *conf, guint32 reason) {
 
   serv_got_chat_left(gc, CONF_TO_ID(conf));
 
-  /** @todo send a GAIM_MESSAGE_ERROR for the reason */
+  gaim_notify_error(gc, "Conference Closed", NULL, msg);
+  g_free(msg);
 }
 
 
@@ -2032,6 +2037,10 @@ static void mw_prpl_login(GaimAccount *account) {
     }
   }
 
+  /* de-uglify */
+  if(! gaim_account_get_alias(account))
+    gaim_account_set_alias(account, user);
+
 #else
   /* the old way to obtain the host string */
   host = gaim_account_get_string(account, "server", MW_PLUGIN_DEFAULT_HOST);
@@ -2150,8 +2159,7 @@ static int mw_prpl_send_typing(GaimConnection *gc, const char *name,
     return ! mwConversation_send(conv, mwImSend_TYPING, t);
 
   /* don't bother opening a conversation just to send the typing
-     notification. This also makes us immune to psychic mode in other
-     clients */
+     notification. */
 
   return 1;
 }
@@ -2201,6 +2209,7 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
 
   /* 1: trigger the event */
   /* 2: if the event returned TRUE, display info */
+  gaim_notify_formatted(gc, NULL, "Information", NULL, str->str, NULL, NULL);
 
   g_string_free(str, TRUE);
 }

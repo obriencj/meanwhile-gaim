@@ -7,12 +7,12 @@ m4_define(gaim_meanwhile_version,	1.0.2.99)
 m4_define(gaim_meanwhile_release,	0)
 
 # lower and upper-bound versions of Meanwhile
-m4_define(meanwhile_required_min,	0.3)
-m4_define(meanwhile_required_max,	0.4.0)
+m4_define(meanwhile_version_min,	0.4.0)
+m4_define(meanwhile_version_max,	0.5.0)
 
 # lower and upper-bound versions of Gaim
-m4_define(gaim_required_min,		1.0.0)
-m4_define(gaim_required_max,		2.0.0)
+m4_define(gaim_version_min,		1.0.0)
+m4_define(gaim_version_max,		2.0.0)
 
 
 
@@ -41,13 +41,13 @@ AC_STRUCT_TM
 RELEASE=gaim_meanwhile_release
 AC_SUBST(RELEASE)
 
-GAIM_MIN=gaim_required_min
-GAIM_MAX=gaim_required_max
+GAIM_MIN=gaim_version_min
+GAIM_MAX=gaim_version_max
 AC_SUBST(GAIM_MIN)
 AC_SUBST(GAIM_MAX)
 
-MEANWHILE_MIN=meanwhile_required_min
-MEANWHILE_MAX=meanwhile_required_max
+MEANWHILE_MIN=meanwhile_version_min
+MEANWHILE_MAX=meanwhile_version_max
 AC_SUBST(MEANWHILE_MIN)
 AC_SUBST(MEANWHILE_MAX)
 
@@ -78,17 +78,20 @@ fi
 
 
 # Check for Gaim
-PKG_CHECK_MODULES(GAIM, gaim,
+PKG_CHECK_MODULES(GAIM,
+[gaim >= gaim_version_min gaim < gaim_version_max],
 [
 	AC_DEFINE(HAVE_GAIM, 1, [Define if we've found gaim.])
 ])
 
 AC_SUBST(GAIM_CFLAGS)
+AC_SUBST(GAIM_LIBS)
 
 
 
 # Check for Meanwhile
-PKG_CHECK_MODULES(MEANWHILE, meanwhile,
+PKG_CHECK_MODULES(MEANWHILE,
+[meanwhile >= meanwhile_version_min meanwhile < meanwhile_version_max],
 [
 	AC_DEFINE(HAVE_MEANWHILE, 1, [Define if we've found meanwhile.])
 ])

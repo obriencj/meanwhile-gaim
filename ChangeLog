@@ -2,6 +2,12 @@
 version 1.0.2.99 (cvs)
 
         - building against meanwhile 0.4.0 cvs
+
+	- associate known client type identifier with buddies and display
+	in tooltip information
+
+	- perform resolve lookup on single-buddy additions to ensure they
+	really exist
 	
 	- slightly better handling of server_alias data from loading of
 	buddy list from server

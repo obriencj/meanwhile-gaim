@@ -1994,7 +1994,7 @@ static void mw_prpl_set_away(GaimConnection *gc,
   g_free(gc->away);
 
   /* in with the new */
-  stat.desc = message;
+  stat.desc = (char *) message;
   gc->away = g_strdup(message);
 
   mwSession_setUserStatus(session, &stat);

@@ -777,7 +777,8 @@ static void got_welcome(struct mwConference *conf, struct mwIdBlock *members,
 
   while(count--) {
     struct mwIdBlock *idb = members + count;
-    gaim_conv_chat_add_user(GAIM_CONV_CHAT(conv), idb->user, NULL);
+    gaim_conv_chat_add_user(GAIM_CONV_CHAT(conv), idb->user,
+			    NULL, GAIM_CBFLAGS_NONE);
   }
 
   /* add a mapping for easier lookup */
@@ -809,7 +810,8 @@ static void got_join(struct mwConference *conf, struct mwIdBlock *id) {
   g_return_if_fail(conv);
 
   DEBUG_INFO(" got join");
-  gaim_conv_chat_add_user(GAIM_CONV_CHAT(conv), id->user, NULL);
+  gaim_conv_chat_add_user(GAIM_CONV_CHAT(conv), id->user,
+			  NULL, GAIM_CBFLAGS_NONE);
 }
 
 

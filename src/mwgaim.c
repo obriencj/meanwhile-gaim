@@ -436,6 +436,9 @@ static void blist_store(struct mwGaimPluginData *pd) {
   if(! BLIST_CHOICE_IS_SAVE()) {
     DEBUG_INFO("preferences indicate not to save remote blist\n");
     return;
+
+  } else {
+    DEBUG_INFO("saving remote blist \n");
   }
 
   if(MW_SERVICE_IS_DEAD(srvc)) {
@@ -627,6 +630,17 @@ static void fetch_msg_cb(struct mwServiceStorage *srvc,
   g_return_if_fail(session != NULL);
 
   msg = mwStorageUnit_asString(item);
+
+  /* only load the first (non-empty) line of the collection of
+     status messages */
+  if(msg && *msg) {
+    while(*msg && isspace(*msg)) msg++;
+    if(*msg) {
+      char *tail = strchr(msg, '\r');
+      if(! tail) tail = strchr(msg, '\n');
+      if(tail) *tail = '\0';
+    }
+  }
 
   switch(mwStorageUnit_getKey(item)) {
   case mwStore_AWAY_MESSAGES:
@@ -2517,6 +2531,8 @@ static void mw_prpl_add_buddies(GaimConnection *gc,
     buddies = buddies->next;
     groups = groups->next;
   }
+
+  blist_schedule(pd);
 }
 
 
@@ -2715,6 +2731,35 @@ static void mw_prpl_alias_buddy(GaimConnection *gc,
 }
 
 
+static void mw_prpl_group_buddy(GaimConnection *gc,
+				const char *who,
+				const char *old_group,
+				const char *new_group) {
+
+  struct mwAwareIdBlock idb = { mwAware_USER, (char *) who, NULL };
+  GList *gl = g_list_prepend(NULL, &idb);
+
+  struct mwGaimPluginData *pd = gc->proto_data;
+  GaimGroup *group;
+  struct mwAwareList *list;
+
+  /* add who to new_group's aware list */
+  group = gaim_find_group(new_group);
+  list = ensure_list(pd, group);
+  mwAwareList_addAware(list, gl);
+
+  /* remove who from old_group's aware list */
+  group = gaim_find_group(old_group);
+  list = ensure_list(pd, group);
+  mwAwareList_removeAware(list, gl);
+
+  g_list_free(gl);
+
+  /* schedule the changes to be saved */
+  blist_schedule(pd);
+}
+
+
 static void mw_prpl_rename_group(GaimConnection *gc, const char *old,
 				 GaimGroup *group, GList *buddies) {
 
@@ -2841,7 +2886,7 @@ static GaimPluginProtocolInfo mw_prpl_info = {
   .get_cb_info               = NULL,
   .get_cb_away               = NULL,
   .alias_buddy               = mw_prpl_alias_buddy,
-  .group_buddy               = NULL,
+  .group_buddy               = mw_prpl_group_buddy,
   .rename_group              = mw_prpl_rename_group,
   .buddy_free                = mw_prpl_buddy_free,
   .convo_closed              = mw_prpl_convo_closed,
@@ -2909,7 +2954,7 @@ static void status_msg_action_cb(GaimConnection *gc,
   GaimAccount *acct;
   GaimRequestField *f;
   const char *msg;
-  gboolean prompt;
+  /* gboolean prompt; */
 
   struct mwGaimPluginData *pd;
   struct mwServiceStorage *srvc;
@@ -2938,9 +2983,11 @@ static void status_msg_action_cb(GaimConnection *gc,
   unit = mwStorageUnit_newString(mwStore_BUSY_MESSAGES, msg);
   mwServiceStorage_save(srvc, unit, NULL, NULL, NULL);
 
+#if 0
   f = gaim_request_fields_get_field(fields, "prompt");
   prompt = gaim_request_field_bool_get_value(f);
   gaim_account_set_bool(acct, MW_KEY_MSG_PROMPT, prompt);
+#endif
 
   /* need to propagate the message change if we're in any of those
      default states */
@@ -2969,7 +3016,7 @@ static void status_msg_action(GaimPluginAction *act) {
   
   char *msgA, *msgB;
   const char *val;
-  gboolean prompt;
+  /* gboolean prompt; */
 
   gc = act->context;
   acct = gaim_connection_get_account(gc);
@@ -2981,27 +3028,29 @@ static void status_msg_action(GaimPluginAction *act) {
 
   val = gaim_account_get_string(acct, MW_KEY_ACTIVE_MSG,
 				MW_PLUGIN_DEFAULT_ACTIVE_MSG);
-  f = gaim_request_field_string_new("active", "Active Message", val, TRUE);
+  f = gaim_request_field_string_new("active", "Active Message", val, FALSE);
   gaim_request_field_set_required(f, FALSE);
   gaim_request_field_group_add_field(g, f);
   
   val = gaim_account_get_string(acct, MW_KEY_AWAY_MSG,
 				MW_PLUGIN_DEFAULT_AWAY_MSG);
-  f = gaim_request_field_string_new("away", "Away Message", val, TRUE);
+  f = gaim_request_field_string_new("away", "Away Message", val, FALSE);
   gaim_request_field_set_required(f, FALSE);
   gaim_request_field_group_add_field(g, f);
 
   val = gaim_account_get_string(acct, MW_KEY_BUSY_MSG,
 				MW_PLUGIN_DEFAULT_BUSY_MSG);
-  f = gaim_request_field_string_new("busy", "Busy Message", val, TRUE);
+  f = gaim_request_field_string_new("busy", "Busy Message", val, FALSE);
   gaim_request_field_set_required(f, FALSE);
   gaim_request_field_group_add_field(g, f);
 
+#if 0
   prompt = gaim_account_get_bool(acct, MW_KEY_MSG_PROMPT, FALSE);
   f = gaim_request_field_bool_new("prompt",
 				  ("Prompt for message when changing"
-				   " to one of these states?"), prompt);
+				   " to one of these states?"), FALSE);
   gaim_request_field_group_add_field(g, f);
+#endif
 
   msgA = ("Default status messages");
   msgB = ("");
@@ -3012,40 +3061,6 @@ static void status_msg_action(GaimPluginAction *act) {
 		      _("Cancel"), NULL,
 		      gc);
 }
-
-
-#if 0
-/** actually set the active message */
-static void active_msg_action_cb(GaimConnection *gc, char *msg) {
-  GaimAccount *acct;
-
-  acct = gaim_connection_get_account(gc);
-  gaim_account_set_string(acct, MW_KEY_ACTIVE_MSG, msg);
-
-  if(!gc->away_state || !strcmp(gc->away_state, MW_STATE_ACTIVE))
-    serv_set_away(gc, MW_STATE_ACTIVE, NULL);
-}
-
-
-/** prompts to set the active message */
-static void active_msg_action(GaimPluginAction *act) {
-  GaimAccount *account;
-  GaimConnection *gc;
-  const char *desc;
-
-  gc = act->context;
-  account = gaim_connection_get_account(gc);
-  desc = gaim_account_get_string(account, MW_KEY_ACTIVE_MSG,
-				 MW_PLUGIN_DEFAULT_ACTIVE_MSG);
-  
-  gaim_request_input(gc, NULL, "Active Message:", NULL,
-		     desc,
-		     TRUE, FALSE, NULL,
-		     _("OK"), G_CALLBACK(active_msg_action_cb),
-		     _("Cancel"), NULL,
-		     gc);
-}
-#endif
 
 
 static void st_import_action_cb(GaimConnection *gc, char *filename) {
@@ -3133,6 +3148,7 @@ static void st_export_action(GaimPluginAction *act) {
 }
 
 
+#if 0
 static void remote_group_action(GaimPluginAction *act) {
   /** @todo implement remote group additions
 
@@ -3145,6 +3161,7 @@ static void remote_group_action(GaimPluginAction *act) {
   */
   ;
 }
+#endif
 
 
 static GList *mw_plugin_actions(GaimPlugin *plugin, gpointer context) {
@@ -3160,7 +3177,10 @@ static GList *mw_plugin_actions(GaimPlugin *plugin, gpointer context) {
   act = gaim_plugin_action_new("Export Sametime List...", st_export_action);
   l = g_list_append(l, act);
 
+#if 0
   act = gaim_plugin_action_new("Add Remote Group...", remote_group_action);
+  l = g_list_append(l, act);
+#endif
 
   return l;
 }

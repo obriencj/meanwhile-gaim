@@ -1,5 +1,5 @@
 
-version 1.0.1 (2004-10-14)
+version 1.0.1 (2004-10-15)
 
 	- fix #1045727 gaim crash in mwgaim.c:mw_read_callback after
 	disconnect

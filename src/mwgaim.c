@@ -109,6 +109,7 @@
 #define MW_KEY_ACTIVE_MSG  "active_msg"
 #define MW_KEY_AWAY_MSG    "away_msg"
 #define MW_KEY_BUSY_MSG    "busy_msg"
+#define MW_KEY_MSG_PROMPT  "msg_prompt"
 
 
 /** the amount of data the plugin will attempt to read from a socket
@@ -245,7 +246,7 @@ static int mw_session_io_write(struct mwSession *session,
   }
 
   if(len > 0) {
-    DEBUG_ERROR("mw_session_io_write returning %i\n", ret);
+    DEBUG_ERROR("write returned %i, %i bytes left unwritten\n", ret, len);
     gaim_connection_error(pd->gc, "Connection closed (writing)");
     close(pd->socket);
     pd->socket = 0;
@@ -595,6 +596,53 @@ static void fetch_blist_cb(struct mwServiceStorage *srvc,
 }
 
 
+static void fetch_msg_cb(struct mwServiceStorage *srvc,
+			 guint32 result, struct mwStorageUnit *item,
+			 gpointer data) {
+
+  struct mwGaimPluginData *pd = data;
+  struct mwSession *session;
+  GaimAccount *acct;
+  char *msg;
+
+  g_return_if_fail(result == ERR_SUCCESS);
+
+  g_return_if_fail(pd->gc != NULL);
+  acct = gaim_connection_get_account(pd->gc);
+
+  session = pd->session;
+  g_return_if_fail(session != NULL);
+
+  msg = mwStorageUnit_asString(item);
+
+  switch(mwStorageUnit_getKey(item)) {
+  case mwStore_AWAY_MESSAGES:
+    DEBUG_INFO("setting away messages to \"%s\"", NSTR(msg));
+    gaim_account_set_string(acct, MW_KEY_AWAY_MSG, msg);
+    break;
+
+  case mwStore_BUSY_MESSAGES:
+    DEBUG_INFO("setting busy messages to \"%s\"", NSTR(msg));
+    gaim_account_set_string(acct, MW_KEY_BUSY_MSG, msg);
+    break;
+
+  case mwStore_ACTIVE_MESSAGES:
+    DEBUG_INFO("setting active messages to \"%s\"", NSTR(msg));
+    gaim_account_set_string(acct, MW_KEY_ACTIVE_MSG, msg);
+    break;
+
+  default:
+    g_free(msg);
+    g_return_if_reached();
+  }
+
+  /** @todo maybe we should set the session status here so that the
+      messages will get picked up. */
+
+  g_free(msg);
+}
+
+
 static void conversation_created_cb(GaimConversation *g_conv,
 				    struct mwGaimPluginData *pd) {
 
@@ -641,6 +689,16 @@ static void session_started(struct mwGaimPluginData *pd) {
   unit = mwStorageUnit_new(mwStore_AWARE_LIST);
   mwServiceStorage_load(srvc, unit, fetch_blist_cb, pd, NULL); 
   
+  /* fetch the away/busy/active messages from the server */
+  unit = mwStorageUnit_new(mwStore_AWAY_MESSAGES);
+  mwServiceStorage_load(srvc, unit, fetch_msg_cb, pd, NULL);
+
+  unit = mwStorageUnit_new(mwStore_BUSY_MESSAGES);
+  mwServiceStorage_load(srvc, unit, fetch_msg_cb, pd, NULL);
+
+  unit = mwStorageUnit_new(mwStore_ACTIVE_MESSAGES);
+  mwServiceStorage_load(srvc, unit, fetch_msg_cb, pd, NULL);
+
   /* start watching conversations */
   gaim_signal_connect(gaim_conversations_get_handle(),
 		      "conversation-created", gc,
@@ -1281,7 +1339,6 @@ static void convo_queue_send(struct mwConversation *conv) {
      inform the gaim conversation that it's unsafe to offer any *cool*
      features. */
 static void convo_nofeatures(struct mwConversation *conv) {
-#if WITH_GAIM_PATCH
   GaimConversation *gconv;
   GaimConnection *gc;
 
@@ -1289,12 +1346,12 @@ static void convo_nofeatures(struct mwConversation *conv) {
   if(! gconv) return;
 
   gc = gaim_conversation_get_gc(gconv);
-  g_assert(gc != NULL);
 
-  gaim_conversation_set_features(gconv, gc->flags);
-#else
-  ;
-#endif
+  /* If the account is disconnecting, then the conversation's closing
+     will call this, and gc will be NULL */
+  if(gc) {
+    gaim_conversation_set_features(gconv, gc->flags);
+  }
 }
 
 
@@ -1302,7 +1359,6 @@ static void convo_nofeatures(struct mwConversation *conv) {
     to inform the gaim conversation of what features to offer the
     user */
 static void convo_features(struct mwConversation *conv) {
-#if WITH_GAIM_PATCH
   GaimConversation *gconv;
   GaimConnectionFlags feat;
 
@@ -1325,9 +1381,6 @@ static void convo_features(struct mwConversation *conv) {
   DEBUG_INFO("conversation features set to 0x%04x\n", feat);
 
   gaim_conversation_set_features(gconv, feat);
-#else
-  ;
-#endif
 }
 
 
@@ -1478,9 +1531,12 @@ static void im_recv_subj(struct mwConversation *conv,
 }
 
 
+/** generate "cid:908@20582notesbuddy" from "<908@20582notesbuddy>" */
 static char *make_cid(const char *cid) {
   gsize n;
   char *c, *d;
+
+  /** @todo make this safer */
 
   n = strlen(cid) - 2;
   c = g_strndup(cid+1, n);
@@ -1530,6 +1586,8 @@ static void im_recv_mime(struct mwConversation *conv,
       ; /* feh */
       
     } else if(g_str_has_prefix(type, "image")) {
+      /* put images into the image store */
+
       const char *dat;
       char *d_dat;
       gsize d_len;
@@ -1554,24 +1612,23 @@ static void im_recv_mime(struct mwConversation *conv,
       images = g_list_append(images, GINT_TO_POINTER(img));
       
     } else if(g_str_has_prefix(type, "text")) {
+      /* concatenate all the text parts together */
       g_string_append(str, gaim_mime_part_get_data(part));
     }
   }
 
   gaim_mime_document_free(doc);
 
-  /* replace each IMG tag's SRC attribute with an ID attribute */
-  {
+  {  /* replace each IMG tag's SRC attribute with an ID
+	attribute. This actually modifies the contents of str */
     GData *attribs;
     char *start, *end, *tmp = str->str;
 
     while(gaim_markup_find_tag("img", tmp, &start, &end, &attribs)) {
-      char *alt, *align, *border, *hspace, *vspace, *src;
+      char *alt, *align, *border, *src;
       int img;
 
       alt = g_datalist_get_data(&attribs, "alt");
-      hspace = g_datalist_get_data(&attribs, "hspace");
-      vspace = g_datalist_get_data(&attribs, "vspace");
       align = g_datalist_get_data(&attribs, "align");
       border = g_datalist_get_data(&attribs, "border");
       src = g_datalist_get_data(&attribs, "src");
@@ -1582,12 +1639,10 @@ static void im_recv_mime(struct mwConversation *conv,
 	gsize len = (end - start);
 	char *tt;
 
-	atstr = g_string_new(NULL);
+	atstr = g_string_new("");
 	if(alt) g_string_append_printf(atstr, " alt=\"%s\"", alt);
 	if(align) g_string_append_printf(atstr, " align=\"%s\"", align);
 	if(border) g_string_append_printf(atstr, " border=\"%s\"", border);
-	if(hspace) g_string_append_printf(atstr, " hspace=\"%s\"", hspace);
-	if(vspace) g_string_append_printf(atstr, " vspace=\"%s\"", vspace);
 
 	tt = g_strndup(start, len);
 	DEBUG_INFO("rewriting IMG\n{%s}\n", tt);
@@ -2709,9 +2764,9 @@ static gboolean mw_prpl_can_receive_file(GaimConnection *gc,
 					 const char *who) {
 
   /** @todo when meanwhile implements the file transfer service, we'll
-      need to check that the service was able to successfuly start.
-      Hypothetically, we should be able to send files to anyone
-      then. */
+      need to check that the service was able to successfuly start and
+      that the target user has the appropriate attribute according to
+      the aware service */
 
   return FALSE;
 }
@@ -2833,21 +2888,106 @@ static GaimPluginUiInfo mw_plugin_ui_info = {
 };
 
 
-static gboolean mw_plugin_load(GaimPlugin *plugin) {
-  return TRUE;
+static void status_msg_action_cb(GaimConnection *gc,
+				 GaimRequestFields *fields) {
+  GaimAccount *acct;
+  GaimRequestField *f;
+  const char *msg;
+  gboolean prompt;
+  
+  acct = gaim_connection_get_account(gc);
+
+  f = gaim_request_fields_get_field(fields, "active");
+  msg = gaim_request_field_string_get_value(f);
+  gaim_account_set_string(acct, MW_KEY_ACTIVE_MSG, msg);
+
+  f = gaim_request_fields_get_field(fields, "away");
+  msg = gaim_request_field_string_get_value(f);
+  gaim_account_set_string(acct, MW_KEY_AWAY_MSG, msg);
+
+  f = gaim_request_fields_get_field(fields, "busy");
+  msg = gaim_request_field_string_get_value(f);
+  gaim_account_set_string(acct, MW_KEY_BUSY_MSG, msg);  
+
+  f = gaim_request_fields_get_field(fields, "prompt");
+  prompt = gaim_request_field_bool_get_value(f);
+  gaim_account_set_bool(acct, MW_KEY_MSG_PROMPT, prompt);
+
+  /** @todo save status messages to storage service */
+
+  /* need to propagate the message change if we're in any of those
+     default states */
+  msg = NULL;
+  if(!gc->away_state || !strcmp(gc->away_state, MW_STATE_ACTIVE)) {
+    msg = MW_STATE_ACTIVE;
+  } else if(gc->away_state && !strcmp(gc->away_state, MW_STATE_AWAY)) {
+    msg = MW_STATE_AWAY;
+  } else if(gc->away_state && !strcmp(gc->away_state, MW_STATE_BUSY)) {
+    msg = MW_STATE_BUSY;
+  }
+  if(msg)
+    serv_set_away(gc, msg, NULL);
 }
 
 
-static gboolean mw_plugin_unload(GaimPlugin *plugin) {
-  return TRUE;
+/** Prompt for messages for the three default status types. These
+    values should be mirrored as strings in the storage service */
+static void status_msg_action(GaimPluginAction *act) {
+  GaimConnection *gc;
+  GaimAccount *acct;
+
+  GaimRequestFields *fields;
+  GaimRequestFieldGroup *g;
+  GaimRequestField *f;
+  
+  char *msgA, *msgB;
+  const char *val;
+  gboolean prompt;
+
+  gc = act->context;
+  acct = gaim_connection_get_account(gc);
+
+  fields = gaim_request_fields_new();
+
+  g = gaim_request_field_group_new(NULL);
+  gaim_request_fields_add_group(fields, g);
+
+  val = gaim_account_get_string(acct, MW_KEY_ACTIVE_MSG,
+				MW_PLUGIN_DEFAULT_ACTIVE_MSG);
+  f = gaim_request_field_string_new("active", "Active Message", val, TRUE);
+  gaim_request_field_set_required(f, FALSE);
+  gaim_request_field_group_add_field(g, f);
+  
+  val = gaim_account_get_string(acct, MW_KEY_AWAY_MSG,
+				MW_PLUGIN_DEFAULT_AWAY_MSG);
+  f = gaim_request_field_string_new("away", "Away Message", val, TRUE);
+  gaim_request_field_set_required(f, FALSE);
+  gaim_request_field_group_add_field(g, f);
+
+  val = gaim_account_get_string(acct, MW_KEY_BUSY_MSG,
+				MW_PLUGIN_DEFAULT_BUSY_MSG);
+  f = gaim_request_field_string_new("busy", "Busy Message", val, TRUE);
+  gaim_request_field_set_required(f, FALSE);
+  gaim_request_field_group_add_field(g, f);
+
+  prompt = gaim_account_get_bool(acct, MW_KEY_MSG_PROMPT, FALSE);
+  f = gaim_request_field_bool_new("prompt",
+				  ("Prompt for message when changing"
+				   " to one of these states?"), prompt);
+  gaim_request_field_group_add_field(g, f);
+
+  msgA = ("Default status messages");
+  msgB = ("");
+
+  gaim_request_fields(gc, "Edit Status Messages",
+		      msgA, msgB, fields,
+		      _("OK"), G_CALLBACK(status_msg_action_cb),
+		      _("Cancel"), NULL,
+		      gc);
 }
 
 
-static void mw_plugin_destroy(GaimPlugin *plugin) {
-  ;
-}
-
-
+#if 0
 /** actually set the active message */
 static void active_msg_action_cb(GaimConnection *gc, char *msg) {
   GaimAccount *acct;
@@ -2862,17 +3002,14 @@ static void active_msg_action_cb(GaimConnection *gc, char *msg) {
 
 /** prompts to set the active message */
 static void active_msg_action(GaimPluginAction *act) {
-  GaimConnection *gc;
   GaimAccount *account;
+  GaimConnection *gc;
   const char *desc;
 
   gc = act->context;
   account = gaim_connection_get_account(gc);
   desc = gaim_account_get_string(account, MW_KEY_ACTIVE_MSG,
 				 MW_PLUGIN_DEFAULT_ACTIVE_MSG);
-  
-  /** @todo make this into a three-field request for active, busy, and away
-      status messages */
   
   gaim_request_input(gc, NULL, "Active Message:", NULL,
 		     desc,
@@ -2881,6 +3018,7 @@ static void active_msg_action(GaimPluginAction *act) {
 		     _("Cancel"), NULL,
 		     gc);
 }
+#endif
 
 
 static void st_import_action_cb(GaimConnection *gc, char *filename) {
@@ -2968,11 +3106,25 @@ static void st_export_action(GaimPluginAction *act) {
 }
 
 
+static void remote_group_action(GaimPluginAction *act) {
+  /** @todo implement remote group additions
+
+      prompt for group name and alias
+      resolve name
+      if multi resolve, prompt for exact
+      check that no existing group (by name and alias)
+      add group, set real group name
+      subscribe to group presence
+  */
+  ;
+}
+
+
 static GList *mw_plugin_actions(GaimPlugin *plugin, gpointer context) {
   GaimPluginAction *act;
   GList *l = NULL;
 
-  act = gaim_plugin_action_new("Set Status Messages...", active_msg_action);
+  act = gaim_plugin_action_new("Set Status Messages...", status_msg_action);
   l = g_list_append(l, act);
 
   act = gaim_plugin_action_new("Import Sametime List...", st_import_action);
@@ -2981,7 +3133,24 @@ static GList *mw_plugin_actions(GaimPlugin *plugin, gpointer context) {
   act = gaim_plugin_action_new("Export Sametime List...", st_export_action);
   l = g_list_append(l, act);
 
+  act = gaim_plugin_action_new("Add Remote Group...", remote_group_action);
+
   return l;
+}
+
+
+static gboolean mw_plugin_load(GaimPlugin *plugin) {
+  return TRUE;
+}
+
+
+static gboolean mw_plugin_unload(GaimPlugin *plugin) {
+  return TRUE;
+}
+
+
+static void mw_plugin_destroy(GaimPlugin *plugin) {
+  ;
 }
 
 
@@ -3018,6 +3187,7 @@ static void mw_log_handler(const gchar *d, GLogLevelFlags flags,
 
   if(! m) return;
 
+  /* annoying! */
   nl = g_strconcat(m, "\n", NULL);
 
   /* handle g_log requests via gaim's built-in debug logging */
@@ -3063,9 +3233,9 @@ static void mw_plugin_init(GaimPlugin *plugin) {
   gaim_prefs_add_int(MW_PRPL_OPT_BLIST_ACTION, BLIST_CHOICE_NONE);
   gaim_prefs_add_bool(MW_PRPL_OPT_PSYCHIC, FALSE);
 
-  /* use gaim's debug logging. I don't think this is actually
-     necessary, since all the debugging calls now use the gaim debug
-     functions directly */
+  /* forward all our g_log messages to gaim. Generally all the logging
+     calls are using gaim_log directly, but the g_return macros will
+     get caught here */
   g_log_set_handler(G_LOG_DOMAIN,
 		    G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION,
 		    mw_log_handler, NULL);

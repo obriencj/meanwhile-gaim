@@ -11,7 +11,7 @@ m4_define(meanwhile_version_min,	0.4.0)
 m4_define(meanwhile_version_max,	0.5.0)
 
 # lower and upper-bound versions of Gaim
-m4_define(gaim_version_min,		1.0.0)
+m4_define(gaim_version_min,		1.2.0)
 m4_define(gaim_version_max,		2.0.0)
 
 
@@ -170,7 +170,6 @@ echo Default busy message..... : \"$CONF_BUSY_MSG\"
 echo Default community host... : \"$CONF_DEFAULT_HOST\"
 echo Default community port... : $CONF_DEFAULT_PORT
 echo Client type identifier... : $CONF_CLIENT_TYPE
-
 echo
 echo configure complete, now run \`make\`
 echo

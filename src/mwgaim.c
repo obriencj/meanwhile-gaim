@@ -2897,6 +2897,7 @@ static void mw_plugin_init(GaimPlugin *plugin) {
   /* set up the prefs for blist options */
   gaim_prefs_add_none(MW_PRPL_OPT_BASE);
   gaim_prefs_add_int(MW_PRPL_OPT_BLIST_ACTION, BLIST_CHOICE_NONE);
+  gaim_prefs_add_bool(MW_PRPL_OPT_PSYCHIC, FALSE);
 
   /* use gaim's debug logging. I don't think this is actually
      necessary, since all the debugging calls now use the gaim debug

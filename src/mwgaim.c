@@ -2798,9 +2798,9 @@ static void mw_prpl_send_file(GaimConnection *gc,
 
 
 static GaimPluginProtocolInfo mw_prpl_info = {
-  .options                   = 0,
-  .user_splits               = NULL,
-  .protocol_options          = NULL,
+  .options                   = OPT_PROTO_IM_IMAGE,
+  .user_splits               = NULL, /*< set in mw_plugin_init */
+  .protocol_options          = NULL, /*< set in mw_plugin_init */
   .icon_spec                 = NO_BUDDY_ICONS,
   .list_icon                 = mw_prpl_list_icon,
   .list_emblems              = mw_prpl_list_emblems,

@@ -1288,6 +1288,8 @@ static void convo_features(struct mwConversation *conv) {
 
   feat = gaim_conversation_get_features(gconv);
 
+  DEBUG_INFO("features 0x%04x\n", feat);
+
   if(MW_CONVO_IS_OPEN(conv) &&
      mwConversation_supports(conv, mwImSend_HTML)) {
 
@@ -1295,9 +1297,11 @@ static void convo_features(struct mwConversation *conv) {
     feat |= GAIM_CONNECTION_NO_IMAGES;
 
   } else {
-    feat ^= GAIM_CONNECTION_HTML;
-    feat ^= GAIM_CONNECTION_NO_IMAGES;
+    feat &= ~GAIM_CONNECTION_HTML;
+    feat &= ~GAIM_CONNECTION_NO_IMAGES;
   }
+
+  DEBUG_INFO("features 0x%04x\n", feat);
 
   gaim_conversation_set_features(gconv, feat);
 #else

@@ -41,6 +41,7 @@ USA. */
 #include <meanwhile/srvc_conf.h>
 #include <meanwhile/srvc_im.h>
 #include <meanwhile/srvc_store.h>
+#include <meanwhile/st_list.h>
 
 
 /* considering that there's no display of this information for prpls,
@@ -336,14 +337,41 @@ static void on_login(struct mwSession *s, struct mwMsgLogin *msg) {
 static void storage_cb(struct mwServiceStorage *srvc, guint result,
 		       struct mwStorageUnit *item, gpointer dat) {
 
-  char *tmp = mwStorageUnit_asString(item);
+  struct mwSametimeList *stlist;
+  struct mwSametimeGroup *stgroup;
+  struct mwSametimeUser *stuser;
+
+  GList *gl, *gtl, *ul, *utl;
+
+  char *b, *tmp;
+  gsize n;
 
   g_message(" storage_cb, key = 0x%08x, result = 0x%08x, length = 0x%08x",
 	    item->key, result, item->data.len);
 
-  g_message("\n----- begin blist -----\n"
-	    "%s"
-	    "------ end blist ------", tmp);
+  b = tmp = mwStorageUnit_asString(item);
+  n = strlen(b);
+
+  if(! n) return;
+
+  stlist = mwSametimeList_new();
+  mwSametimeList_get(&b, &n, stlist);
+
+  gl = gtl = mwSametimeList_getGroups(stlist);
+  for(; gl; gl = gl->next) {
+    stgroup = (struct mwSametimeGroup *) gl->data;
+    g_message(" Group: %s", stgroup->name);
+
+    ul = utl = mwSametimeGroup_getUsers(stgroup);
+    for(; ul; ul = ul->next) {
+      stuser = (struct mwSametimeUser *) ul->data;
+      g_message("  User: %s (%s)", stuser->id.user, stuser->alias);
+    }
+    g_list_free(utl);
+  }
+  g_list_free(gtl);    
+  
+  mwSametimeList_free(stlist);
 
   /* no need to free the storage unit, that will happen automatically
      after this callback */

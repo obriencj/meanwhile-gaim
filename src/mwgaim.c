@@ -21,27 +21,26 @@ USA. */
 
 
 #define GAIM_PLUGINS
-#include <gaim.h>
-
-#include <accountopt.h>
-#include <conversation.h>
-#include <debug.h>
-#include <internal.h>
-#include <multi.h>
-#include <notify.h>
-#include <plugin.h>
-#include <prpl.h>
+#include <gaim/gaim.h>
+#include <gaim/accountopt.h>
+#include <gaim/conversation.h>
+#include <gaim/debug.h>
+#include <gaim/internal.h>
+#include <gaim/multi.h>
+#include <gaim/notify.h>
+#include <gaim/plugin.h>
+#include <gaim/prpl.h>
 
 #include <glib.h>
 #include <glib/ghash.h>
 #include <glib/glist.h>
 
 #include <meanwhile/meanwhile.h>
+#include <meanwhile/st_list.h>
 #include <meanwhile/srvc_aware.h>
 #include <meanwhile/srvc_conf.h>
 #include <meanwhile/srvc_im.h>
 #include <meanwhile/srvc_store.h>
-#include <meanwhile/st_list.h>
 
 
 /* considering that there's no display of this information for prpls,
@@ -129,14 +128,19 @@ USA. */
 #define BLIST_CHOICE_SAVE  3
 
 
-#define BLIST_CHOICE_IS_NONE \
-  (gaim_prefs_get_int(MW_PRPL_OPT_BLIST_ACTION) == BLIST_CHOICE_NONE)
+#define BLIST_CHOICE_IS(n)  (gaim_prefs_get_int(MW_PRPL_OPT_BLIST_ACTION)==(n))
+#define BLIST_CHOICE_IS_NONE  BLIST_CHOICE_IS(BLIST_CHOICE_NONE)
+#define BLIST_CHOICE_IS_LOAD  BLIST_CHOICE_IS(BLIST_CHOICE_LOAD)
+#define BLIST_CHOICE_IS_SAVE  BLIST_CHOICE_IS(BLIST_CHOICE_SAVE)
 
-#define BLIST_CHOICE_IS_LOAD \
-  (gaim_prefs_get_int(MW_PRPL_OPT_BLIST_ACTION) == BLIST_CHOICE_LOAD)
 
-#define BLIST_CHOICE_IS_SAVE \
-  (gaim_prefs_get_int(MW_PRPL_OPT_BLIST_ACTION) == BLIST_CHOICE_SAVE)
+/** warning text placed next to plugin option */
+#define BLIST_WARNING \
+  ("Please note:\n" \
+   "The 'load and save' option above is still" \
+   " experimental, and highly volatile. Back up" \
+   " your buddy list with an official client before" \
+   " enabling. Loading takes effect at login.")
 
 
 /* there's probably a better way, I just never bothered finding it */
@@ -1346,11 +1350,8 @@ static GaimPluginPrefFrame *get_plugin_pref_frame(GaimPlugin *plugin) {
   gaim_plugin_pref_frame_add(frame, pref);
 
   pref = gaim_plugin_pref_new();
-  gaim_plugin_pref_set_label(pref, "Please note:\n"
-			     "the 'load and save' option above is still\n"
-			     "experimental, and highly volatile. Back up\n"
-			     "your buddy list with an official client before\n"
-			     "enabling. Loading takes effect at login.");
+  gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_INFO);
+  gaim_plugin_pref_set_label(pref, BLIST_WARNING);
   gaim_plugin_pref_frame_add(frame, pref);
 
   return frame;
@@ -1361,61 +1362,63 @@ static GaimPlugin *meanwhile_plugin = NULL;
 
 
 static GaimPluginProtocolInfo prpl_info = {
-  GAIM_PRPL_API_VERSION, /* options */
-  0, /* flags */
-  NULL,
-  NULL,
-  NO_BUDDY_ICONS, /* icon spec */
+  GAIM_PRPL_API_VERSION,    /* api version */
+  0,                        /* flags */
+  NULL,                     /* user_splits */
+  NULL,                     /* protocol options */
+  NO_BUDDY_ICONS,           /* buddy icon spec */
   mw_blist_icon,
   mw_blist_emblems,
   mw_list_status_text,
   mw_tooltip_text,
   mw_away_states,
-  NULL, /* mw_buddy_menu, */
+  NULL,                     /* mw_buddy_menu, */
   mw_chat_info,
   mw_login,
   mw_close,
   mw_im_send,
-  NULL, /* mw_set_info, */
+  NULL,                     /* mw_set_info, */
   mw_send_typing,
-  NULL, /* mw_get_info, */
+  NULL,                     /* mw_get_info, */
   mw_set_away,
   mw_set_idle,
-  NULL, /* change password, */
+  NULL,                     /* change password, */
   mw_add_buddy,
-  NULL, /* mw_add_buddies, */
+  NULL,                     /* mw_add_buddies, */
   mw_remove_buddy,
-  NULL, /* mw_remove_buddies, */
-  NULL, /* mw_add_permit, */
-  NULL, /* mw_add_deny, */
-  NULL, /* mw_rem_permit, */
-  NULL, /* mw_rem_deny, */
-  NULL, /* mw_set_permit_deny, */
-  NULL, /* mw_warn */
+  NULL,                     /* mw_remove_buddies, */
+  NULL,                     /* mw_add_permit, */
+  NULL,                     /* mw_add_deny, */
+  NULL,                     /* mw_rem_permit, */
+  NULL,                     /* mw_rem_deny, */
+  NULL,                     /* mw_set_permit_deny, */
+  NULL,                     /* mw_warn */
   mw_chat_join,
   mw_chat_reject,
   mw_chat_invite,
   mw_chat_leave,
-  NULL, /* mw_chat_whisper, */
+  NULL,                     /* mw_chat_whisper, */
   mw_chat_send,
   mw_keepalive,
-  NULL, /* register user */
-  NULL, /* get chat buddy info */
-  NULL, /* get chat buddy away */
-  NULL, /* mw_alias_buddy, */
-  NULL, /* mw_move_buddy, */
-  NULL, /* mw_rename_group, */
-  NULL, /* mw_buddy_free, */
+  NULL,                     /* register user */
+  NULL,                     /* get chat buddy info */
+  NULL,                     /* get chat buddy away */
+  NULL,                     /* mw_alias_buddy, */
+  NULL,                     /* mw_move_buddy, */
+  NULL,                     /* mw_rename_group, */
+  NULL,                     /* mw_buddy_free, */
   mw_convo_closed,
-  NULL, /* normalize */
-  NULL, /* set buddy icon */
-  NULL, /* remove group */
-  NULL, /* get chat buddy real name */
-  NULL, /* set chat topic */
-  NULL, /* find blist chat */
-  NULL, /* get room list */
-  NULL, /* cancel get room list */
-  NULL, /* expand room list category */
+  NULL,                     /* normalize */
+  NULL,                     /* set buddy icon */
+  NULL,                     /* remove group */
+  NULL,                     /* get chat buddy real name */
+  NULL,                     /* set chat topic */
+  NULL,                     /* find blist chat */
+  NULL,                     /* get room list */
+  NULL,                     /* cancel get room list */
+  NULL,                     /* expand room list category */
+  NULL,                     /* mw_can_receive_file */
+  NULL,                     /* mw_send_file */
 };
 
 
@@ -1435,8 +1438,8 @@ static GaimPluginInfo info = {
   PLUGIN_ID,                      /**< id             */
   PLUGIN_NAME,                    /**< name           */
   PLUGIN_VERSION,                 /**< version        */
-  PLUGIN_SUMMARY,                 /**  summary        */
-  PLUGIN_DESC,                    /**  description    */
+  PLUGIN_SUMMARY,                 /**< summary        */
+  PLUGIN_DESC,                    /**< description    */
   PLUGIN_AUTHOR,                  /**< author         */
   PLUGIN_HOMEPAGE,                /**< homepage       */
   

@@ -1432,7 +1432,7 @@ static GaimPluginInfo info = {
 
 
 #ifdef _WIN32
-static void dummy_log_handler(const gchar *d, GLogLevel flags,
+static void dummy_log_handler(const gchar *d, GLogLevelFlag flags,
 			      const gchar *m, gpointer data) {
   ; /* nothing at all */
 }

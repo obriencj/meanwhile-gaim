@@ -477,8 +477,6 @@ static void add_buddy(struct mwGaimPluginData *pd,
   GaimGroup *group;
   GList *add;
 
-  DEBUG_INFO("add_buddy\n");
-
   add = g_list_prepend(NULL, &idb);
 
   group = gaim_find_buddys_group(buddy);
@@ -768,7 +766,6 @@ static void read_cb(gpointer data, gint source,
 
     len = read(pd->socket, buf, len);
     if(len > 0) {
-      DEBUG_INFO("read %u bytes\n", len);
       mwSession_recv(pd->session, buf, len);
       return;
     }
@@ -1235,6 +1232,32 @@ static void convo_queue(struct mwConversation *conv,
 }
 
 
+/* Does what it takes to get an error displayed for a conversation */
+static void convo_error(struct mwConversation *conv, guint32 err) {
+  GaimConversation *gconv;
+  char *tmp, *text;
+  struct mwIdBlock *idb;
+  
+  idb = mwConversation_getTarget(conv);
+  
+  tmp = mwError(err);
+  text = g_strconcat("Unable to send message: ", tmp, NULL);
+  
+  gconv = convo_get_gconv(conv);
+  if(gconv && !gaim_conv_present_error(idb->user, gconv->account, text)) {
+    
+    g_free(text);
+    text = g_strdup_printf("Unable to send message to %s:",
+			   (idb->user)? idb->user: "(unknown)");
+    gaim_notify_error(gaim_account_get_connection(gconv->account),
+		      NULL, text, tmp);
+  }
+  
+  g_free(tmp);
+  g_free(text);
+}
+
+
 static void convo_queue_send(struct mwConversation *conv) {
   struct convo_data *cd;
   GList *l;
@@ -1396,47 +1419,11 @@ static void mw_conversation_opened(struct mwConversation *conv) {
 static void mw_conversation_closed(struct mwConversation *conv,
 				   guint32 reason) {
 
-  struct mwServiceIm *srvc;
-  struct mwSession *session;
-  struct mwGaimPluginData *pd;
-  GaimConnection *gc;
-  GaimAccount *acct;
-
-  struct convo_data *cd;
-  struct mwIdBlock *idb;
-
-  GaimConversation *gconv = NULL;
-  char *text = NULL, *tmp = NULL;
-
   g_return_if_fail(conv != NULL);
 
-  srvc = mwConversation_getService(conv);
-  session = mwService_getSession(MW_SERVICE(srvc));
-  pd = mwSession_getClientData(session);
-  gc = pd->gc;
-  acct = gaim_connection_get_account(gc);
-
-  cd = mwConversation_getClientData(conv);
-  g_return_if_fail(cd != NULL);
-
-  idb = mwConversation_getTarget(conv);
-
   if(reason) {
-    tmp = mwError(reason);
-    text = g_strconcat("Unable to send message: ", tmp, NULL);
-    gconv = gaim_find_conversation_with_account(idb->user, acct);
+    convo_error(conv, reason);
   }
-
-  if(gconv && !gaim_conv_present_error(idb->user, gconv->account, text)) {
-    g_free(text);
-    text = g_strdup_printf("Unable to send message to %s:",
-			   (idb->user)? idb->user: "(unknown)");
-    gaim_notify_error(gaim_account_get_connection(gconv->account),
-		      NULL, text, tmp);
-  }
-
-  g_free(tmp);
-  g_free(text);
 
   convo_nofeatures(conv);
   mwConversation_removeClientData(conv);

@@ -199,6 +199,13 @@ struct mw_handler {
 };
 
 
+static void mw_handler_close(struct mwSessionHandler *this) {
+  struct mw_handler *h = (struct mw_handler *) this;
+  close(h->sock_fd);
+  h->sock_fd = 0;
+}
+
+
 /** returns 0 if all bytes were written successfully, -1 for any sort
     of failure. */
 static int mw_handler_write(struct mwSessionHandler *this,
@@ -226,13 +233,6 @@ static int mw_handler_write(struct mwSessionHandler *this,
   } else {
     return 0;
   }
-}
-
-
-static void mw_handler_close(struct mwSessionHandler *this) {
-  struct mw_handler *h = (struct mw_handler *) this;
-  close(h->sock_fd);
-  h->sock_fd = 0;
 }
 
 

@@ -20,6 +20,10 @@ AC_C_CONST
 AC_STRUCT_TM
 
 
+PKG_CONFIG_PATH="$PKG_CONFIG_PATH:/usr/local/lib/pkgconfig"
+export PKG_CONFIG_PATH
+
+
 AC_ARG_ENABLE(debug, [  --enable-debug	  compile with debugging support],,enable_debug=no)
 if test "$enable_debug" = yes; then
    AC_DEFINE(DEBUG, 1, [Define if debugging is enabled.])

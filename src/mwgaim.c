@@ -422,20 +422,19 @@ static void export_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
     if(! GAIM_BLIST_NODE_IS_GROUP(gn)) continue;
     grp = (GaimGroup *) gn;
 
+    /* the group's type (normal or dynamic) */
+    gtype = gaim_blist_node_get_int(gn, GROUP_KEY_TYPE);
+    if(! gtype) gtype = mwSametimeGroup_NORMAL;
+
     if(! gaim_group_on_account(grp, acct)) {
-      DEBUG_INFO("group %s not in account %s\n",
-		 grp->name, gaim_account_get_username(acct));
-      continue;
+      if(gtype == mwSametimeGroup_NORMAL)
+	continue;
     }
 
     /* the group's actual name may be different from the gaim group's
        name. Find whichever is there */
     gname = gaim_blist_node_get_string(gn, GROUP_KEY_NAME);
     if(! gname) gname = grp->name;
-
-    /* the group's type (normal or dynamic) */
-    gtype = gaim_blist_node_get_int(gn, GROUP_KEY_TYPE);
-    if(! gtype) gtype = mwSametimeGroup_NORMAL;
 
     /* we save this, but never actually honor it */
     gopen = ! gaim_blist_node_get_bool(gn, GROUP_KEY_COLLAPSED);

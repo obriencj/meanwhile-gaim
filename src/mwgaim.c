@@ -700,17 +700,19 @@ static void mw_close(GaimConnection *gc) {
   struct mwSession *session;
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
 
-  g_return_if_fail(pd);
+  g_return_if_fail(pd != NULL);
 
-  session = GC_TO_SESSION(gc);
+  session = pd->session;
   if(session) {
     mwSession_stop(session, ERR_SUCCESS);
-    
-    /* we created it, so we need to clean it up */
     g_free(session->handler);
-    session->handler = NULL;
     mwSession_free(session);
   }
+
+  mwService_free(MW_SERVICE(pd->srvc_aware));
+  mwService_free(MW_SERVICE(pd->srvc_conf));
+  mwService_free(MW_SERVICE(pd->srvc_im));
+  mwService_free(MW_SERVICE(pd->srvc_store));
 
   gc->proto_data = NULL;
   g_hash_table_destroy(pd->convo_map);

@@ -1,5 +1,8 @@
 
 version 0.79  Chris O'Brien  <siege@preoccupied.net>
+	2004-06-21: Changes to work with evolving Meanwhile API. Gaim is
+	in string-freeze for a 0.79 release targeted for the 24th.
+	
 	2004-06-16: Patches from nosnilmot to sync up with changes to
 	Gaim CVS, and to add some options to the configure script
 

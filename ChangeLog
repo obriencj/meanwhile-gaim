@@ -1,6 +1,9 @@
 
 version 0.83 (cvs)
 
+	- g_log calls for meanwhile and mwgaim no longer result in a DOS
+	console under win32
+
 version 0.82 (2004-08-26)
 	
 	- updates to prpl structure as per Gaim API change

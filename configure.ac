@@ -48,7 +48,7 @@ AC_SUBST(GLIB_LIBS)
 dnl Check for Meanwhile includes
 AC_ARG_WITH(meanwhile-includes, [  --with-meanwhile-includes=DIR
                           Compile the Gaim plugin against Meanwhile includes in DIR ], [ac_meanwhile_includes="$withval"], [ac_meanwhile_includes="no"])
-MEANWHILE_INCLUDES="-I$prefix/include"
+MEANWHILE_INCLUDES="-I$includedir"
 if test "$ac_meanwhile_includes" != "no"; then
 	MEANWHILE_INCLUDES="-I$ac_meanwhile_includes"
 fi
@@ -62,7 +62,7 @@ AC_SUBST(MEANWHILE_INCLUDES)
 dnl check for Meanwhile library
 AC_ARG_WITH(meanwhile-libs, [  --with-meanwhile-libs=DIR
                           Compile the Gaim plugin against the Meanwhile libs in DIR], [ac_meanwhile_libs="$withval"], [ac_meanwhile_libs="no"])
-MEANWHILE_LIBS="-L$prefix/lib"
+MEANWHILE_LIBS="-L$libdir"
 if test "$ac_meanwhile_libs" != "no"; then
     MEANWHILE_LIBS="-L$ac_meanwhile_libs"
 fi

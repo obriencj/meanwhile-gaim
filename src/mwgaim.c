@@ -186,7 +186,7 @@ static int mw_handler_write(struct mwSessionHandler *this,
 			    const char *b, gsize n) {
 
   struct mw_handler *h = (struct mw_handler *) this;
-  int ret;
+  int ret = 0;
 
   while(n) {
     /* write 2048 bytes at a time */
@@ -194,15 +194,16 @@ static int mw_handler_write(struct mwSessionHandler *this,
     if(ret <= 0) break;
     n -= ret;
   }
-  
+
   if(n > 0) {
     /* if there's data left over, something must have failed */
     gaim_debug_error(G_LOG_DOMAIN, "mw_handler_write returning %i\n", ret);
     gaim_connection_error(h->gc, "Connection died");
-    ret = -1;
-  }
+    return -1;
 
-  return ret;
+  } else {
+    return 0;
+  }
 }
 
 

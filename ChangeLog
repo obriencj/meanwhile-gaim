@@ -1,4 +1,9 @@
 
+version 0.81  Chris O'Brien  <siege@preoccupied.net>
+
+	2004-07-29: Changed away status handling to strip the HTML from
+	the away message, making multi-line messages display correctly.
+	
 version 0.80  Chris O'Brien  <siege@preoccupied.net>
 
 	2004-07-18: Essentially the same as 0.79-1 with some minor changes

@@ -30,6 +30,7 @@ USA. */
 #include <gaim/notify.h>
 #include <gaim/plugin.h>
 #include <gaim/prpl.h>
+#include <gaim/util.h>
 
 #include <glib.h>
 #include <glib/ghash.h>
@@ -37,7 +38,6 @@ USA. */
 
 #include <meanwhile/meanwhile.h>
 #include <meanwhile/st_list.h>
-#include <meanwhile/service.h>
 #include <meanwhile/srvc_aware.h>
 #include <meanwhile/srvc_conf.h>
 #include <meanwhile/srvc_im.h>
@@ -93,14 +93,14 @@ USA. */
 /** default host for the gaim plugin. You can specialize a build to
     default to your server by supplying this at compile time */
 #ifndef PLUGIN_DEFAULT_HOST
-#define PLUGIN_DEFAULT_HOST       ""
+#define PLUGIN_DEFAULT_HOST  ""
 #endif
 
 
 /** default port for the gaim plugin. You can specialize a build to
     default to your server by supplying this at compile time */
 #ifndef PLUGIN_DEFAULT_PORT
-#define PLUGIN_DEFAULT_PORT       1533
+#define PLUGIN_DEFAULT_PORT  1533
 #endif
 
 
@@ -129,7 +129,7 @@ USA. */
 #define BLIST_CHOICE_SAVE  3
 
 
-#define BLIST_CHOICE_IS(n)  (gaim_prefs_get_int(MW_PRPL_OPT_BLIST_ACTION)==(n))
+#define BLIST_CHOICE_IS(n) (gaim_prefs_get_int(MW_PRPL_OPT_BLIST_ACTION)==(n))
 #define BLIST_CHOICE_IS_NONE  BLIST_CHOICE_IS(BLIST_CHOICE_NONE)
 #define BLIST_CHOICE_IS_LOAD  BLIST_CHOICE_IS(BLIST_CHOICE_LOAD)
 #define BLIST_CHOICE_IS_SAVE  BLIST_CHOICE_IS(BLIST_CHOICE_SAVE)
@@ -1149,8 +1149,9 @@ static void mw_set_away(GaimConnection *gc, const char *state,
 
   /* put in the new status desc if necessary */
   if(m != NULL) {
-    stat.desc = g_strdup(m);
-    gc->away = g_strdup(m);
+    char *um = gaim_markup_strip_html(m);
+    stat.desc = um;
+    gc->away = g_strdup(um);
   } else {
     stat.desc = NULL;
     gc->away = NULL;
@@ -1181,8 +1182,6 @@ static struct mwAwareList *ensure_list(GaimConnection *gc, GaimGroup *group) {
 
   list = (struct mwAwareList *) g_hash_table_lookup(pd->list_map, group);
   if(! list) {
-
-    g_message("creating aware list for group %s", group->name);
     list = mwAwareList_new(pd->srvc_aware);
     mwAwareList_setOnAware(list, got_aware, gc);
     g_hash_table_replace(pd->list_map, group, list);

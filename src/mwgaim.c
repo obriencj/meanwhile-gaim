@@ -333,12 +333,7 @@ static void mw_aware_list_on_aware(struct mwAwareList *list,
     group = g_hash_table_lookup(pd->group_list_map, list);
     buddy = gaim_find_buddy_in_group(acct, id, group);
 
-    DEBUG_INFO("member %s of dynamic group %s\n",
-	       NSTR(id), NSTR(group->name));
-
     if(! buddy) {
-      DEBUG_INFO("need to add to blist\n");
-
       buddy = gaim_buddy_new(acct, id, NULL);
       gaim_blist_add_buddy(buddy, NULL, group, NULL);
     }
@@ -810,14 +805,19 @@ static void conversation_created_cb(GaimConversation *g_conv,
     here */
 static void session_started(struct mwGaimPluginData *pd) {
   GaimConnection *gc;
+  GaimAccount *acct;
   struct mwServiceStorage *srvc;
   struct mwStorageUnit *unit;
+  GaimBuddyList *blist;
+  GaimBlistNode *l;
   
   /* finish logging in */
   gc = pd->gc;
   gaim_connection_set_state(gc, GAIM_CONNECTED);
   serv_finish_login(gc);
   serv_set_away(gc, MW_STATE_ACTIVE, NULL);
+
+  acct = gaim_connection_get_account(gc);
 
   /* grab the buddy list from the server */
   srvc = pd->srvc_store;
@@ -838,6 +838,20 @@ static void session_started(struct mwGaimPluginData *pd) {
   gaim_signal_connect(gaim_conversations_get_handle(),
 		      "conversation-created", gc,
 		      GAIM_CALLBACK(conversation_created_cb), pd);
+
+  /* find all the NAB groups and subscribe to them */
+  blist = gaim_get_blist();
+  for(l = blist->root; l; l = l->next) {
+    GaimGroup *group = (GaimGroup *) l;
+    enum mwSametimeGroupType gt;
+
+    if(! GAIM_BLIST_NODE_IS_GROUP(l)) continue;
+    if(! gaim_group_on_account(group, acct)) continue;
+
+    gt = gaim_blist_node_get_int(l, GROUP_KEY_TYPE);
+    if(gt == mwSametimeGroup_DYNAMIC)
+      add_group(pd, group);
+  }
 }
 
 
@@ -2602,12 +2616,12 @@ static void multi_resolved_query(struct mwResolveResult *result,
   msgB = g_strdup_printf(msgB, result->name);
 
   gaim_request_fields(gc, "Select User to Add",
-		      msgA,
-		      msgB, 
-		      fields,
+		      msgA, msgB, fields,
 		      "Add User", G_CALLBACK(multi_resolved_cb),
 		      "Cancel", G_CALLBACK(multi_resolved_cancel),
 		      buddy);
+
+  g_free(msgB);
 }
 
 
@@ -2666,7 +2680,7 @@ static void add_buddy_resolved(struct mwServiceResolve *srvc,
     /* compose and display an error message */
     char *msgA, *msgB;
 
-    msgA = "Unable to add user: user not found.";
+    msgA = "Unable to add user: user not found";
 
     msgB = ("The identifier '%s' did not match any users in your"
 	   " Sametime community. This entry has been removed from"
@@ -2688,8 +2702,6 @@ static void mw_prpl_add_buddy(GaimConnection *gc,
   GList *query;
   enum mwResolveFlag flags;
   guint32 req;
-
-  DEBUG_INFO("mw_prpl_add_buddy\n");
 
   pd = gc->proto_data;
   srvc = pd->srvc_resolve;
@@ -3369,7 +3381,180 @@ static void st_export_action(GaimPluginAction *act) {
 }
 
 
-#if 0
+static void remote_group_multi_cleanup(gpointer ignore,
+				       GaimRequestFields *fields) {
+  
+  GaimRequestField *f;
+  const GList *l;
+
+  f = gaim_request_fields_get_field(fields, "group");
+  l = gaim_request_field_list_get_items(f);
+
+  for(; l; l = l->next) {
+    const char *i = l->data;
+    struct resolved_id *res;
+
+    res = gaim_request_field_list_get_data(f, i);
+
+    g_free(res->id);
+    g_free(res->name);
+    g_free(res);
+  }
+}
+
+
+static void remote_group_done(struct mwGaimPluginData *pd,
+			      const char *id, const char *name) {
+  GaimConnection *gc;
+  GaimGroup *group;
+  GaimBlistNode *gn;
+
+  g_return_if_fail(pd != NULL);
+
+  gc = pd->gc;
+  group = gaim_group_new(name);
+  gn = (GaimBlistNode *) group;
+
+  gaim_blist_node_set_string(gn, GROUP_KEY_NAME, id);
+  gaim_blist_node_set_int(gn, GROUP_KEY_TYPE, mwSametimeGroup_DYNAMIC);
+  gaim_blist_add_group(group, NULL);
+
+  add_group(pd, group);
+}
+
+
+static void remote_group_multi_cb(struct mwGaimPluginData *pd,
+				  GaimRequestFields *fields) {
+  GaimRequestField *f;
+  const GList *l;
+
+  f = gaim_request_fields_get_field(fields, "group");
+  l = gaim_request_field_list_get_selected(f);
+
+  if(l) {
+    const char *i = l->data;
+    struct resolved_id *res;
+
+    res = gaim_request_field_list_get_data(f, i);
+    remote_group_done(pd, res->id, res->name);
+  }
+
+  remote_group_multi_cleanup(NULL, fields);
+}
+
+
+static void remote_group_multi(struct mwResolveResult *result,
+			       struct mwGaimPluginData *pd) {
+
+  GaimRequestFields *fields;
+  GaimRequestFieldGroup *g;
+  GaimRequestField *f;
+  GList *l;
+  char *msgA, *msgB;
+
+  GaimConnection *gc = pd->gc;
+
+  fields = gaim_request_fields_new();
+
+  g = gaim_request_field_group_new(NULL);
+  gaim_request_fields_add_group(fields, g);
+
+  f = gaim_request_field_list_new("group", "Possible Matches");
+  gaim_request_field_list_set_multi_select(f, FALSE);
+  gaim_request_field_set_required(f, TRUE);
+
+  for(l = result->matches; l; l = l->next) {
+    struct mwResolveMatch *match = l->data;
+    struct resolved_id *res = g_new0(struct resolved_id, 1);
+
+    res->id = g_strdup(match->id);
+    res->name = g_strdup(match->name);
+
+    gaim_request_field_list_add(f, res->name, res);
+  }
+
+  gaim_request_field_group_add_field(g, f);
+
+  msgA = ("Notes Address Book group results");
+  msgB = ("The identifier '%s' may possibly refer to any of the following"
+	  " Notes Address Book groups. Please select the correct group from"
+	  " the list below to add it to your buddy list.");
+  msgB = g_strdup_printf(msgB, result->name);
+
+  gaim_request_fields(gc, "Select Notes Address Book",
+		      msgA, msgB, fields,
+		      "Add Group", G_CALLBACK(remote_group_multi_cb),
+		      "Cancel", G_CALLBACK(remote_group_multi_cleanup),
+		      pd);
+
+  g_free(msgB);
+}
+
+
+static void remote_group_resolved(struct mwServiceResolve *srvc,
+				  guint32 id, guint32 code, GList *results,
+				  gpointer b) {
+  struct mwResolveResult *res;
+  struct mwSession *session;
+  struct mwGaimPluginData *pd;
+  GaimConnection *gc;
+
+  session = mwService_getSession(MW_SERVICE(srvc));
+  g_return_if_fail(session != NULL);
+
+  pd = mwSession_getClientData(session);
+  g_return_if_fail(pd != NULL);
+
+  gc = pd->gc;
+  g_return_if_fail(gc != NULL);
+  
+  if(!code && results) {
+    res = results->data;
+
+    if(res->matches) {
+      remote_group_multi(res, pd);
+      return;
+    }
+  }
+
+  if(res->name) {
+    char *msgA, *msgB;
+
+    msgA = "Unable to add group: group not found";
+
+    msgB = ("The identifier '%s' did not match any Notes Address Book"
+	    " groups in your Sametime community.");
+    msgB = g_strdup_printf(msgB, res->name);
+
+    gaim_notify_error(gc, "Unable to add group", msgA, msgB);
+
+    g_free(msgB);
+  }
+}
+
+
+static void remote_group_action_cb(GaimConnection *gc, const char *name) {
+  struct mwGaimPluginData *pd;
+  struct mwServiceResolve *srvc;
+  GList *query;
+  enum mwResolveFlag flags;
+  guint32 req;
+
+  pd = gc->proto_data;
+  srvc = pd->srvc_resolve;
+
+  query = g_list_prepend(NULL, name);
+  flags = mwResolveFlag_FIRST | mwResolveFlag_GROUPS;
+  
+  req = mwServiceResolve_resolve(srvc, query, flags, remote_group_resolved,
+				 NULL, NULL);
+
+  if(req == SEARCH_ERROR) {
+    /** @todo display error */
+  }
+}
+
+
 static void remote_group_action(GaimPluginAction *act) {
   /** @todo implement remote group additions
 
@@ -3380,9 +3565,21 @@ static void remote_group_action(GaimPluginAction *act) {
       add group, set real group name
       subscribe to group presence
   */
-  ;
+  
+  GaimConnection *gc;
+  const char *title, *msg;
+
+  gc = act->context;
+
+  title = "Add Group";
+  msg = "Add a Notes Address Book group to the buddy list";
+
+  gaim_request_input(gc, title, msg, NULL, NULL,
+		     FALSE, FALSE, NULL,
+		     "Add", G_CALLBACK(remote_group_action_cb),
+		     "Cancel", NULL,
+		     gc);
 }
-#endif
 
 
 static GList *mw_plugin_actions(GaimPlugin *plugin, gpointer context) {
@@ -3398,10 +3595,9 @@ static GList *mw_plugin_actions(GaimPlugin *plugin, gpointer context) {
   act = gaim_plugin_action_new("Export Sametime List...", st_export_action);
   l = g_list_append(l, act);
 
-#if 0
-  act = gaim_plugin_action_new("Add Remote Group...", remote_group_action);
+  act = gaim_plugin_action_new("Add Notes Address Book Group...",
+			       remote_group_action);
   l = g_list_append(l, act);
-#endif
 
   return l;
 }

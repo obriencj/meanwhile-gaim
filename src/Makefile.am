@@ -11,7 +11,7 @@ libmwgaim_la_CFLAGS = \
 
 libmwgaim_la_LDFLAGS = -module -avoid-version
 
-libmwgaim_la_LIBADD = -lmeanwhile
+libmwgaim_la_LIBADD = $(MEANWHILE_LIBS)
 
-INCLUDES = $(GLIB_CFLAGS) $(GAIM_INCLUDES) -I$(includedir)
+INCLUDES = $(GLIB_CFLAGS) $(GAIM_INCLUDES) $(MEANWHILE_INCLUDES)
 

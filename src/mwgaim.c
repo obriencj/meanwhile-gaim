@@ -37,6 +37,7 @@ USA. */
 
 #include <meanwhile/meanwhile.h>
 #include <meanwhile/st_list.h>
+#include <meanwhile/service.h>
 #include <meanwhile/srvc_aware.h>
 #include <meanwhile/srvc_conf.h>
 #include <meanwhile/srvc_im.h>
@@ -553,6 +554,7 @@ static void storage_load_cb(struct mwServiceStorage *srvc, guint result,
 			    struct mwStorageUnit *item, gpointer dat) {
 
   struct mwSametimeList *stlist;
+  struct mwSession *s;
   char *b, *tmp;
   gsize n;
 
@@ -567,7 +569,8 @@ static void storage_load_cb(struct mwServiceStorage *srvc, guint result,
   stlist = mwSametimeList_new();
   mwSametimeList_get(&b, &n, stlist);
 
-  import_blist(SESSION_TO_GC(mwService_getSession(MW_SERVICE(srvc))), stlist);
+  s = mwService_getSession(MW_SERVICE(srvc));
+  import_blist(SESSION_TO_GC(s), stlist);
 
   mwSametimeList_free(stlist);
 

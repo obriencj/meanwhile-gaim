@@ -1,5 +1,12 @@
 
+version 0.80  Chris O'Brien  <siege@preoccupied.net>
+
+	2004-07-18: Essentially the same as 0.79-1 with some minor changes
+	to the preferences to make use of the new INFO preference to
+	display the use warning. Still for use against Meanwhile 0.3
+	
 version 0.79  Chris O'Brien  <siege@preoccupied.net>
+
 	2004-06-26: Fixed a crash bug, and added the ability to store
 	buddy lists back on the server.
 	

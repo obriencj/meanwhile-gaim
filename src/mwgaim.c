@@ -1806,18 +1806,20 @@ static void mw_prpl_set_idle(GaimConnection *gc, int time) {
 }
 
 
-static void add_buddy_resolved(struct mwServiceResolve *srvc,
-			       guint32 id, guint32 code, GList *results,
-			       gpointer b) {
+struct resolved_id {
+  char *id;
+  char *name;
+};
 
-  struct mwResolveResult *res;
-  struct mwResolveMatch *match;
 
-  GaimBuddy *buddy = b;
+static void add_resolved_done(const char *id, const char *name,
+			      GaimBuddy *buddy) {
 
   GaimAccount *acct;
   GaimConnection *gc;
   struct mwGaimPluginData *pd;
+
+  g_return_if_fail(id != NULL);
 
   g_return_if_fail(buddy != NULL);
   acct = buddy->account;
@@ -1828,28 +1830,158 @@ static void add_buddy_resolved(struct mwServiceResolve *srvc,
   g_return_if_fail(gc != NULL);
   pd = gc->proto_data;
 
+  gaim_blist_rename_buddy(buddy, id);
+  
+  g_free(buddy->server_alias);
+  buddy->server_alias = name? g_strdup(name): NULL;
+  
+  add_buddy(pd, buddy);
+}
+
+
+static void multi_resolved_cleanup(GaimRequestFields *fields) {
+
+  GaimRequestField *f;
+  const GList *l;
+
+  f = gaim_request_fields_get_field(fields, "user");
+  l = gaim_request_field_list_get_items(f);
+
+  for(; l; l = l->next) {
+    const char *i = l->data;
+    struct resolved_id *res;
+
+    res = gaim_request_field_list_get_data(f, i);
+
+    g_free(res->id);
+    g_free(res->name);
+    g_free(res);
+  }
+}
+
+
+static void multi_resolved_cancel(GaimBuddy *buddy,
+				  GaimRequestFields *fields) {
+
+  gaim_blist_remove_buddy(buddy);
+  multi_resolved_cleanup(fields);
+}
+
+
+static void multi_resolved_cb(GaimBuddy *buddy,
+			      GaimRequestFields *fields) {
+
+  GaimRequestField *f;
+  const GList *l;
+
+  f = gaim_request_fields_get_field(fields, "user");
+  l = gaim_request_field_list_get_selected(f);
+
+  if(l) {
+    const char *i = l->data;
+    struct resolved_id *res;
+
+    res = gaim_request_field_list_get_data(f, i);
+
+    add_resolved_done(res->id, res->name, buddy);
+    multi_resolved_cleanup(fields);
+
+  } else {
+    multi_resolved_cancel(buddy, fields);
+  }
+}
+
+
+static void multi_resolved_query(struct mwResolveResult *result,
+				 GaimBuddy *buddy) {
+
+  GaimRequestFields *fields;
+  GaimRequestFieldGroup *g;
+  GaimRequestField *f;
+  GList *l;
+  char *msgA, *msgB;
+
+  GaimAccount *acct;
+  GaimConnection *gc;
+
+  g_return_if_fail(buddy != NULL);
+  acct = buddy->account;
+
+  g_return_if_fail(acct != NULL);
+  gc = gaim_account_get_connection(acct);
+
+  fields = gaim_request_fields_new();
+
+  g = gaim_request_field_group_new(NULL);
+
+  /* note that Gaim segfaults if you don't add the group to the fields
+     before you add a required field to the group. Feh. */
+  gaim_request_fields_add_group(fields, g);
+
+  f = gaim_request_field_list_new("user", "user");
+  gaim_request_field_list_set_multi_select(f, FALSE);
+  gaim_request_field_set_required(f, TRUE);
+
+  for(l = result->matches; l; l = l->next) {
+    struct mwResolveMatch *match = l->data;
+    struct resolved_id *res = g_new0(struct resolved_id, 1);
+
+    res->id = g_strdup(match->id);
+    res->name = g_strdup(match->name);
+
+    gaim_request_field_list_add(f, res->name, res);
+  }
+
+  gaim_request_field_group_add_field(g, f);
+
+  msgA = ("An ambiguous user ID was entered");
+  msgB = ("The identifier '%s' may possibly refer to any of the following"
+	  " users. Please select the correct user from the list below to"
+	  " add them to your buddy list.");
+  msgB = g_strdup_printf(msgB, result->name);
+
+  gaim_request_fields(gc, "Select User to Add",
+		      msgA,
+		      msgB, 
+		      fields,
+		      "Add User", G_CALLBACK(multi_resolved_cb),
+		      "Cancel", G_CALLBACK(multi_resolved_cancel),
+		      buddy);
+}
+
+
+static void add_buddy_resolved(struct mwServiceResolve *srvc,
+			       guint32 id, guint32 code, GList *results,
+			       gpointer b) {
+
+  struct mwResolveResult *res;
+
+  GaimBuddy *buddy = b;
+
   DEBUG_INFO("add_buddy_resolved\n");
 
   if(!code && results) {
     res = results->data;
 
-    /** @todo prompt user if more than one match was returned */
-
     if(res->matches) {
-      match = res->matches->data;
+      if(g_list_length(res->matches) == 1) {
+	struct mwResolveMatch *match = res->matches->data;
 
-      gaim_blist_rename_buddy(buddy, match->id);
+	/* only one? that must be the right one! */
+	add_resolved_done(match->id, match->name, buddy);
 
-      g_free(buddy->server_alias);
-      buddy->server_alias = g_strdup(match->name);
+      } else {
+	/* prompt user if more than one match was returned */
+	multi_resolved_query(res, buddy);
+      }
 
-      add_buddy(pd, buddy);
       return;
     }
   }
 
   /* fall-through indicates that we couldn't find a matching user in
-     the resolve service, so we remove this buddy */
+     the resolve service (ether error or zero results), so we remove
+     this buddy */
 
   /** @todo inform the user if their added buddy wasn't resolved */
 
@@ -2115,7 +2247,8 @@ static void mw_prpl_rename_group(GaimConnection *gc, const char *old,
   /* it's a change in the buddy list, so we've gotta reflect that in
      the server copy. Also, having this function should prevent all
      those buddies from being removed and re-added. We don't really
-     give a crap what the group is named in Gaim */
+     give a crap what the group is named in Gaim other than to record
+     that as the group name/alias */
 
   blist_save(pd);
 }

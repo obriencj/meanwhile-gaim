@@ -2,7 +2,7 @@ Summary: Meanwhile Gaim
 Name: @PACKAGE@
 Epoch: 0
 Version: @VERSION@
-Release: 0
+Release: @RELEASE@
 License: GPL
 Group: Applications/Internet
 URL: http://meanwhile.sf.net/
@@ -49,6 +49,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jun 29 2004  <siege@preoccupied.net>
+- Release determined from configure script
+
 * Sun Jun 27 2004  <siege@preoccupied.net>
 - Now uses gaim-devel rather than gaim-source-dir
 

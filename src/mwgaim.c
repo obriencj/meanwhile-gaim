@@ -54,6 +54,12 @@ USA. */
 #define PLUGIN_AUTHOR    "Christopher (siege) O'Brien <siege@preoccupied.net>"
 #define PLUGIN_HOMEPAGE  "http://meanwhile.sf.net/"
 
+
+/* plugin preference names */
+#define MW_PRPL_OPT_BASE          "/plugins/prpl/meanwhile"
+#define MW_PRPL_OPT_BLIST_ACTION  MW_PRPL_OPT_BASE "/blist_action"
+
+
 #define MW_CONNECT_STEPS  7
 #define MW_CONNECT_1  _("Looking up server")
 #define MW_CONNECT_2  _("Sending Handshake")
@@ -62,8 +68,8 @@ USA. */
 #define MW_CONNECT_5  _("Waiting for Login Acknowledgement")
 #define MW_CONNECT_6  _("Login Acknowledged")
 
-#define UC_NORMAL  0x10
 
+#define UC_NORMAL  0x10
 #define MW_STATE_OFFLINE  _("Offline")
 #define MW_STATE_ACTIVE   _("Active")
 #define MW_STATE_AWAY     _("Away")
@@ -111,6 +117,26 @@ USA. */
 /** number of seconds from the first blist change before a save to the
     storage service occurs. */
 #define BLIST_SAVE_SECONDS  15
+
+
+/** blist storage option, local only */
+#define BLIST_CHOICE_NONE  0
+
+/** blist storage option, load from server */
+#define BLIST_CHOICE_LOAD  1
+
+/** blist storage option, load and save to server */
+#define BLIST_CHOICE_SAVE  2
+
+
+#define BLIST_CHOICE_IS_NONE \
+  (gaim_prefs_get_int(MW_PRPL_OPT_BLIST_ACTION) == BLIST_CHOICE_NONE)
+
+#define BLIST_CHOICE_IS_LOAD \
+  (gaim_prefs_get_int(MW_PRPL_OPT_BLIST_ACTION) == BLIST_CHOICE_LOAD)
+
+#define BLIST_CHOICE_IS_SAVE \
+  (gaim_prefs_get_int(MW_PRPL_OPT_BLIST_ACTION) == BLIST_CHOICE_SAVE)
 
 
 /* there's probably a better way, I just never bothered finding it */
@@ -373,7 +399,7 @@ static GaimBuddy *ensure_buddy(GaimConnection *gc, GaimGroup *group,
     gaim_blist_add_buddy(buddy, NULL, group, NULL);
 
     /* why doesn't the above trigger this? */
-    serv_add_buddy(gc, buddy);
+    /* serv_add_buddy(gc, buddy); */
   }
 
   return buddy;
@@ -447,6 +473,9 @@ static void save_blist(GaimConnection *gc) {
   storage = pd->srvc_store;
   g_return_if_fail(storage != NULL);
 
+  /* check if we should do this, according to user prefs */
+  if(! BLIST_CHOICE_IS_SAVE) return;
+
   if(MW_SERVICE_IS_DEAD(storage)) {
     g_message("aborting save of blist: storage service is not alive");
     return;
@@ -488,6 +517,9 @@ static void import_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
   GaimBuddy *buddy;
 
   GList *gl, *gtl, *ul, *utl;
+
+  /* check our preferences for loading */
+  if(BLIST_CHOICE_IS_NONE) return;
 
   gl = gtl = mwSametimeList_getGroups(stlist);
   for(; gl; gl = gl->next) {
@@ -659,8 +691,6 @@ static void got_aware(struct mwAwareList *list,
 		      struct mwSnapshotAwareIdBlock *idb, gpointer data) {
 
   GaimConnection *gc = (GaimConnection *) data;
-  GaimAccount *acct = gaim_connection_get_account(gc);
-  GaimBuddy *buddy;
   time_t idle = 0;
 
   /* deadbeef or 0 from the client means not idle (unless the status
@@ -680,14 +710,8 @@ static void got_aware(struct mwAwareList *list,
   if(idb->status.status == mwStatus_IDLE)
     idle = -1;
 
-  buddy = gaim_find_buddy(acct, idb->id.user);
-  g_return_if_fail(buddy != NULL);
-
   serv_got_update(gc, idb->id.user, idb->online,
 		  0, 0, idle, idb->status.status);
-
-  g_free(buddy->server_alias);
-  buddy->server_alias = g_strdup(idb->alt_id);
 }
 
 
@@ -1292,6 +1316,36 @@ static int mw_chat_send(GaimConnection *gc, int id, const char *message) {
 }
 
 
+static GaimPluginPrefFrame *get_plugin_pref_frame(GaimPlugin *plugin) {
+  GaimPluginPrefFrame *frame;
+  GaimPluginPref *pref;
+
+  frame = gaim_plugin_pref_frame_new();
+
+  pref = gaim_plugin_pref_new_with_label("Remotely Stored Buddy List");
+  gaim_plugin_pref_frame_add(frame, pref);
+
+  pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_BLIST_ACTION);
+  gaim_plugin_pref_set_label(pref, "Buddy List Storage Options. Please note"
+			     " that the 'load and save' option is still"
+			     " experimental, and highly volatile. Back up"
+			     " your buddy list with an official client before"
+			     " enabling. Loading takes effect at login.");
+
+  gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_CHOICE);
+  gaim_plugin_pref_add_choice(pref, "Local Buddy List Only",
+			      GINT_TO_POINTER(BLIST_CHOICE_NONE));
+  gaim_plugin_pref_add_choice(pref, "Load List from Server",
+			      GINT_TO_POINTER(BLIST_CHOICE_LOAD));
+  gaim_plugin_pref_add_choice(pref, "Load and Save List to Server",
+			      GINT_TO_POINTER(BLIST_CHOICE_SAVE));
+
+  gaim_plugin_pref_frame_add(frame, pref);
+
+  return frame;
+}
+
+
 static GaimPlugin *meanwhile_plugin = NULL;
 
 
@@ -1354,6 +1408,11 @@ static GaimPluginProtocolInfo prpl_info = {
 };
 
 
+static GaimPluginUiInfo prefs_info = {
+  get_plugin_pref_frame
+};
+
+
 static GaimPluginInfo info = {
   GAIM_PLUGIN_API_VERSION,        /**< api_version    */
   GAIM_PLUGIN_PROTOCOL,           /**< type           */
@@ -1375,7 +1434,7 @@ static GaimPluginInfo info = {
   NULL,                           /**< destroy        */
   NULL,                           /**< ui_info        */
   &prpl_info,                     /**< extra_info     */
-  NULL,                           /**< prefs info     */
+  &prefs_info,                    /**< prefs info     */
   NULL                            /**< actions        */
 };
 
@@ -1391,6 +1450,9 @@ static void init_plugin(GaimPlugin *plugin) {
   prpl_info.protocol_options = g_list_append(prpl_info.protocol_options, opt);
 
   meanwhile_plugin = plugin;
+
+  gaim_prefs_add_none(MW_PRPL_OPT_BASE);
+  gaim_prefs_add_int(MW_PRPL_OPT_BLIST_ACTION, BLIST_CHOICE_NONE);
 }
 
 

@@ -28,6 +28,7 @@ USA. */
 #include <notify.h>
 #include <plugin.h>
 #include <prpl.h>
+#include <request.h>
 #include <util.h>
 #include <version.h>
 
@@ -57,6 +58,7 @@ USA. */
 /* plugin preference names */
 #define MW_PRPL_OPT_BASE          "/plugins/prpl/meanwhile"
 #define MW_PRPL_OPT_BLIST_ACTION  MW_PRPL_OPT_BASE "/blist_action"
+#define MW_PRPL_OPT_ACTIVE_MSG    MW_PRPL_OPT_BASE "/active_msg"
 
 
 /* stages of connecting-ness */
@@ -649,31 +651,32 @@ static void on_admin(struct mwSession *s, struct mwMsgAdmin *msg) {
 
 static void got_error(struct mwServiceIM *srvc,
 		      struct mwIdBlock *who, unsigned int err) {
+  
+  GaimConversation *conv = gaim_find_conversation(who->user);
+  char *text, *tmp;
+  
+  g_return_if_fail(conv);
+  
+  tmp = mwError(err);
+  text = g_strconcat("Unable to send message: ", tmp, NULL);
+  
+  if(! gaim_conv_present_error(who->user, conv->account, text)) {
+    g_free(text);
+    text = g_strdup_printf(_("Unable to send message to %s:"),
+			   who->user? who->user: "(unknown)");
 
-	GaimConversation *conv = gaim_find_conversation(who->user);
-	char *text, *tmp;
-	
-	g_return_if_fail(conv);
-	
-	tmp = mwError(err);
-	text = g_strconcat("Unable to send message: ", tmp, NULL);
-	
-	if (!gaim_conv_present_error(who->user, conv->account, text)) {
-		g_free(text);
-		text = g_strdup_printf(_("Unable to send message to %s:"), who->user ? who->user : "(unknown)");
-		gaim_notify_error(gaim_account_get_connection(conv->account), NULL, text,
-						  tmp ? tmp : _("Unknown reason."));
-	}
-	
-	g_free(tmp);
-	g_free(text);
+    gaim_notify_error(gaim_account_get_connection(conv->account),
+		      NULL, text,
+		      tmp? tmp: _("Unknown reason."));
+  }
+  
+  g_free(tmp);
+  g_free(text);
 }
 
 
 static void got_text(struct mwServiceIM *srvc,
 		     struct mwIdBlock *who, const char *text) {
-
-  /* if user@community split, compose buddy name */
 
   struct mwSession *s = srvc->service.session;
   char *esc = gaim_escape_html(text);
@@ -684,8 +687,6 @@ static void got_text(struct mwServiceIM *srvc,
 
 static void got_typing(struct mwServiceIM *srvc,
 		       struct mwIdBlock *who, gboolean typing) {
-
-  /* if user@community split, compose buddy name */
 
   struct mwSession *s = srvc->service.session;
 
@@ -706,7 +707,7 @@ static void got_aware(struct mwAwareList *list,
   /* deadbeef or 0 from the client means not idle (unless the status
      indicates otherwise), but deadbeef to the blist causes idle with
      no time */
-  /*
+#if 0
   unsigned int i = idb->status.time;
 
   if( (idb->status.status == mwStatus_IDLE) ||
@@ -714,7 +715,7 @@ static void got_aware(struct mwAwareList *list,
 
     idle = (i > 0)? i: 0xdeadbeef;
   }
-  */
+#endif
 
   /* idle times unused until fixed in a later release */
   if(idb->status.status == mwStatus_IDLE)
@@ -786,7 +787,7 @@ static void got_closed(struct mwConference *conf) {
 
   conv = (GaimConversation *) g_hash_table_lookup(pd->convo_map, conf);
 
-  /* TODO: tell the conv that it's been closed */
+  /* @todo tell the conv that it's been closed */
 
   g_hash_table_remove(pd->convo_map, conf);
 }
@@ -906,8 +907,10 @@ static void mw_login(GaimAccount *acct) {
 
   gaim_connection_update_progress(gc, MW_CONNECT_1, 1, MW_CONNECT_STEPS);
 
-  if(gaim_proxy_connect(acct, host, port, mw_login_callback, gc))
+  if(gaim_proxy_connect(acct, host, port, mw_login_callback, gc)) {
     gaim_connection_error(gc, "Unable to connect");
+    /* but why not? */
+  }
 }
 
 
@@ -960,8 +963,6 @@ static const char *mw_blist_icon(GaimAccount *a, GaimBuddy *b) {
 
   /* then, throw all of that away and use sodipodi to make a new
      icon. You know, LIKE A REAL MAN. */
-
-  /** @todo meanwhile-group icon */
 
   return "meanwhile";
 }
@@ -1156,8 +1157,10 @@ static void mw_set_away(GaimConnection *gc, const char *state,
     gc->away = NULL;
   }
 
-  if(stat.status == mwStatus_ACTIVE)
+  if(stat.status == mwStatus_ACTIVE) {
     stat.time = 0;
+    stat.desc = g_strdup(gaim_prefs_get_string(MW_PRPL_OPT_ACTIVE_MSG));
+  }
 
   mwSession_setUserStatus(s, &stat);
   mwUserStatus_clear(&stat);
@@ -1173,19 +1176,19 @@ static void mw_convo_closed(GaimConnection *gc, const char *name) {
   mwServiceIM_closeChat(pd->srvc_im, &t);
 }
 
-static const char *
-mw_normalize(const GaimAccount *account, const char *str)
-{
-	static char buf[BUF_LEN];
 
-	/* code elsewhere assumes that the return value points to different memory than the passed value. */
-	strncpy(buf, str, sizeof(buf));
+static const char *mw_normalize(const GaimAccount *account, const char *str) {
+  static char buf[BUF_LEN];
 
-	return buf;
+  /* code elsewhere assumes that the return value points to different
+     memory than the passed value. */
+  strncpy(buf, str, sizeof(buf));
+  
+  return buf;
 }
 
-static struct mwAwareList *ensure_list(GaimConnection *gc, GaimGroup *group) {
 
+static struct mwAwareList *ensure_list(GaimConnection *gc, GaimGroup *group) {
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
   struct mwAwareList *list;
 
@@ -1233,7 +1236,7 @@ static void mw_add_buddy(GaimConnection *gc,
   GaimGroup *found = gaim_find_buddys_group(buddy);
   list = ensure_list(gc, found);
 
-  if( mwAwareList_addAware(list, &t, 1) ) {
+  if(! mwAwareList_addAware(list, &t, 1) ) {
     schedule_stlist_save(gc);
   } else {
     gaim_blist_remove_buddy(buddy);
@@ -1346,6 +1349,41 @@ static int mw_chat_send(GaimConnection *gc, int id, const char *message) {
 }
 
 
+static void mw_set_active_message(GaimConnection *gc, char *txt) {
+  gaim_prefs_set_string(MW_PRPL_OPT_ACTIVE_MSG, txt);
+
+  /* @todo if connection state is mwStatus_ACTIVE, then call
+     mw_set_status to update the active message */
+
+  if(! strcmp(gc->away_state, MW_STATE_ACTIVE))
+    mw_set_away(gc, MW_STATE_ACTIVE, NULL);
+}
+
+
+static void mw_show_set_active_message(GaimPluginAction *act) {
+  GaimConnection *gc = act->context;
+
+  gaim_request_input(gc, NULL, "Active Message:", NULL,
+		     gaim_prefs_get_string(MW_PRPL_OPT_ACTIVE_MSG),
+		     TRUE, FALSE, NULL,
+		     _("OK"), G_CALLBACK(mw_set_active_message),
+		     _("Cancel"), NULL,
+		     gc);
+}
+
+
+static GList *mw_actions(GaimPlugin *plugin, gpointer context) {
+  GList *l = NULL;
+  GaimPluginAction *act;
+
+  act = gaim_plugin_action_new("Set Active Message...",
+			       mw_show_set_active_message);
+  l = g_list_append(l, act);
+
+  return l;
+}
+
+
 static GaimPluginPrefFrame *get_plugin_pref_frame(GaimPlugin *plugin) {
   GaimPluginPrefFrame *frame;
   GaimPluginPref *pref;
@@ -1426,7 +1464,7 @@ static GaimPluginProtocolInfo prpl_info = {
   NULL,                     /* mw_rename_group, */
   NULL,                     /* mw_buddy_free, */
   mw_convo_closed,
-  mw_normalize,             /* normalize */
+  mw_normalize,
   NULL,                     /* set buddy icon */
   NULL,                     /* remove group */
   NULL,                     /* get chat buddy real name */
@@ -1469,11 +1507,12 @@ static GaimPluginInfo info = {
   NULL,                     /**< ui_info */
   &prpl_info,               /**< extra_info */
   &prefs_info,              /**< prefs info */
-  NULL                      /**< actions */
+  mw_actions,               /**< actions */
 };
 
 
 #if defined(_WIN32) && !defined(DEBUG) 
+/* quiet down win32 builds, to keep a DOS window from opening */
 static void dummy_log_handler(const gchar *d, GLogLevelFlags flags,
 			      const gchar *m, gpointer data) {
   ; /* nothing at all */
@@ -1495,6 +1534,7 @@ static void init_plugin(GaimPlugin *plugin) {
   /* set up the prefs for blist options */
   gaim_prefs_add_none(MW_PRPL_OPT_BASE);
   gaim_prefs_add_int(MW_PRPL_OPT_BLIST_ACTION, BLIST_CHOICE_NONE);
+  gaim_prefs_add_string(MW_PRPL_OPT_ACTIVE_MSG, "Talk to me");
 
   /* silence plugin and meanwhile library logging for win32 
 		 sd, where debugging isn't enabled */

@@ -1,4 +1,10 @@
 
+version 1.0.2 (2004-11-06)
+
+	- fix a really stupid bug preventing the adding of new buddies.
+
+	- adds protocol action to set active message
+
 version 1.0.1 (2004-10-15)
 
 	- fix #1045727 gaim crash in mwgaim.c:mw_read_callback after

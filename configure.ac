@@ -73,6 +73,22 @@ CONF_ACTIVE_MSG=$withval
 AC_SUBST(CONF_ACTIVE_MSG)
 
 
+withval="Not here right now"
+AC_ARG_WITH(away_msg,
+	[ --with-away-msg=["Not here right now"]
+	                             define the default away message])
+CONF_AWAY_MSG=$withval
+AC_SUBST(CONF_AWAY_MSG)
+
+
+withval="Please do not disturb me"
+AC_ARG_WITH(busy_msg,
+	[ --with-busy-msg=["Please do not disturb me"]
+				     define the default busy message])
+CONF_BUSY_MSG=$withval
+AC_SUBST(CONF_BUSY_MSG)
+
+
 withval=""
 AC_ARG_WITH(host,
 	[ --with-host=[""]           define the default community host])
@@ -149,6 +165,8 @@ AC_OUTPUT()
 
 echo
 echo Default active message... : \"$CONF_ACTIVE_MSG\"
+echo Default away message..... : \"$CONF_AWAY_MSG\"
+echo Default busy message..... : \"$CONF_BUSY_MSG\"
 echo Default community host... : \"$CONF_DEFAULT_HOST\"
 echo Default community port... : $CONF_DEFAULT_PORT
 echo Client type identifier... : $CONF_CLIENT_TYPE

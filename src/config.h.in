@@ -10,6 +10,20 @@
 /* "Talk to me" */
 
 
+/** default away message */
+#ifndef MW_PLUGIN_DEFAULT_AWAY_MSG
+#define MW_PLUGIN_DEFAULT_AWAY_MSG  "@CONF_AWAY_MSG@"
+#endif
+/* "Not here right now" */
+
+
+/** default busy message */
+#ifndef MW_PLUGIN_DEFAULT_BUSY_MSG
+#define MW_PLUGIN_DEFAULT_BUSY_MSG  "@CONF_BUSY_MSG@"
+#endif
+/* "Please do not disturb me" */
+
+
 /** default host for the gaim plugin. You can specialize a build to
     default to your server by supplying this at compile time */
 #ifndef MW_PLUGIN_DEFAULT_HOST

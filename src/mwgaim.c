@@ -68,6 +68,7 @@
 /* plugin preference names */
 #define MW_PRPL_OPT_BASE          "/plugins/prpl/meanwhile"
 #define MW_PRPL_OPT_BLIST_ACTION  MW_PRPL_OPT_BASE "/blist_action"
+#define MW_PRPL_OPT_PSYCHIC       MW_PRPL_OPT_BASE "/psychic"
 
 
 /* stages of connecting-ness */
@@ -104,6 +105,8 @@
 #define MW_KEY_HOST        "server"
 #define MW_KEY_PORT        "port"
 #define MW_KEY_ACTIVE_MSG  "active_msg"
+#define MW_KEY_AWAY_MSG    "away_msg"
+#define MW_KEY_BUSY_MSG    "busy_msg"
 
 
 /** the amount of data the plugin will attempt to read from a socket
@@ -133,13 +136,12 @@
 #define BLIST_CHOICE_IS_SAVE() BLIST_CHOICE_IS(BLIST_CHOICE_SAVE)
 
 
-/** warning text placed next to plugin option */
+/** warning text placed next to blist option */
 #define BLIST_WARNING \
-  ("Please note:\n" \
-   "The 'load and save' option above is still" \
-   " experimental, and highly volatile. Back up" \
-   " your buddy list with an official client before" \
-   " enabling. Loading takes effect at login.")
+ ("Please note:\n" \
+  "The 'load and save' option above is still mildly experimental. You" \
+  " should back-up your buddy list with an official client before" \
+  " enabling this option. Loading takes effect at login.\n")
 
 
 /* debugging output */
@@ -161,7 +163,7 @@ struct mwGaimPluginData {
 
   struct mwServiceAware *srvc_aware;
   struct mwServiceConference *srvc_conf;
-  struct mwServiceDir *srvc_dir;
+  struct mwServiceDirectory *srvc_dir;
   struct mwServiceIm *srvc_im;
   struct mwServiceResolve *srvc_resolve;
   struct mwServiceStorage *srvc_store;
@@ -459,11 +461,11 @@ static void add_buddy(struct mwGaimPluginData *pd,
   group = gaim_find_buddys_group(buddy);
   list = ensure_list(pd, group);
 
-  if(! mwAwareList_addAware(list, add)) {
-    blist_save(pd);
-  } else {
+  if(mwAwareList_addAware(list, add)) {
     gaim_blist_remove_buddy(buddy);
   }
+
+  blist_save(pd);
 
   g_list_free(add);  
 }
@@ -1168,12 +1170,31 @@ static void convo_queue_send(struct mwConversation *conv) {
 }
 
 
+static void do_psychic(GaimAccount *acct, const char *who) {
+  GaimConversation *gconv;
+  GaimConvWindow *win;
+
+  gconv = gaim_find_conversation_with_account(who, acct);
+  if(! gconv) {
+    gconv = gaim_conversation_new(GAIM_CONV_IM, acct, who);
+  }
+
+  g_return_if_fail(gconv != NULL);
+
+  win = gaim_conversation_get_window(gconv);
+  g_return_if_fail(win != NULL);
+
+  gaim_conv_window_show(win);
+}
+
+
 static void mw_conversation_opened(struct mwConversation *conv) {
   struct mwServiceIm *srvc;
   struct mwSession *session;
   struct mwGaimPluginData *pd;
   GaimConnection *gc;
   GaimAccount *acct;
+  struct mwIdBlock *idb;
 
   struct convo_dat *cd;
 
@@ -1183,19 +1204,22 @@ static void mw_conversation_opened(struct mwConversation *conv) {
   gc = pd->gc;
   acct = gaim_connection_get_account(gc);
 
+  idb = mwConversation_getTarget(conv);
+
   cd = mwConversation_getClientData(conv);
   if(cd) {
-    struct mwIdBlock *idb;
-    idb = mwConversation_getTarget(conv);
-
     convo_queue_send(conv);
   
-    if(! gaim_find_conversation_with_account(idb->user, acct))
+    if(! gaim_find_conversation_with_account(idb->user, acct)) {
       mwConversation_close(conv, ERR_SUCCESS);
+    }
 
   } else {
     convo_data_new(conv);
-    /** @todo enable optional psychic mode */
+
+    if(gaim_prefs_get_bool(MW_PRPL_OPT_PSYCHIC)) {
+      do_psychic(acct, idb->user);
+    }
   }
 
   { /* record the client key for the buddy */
@@ -1799,11 +1823,15 @@ static void mw_prpl_set_away(GaimConnection *gc,
     case mwStatus_AWAY:
       message = MW_STATE_AWAY;
       /** @todo provide account setting for default away message */
+      message = gaim_account_get_string(acct, MW_KEY_AWAY_MSG,
+					MW_PLUGIN_DEFAULT_AWAY_MSG);
       break;
 
     case mwStatus_BUSY:
       message = MW_STATE_BUSY;
       /** @todo provide account setting for default busy message */
+      message = gaim_account_get_string(acct, MW_KEY_BUSY_MSG,
+					MW_PLUGIN_DEFAULT_BUSY_MSG);
       break;
 
     case mwStatus_ACTIVE:
@@ -1913,8 +1941,16 @@ static void multi_resolved_cleanup(GaimRequestFields *fields) {
 static void multi_resolved_cancel(GaimBuddy *buddy,
 				  GaimRequestFields *fields) {
 
+  GaimConnection *gc;
+  struct mwGaimPluginData *pd;
+
+  gc = gaim_account_get_connection(buddy->account);
+  pd = gc->proto_data;
+
   gaim_blist_remove_buddy(buddy);
   multi_resolved_cleanup(fields);
+
+  blist_save(pd);
 }
 
 
@@ -2005,10 +2041,14 @@ static void add_buddy_resolved(struct mwServiceResolve *srvc,
 			       gpointer b) {
 
   struct mwResolveResult *res;
-
   GaimBuddy *buddy = b;
+  GaimConnection *gc;
+  struct mwGaimPluginData *pd;
 
   DEBUG_INFO("add_buddy_resolved\n");
+
+  gc = gaim_account_get_connection(buddy->account);
+  pd = gc->proto_data;
 
   if(!code && results) {
     res = results->data;
@@ -2033,10 +2073,24 @@ static void add_buddy_resolved(struct mwServiceResolve *srvc,
      the resolve service (ether error or zero results), so we remove
      this buddy */
 
-  /** @todo inform the user if their added buddy wasn't resolved */
-
   DEBUG_INFO("no such buddy in community\n");
   gaim_blist_remove_buddy(buddy);
+  blist_save(pd);
+
+  { /* compose and display an error message */
+    char *msgA, *msgB;
+
+    msgA = "Unable to add user: user not found.";
+
+    msgB = ("The identifier '%s' did not match any users in the"
+	   " Sametime community. This entry has been removed from"
+	   " your buddy list.");
+    msgB = g_strdup_printf(msgB, res->name);
+
+    gaim_notify_error(gc, "Unable to add user", msgA, msgB);
+
+    g_free(msgB);
+  }
 }
 
 
@@ -2062,6 +2116,7 @@ static void mw_prpl_add_buddy(GaimConnection *gc,
 
   if(req == SEARCH_ERROR) {
     gaim_blist_remove_buddy(buddy);
+    blist_save(pd);
   }
 }
 
@@ -2238,9 +2293,6 @@ static void mw_prpl_chat_leave(GaimConnection *gc, int id) {
 
 static void mw_prpl_chat_whisper(GaimConnection *gc, int id,
 				 const char *who, const char *message) {
-
-  /** @todo is there a special flag we should use to indicate when a
-      whispered chat message has been forwarded over an IM? */
 
   mw_prpl_send_im(gc, who, message, 0);
 }
@@ -2443,7 +2495,7 @@ mw_plugin_get_plugin_pref_frame(GaimPlugin *plugin) {
   
 
   pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_BLIST_ACTION);
-  gaim_plugin_pref_set_label(pref, "Buddy List Storage Options");
+  gaim_plugin_pref_set_label(pref, "Buddy List Storage Mode");
 
   gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_CHOICE);
   gaim_plugin_pref_add_choice(pref, "Local Buddy List Only",
@@ -2458,6 +2510,14 @@ mw_plugin_get_plugin_pref_frame(GaimPlugin *plugin) {
   pref = gaim_plugin_pref_new();
   gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_INFO);
   gaim_plugin_pref_set_label(pref, BLIST_WARNING);
+  gaim_plugin_pref_frame_add(frame, pref);
+
+  pref = gaim_plugin_pref_new_with_label("General Options");
+  gaim_plugin_pref_frame_add(frame, pref);
+
+  pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_PSYCHIC);
+  gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_NONE);
+  gaim_plugin_pref_set_label(pref, "Enable psychic mode");
   gaim_plugin_pref_frame_add(frame, pref);
 
   return frame;
@@ -2507,6 +2567,9 @@ static void active_msg_action(GaimPluginAction *act) {
   desc = gaim_account_get_string(account, MW_KEY_ACTIVE_MSG,
 				 MW_PLUGIN_DEFAULT_ACTIVE_MSG);
   
+  /** @todo make this into a three-field request for active, busy, and away
+      status messages */
+  
   gaim_request_input(gc, NULL, "Active Message:", NULL,
 		     desc,
 		     TRUE, FALSE, NULL,
@@ -2520,7 +2583,7 @@ static void st_import_action_cb(GaimConnection *gc, char *filename) {
   struct mwSametimeList *l;
 
   FILE *file;
-  char buf[1024];
+  char buf[READ_BUFFER_SIZE];
   size_t len;
 
   GString *str;
@@ -2529,18 +2592,14 @@ static void st_import_action_cb(GaimConnection *gc, char *filename) {
   g_return_if_fail(file != NULL);
 
   str = g_string_new(NULL);
-  while( (len = fread(buf, 1, 1024, file)) ) {
+  while( (len = fread(buf, 1, READ_BUFFER_SIZE, file)) ) {
     g_string_append_len(str, buf, len);
   }
 
   fclose(file);
 
-  DEBUG_INFO("loaded %u bytes into memory\n", str->len);
-  
   l = mwSametimeList_load(str->str);
   g_string_free(str, TRUE);
-
-  DEBUG_INFO("importing blist\n");
 
   import_blist(gc, l);
   mwSametimeList_free(l);
@@ -2609,7 +2668,7 @@ static GList *mw_plugin_actions(GaimPlugin *plugin, gpointer context) {
   GaimPluginAction *act;
   GList *l = NULL;
 
-  act = gaim_plugin_action_new("Set Active Message...", active_msg_action);
+  act = gaim_plugin_action_new("Set Status Messages...", active_msg_action);
   l = g_list_append(l, act);
 
   act = gaim_plugin_action_new("Import Sametime List...", st_import_action);
@@ -2650,7 +2709,7 @@ static GaimPluginInfo mw_plugin_info = {
 
 static void mw_log_handler(const gchar *d, GLogLevelFlags flags,
 			   const gchar *m, gpointer data) {
-#if defined(DEBUG)
+#if DEBUG
   char *nl;
 
   if(! m) return;

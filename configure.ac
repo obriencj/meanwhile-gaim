@@ -5,16 +5,25 @@ AM_INIT_AUTOMAKE(gaim-meanwhile, 1.0.0cvs)
 AC_PREREQ([2.50])
 
 AC_PROG_CC
+
+AC_DISABLE_STATIC
 AC_PROG_LIBTOOL
 LIBTOOL="$LIBTOOL --silent"
+
 AC_PROG_INSTALL
 
 AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
 
-
 AC_C_CONST
 AC_STRUCT_TM
+
+
+# for the gaim version requirements, the lower and upper bounds
+GAIM_VER=1.0.0
+GAIM_CAP=2.0.0
+AC_SUBST(GAIM_VER)
+AC_SUBST(GAIM_CAP)
 
 
 PKG_CONFIG_PATH="$PKG_CONFIG_PATH:/usr/local/lib/pkgconfig"

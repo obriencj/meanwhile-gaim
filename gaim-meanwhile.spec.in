@@ -9,7 +9,7 @@ URL: http://meanwhile.sf.net/
 Source0: %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildRequires: pkgconfig, libtool, glib2-devel, gaim-devel
-Requires: gaim >= 1:0.83, gaim < 1:0.84, meanwhile >= 0.3, meanwhile < 0.4
+Requires: gaim >= 1:@GAIM_VER@  gaim < 1:@GAIM_CAP@, meanwhile >= 0.3, meanwhile < 0.4
 Obsoletes: meanwhile-gaim
 
 
@@ -53,6 +53,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Sep 13 2004  <siege@preoccupied.net>
+- Replaced gaim dep versions with macros for GAIM_VER and GAIM_CAP
+
 * Wed Jul 07 2004  <siege@preoccupied.net>
 - Repackaged as gaim-meanwhile
 

@@ -105,7 +105,12 @@ USA. */
 
 /** default inactivity threshold for the gaim plugin to pass to
     mwChannel_destroyInactive. length in seconds */
-#define INACTIVE_THRESHOLD 30
+#define INACTIVE_THRESHOLD  30
+
+
+/** number of seconds from the first blist change before a save to the
+    storage service occurs. */
+#define BLIST_SAVE_SECONDS  15
 
 
 /* there's probably a better way, I just never bothered finding it */
@@ -177,6 +182,8 @@ struct mw_plugin_data {
 
   GHashTable *list_map;
   GHashTable *convo_map;
+
+  guint save_event;
 };
 
 
@@ -353,7 +360,6 @@ static GaimBuddy *ensure_buddy(GaimConnection *gc, GaimGroup *group,
 			       struct mwSametimeUser *stuser) {
 
   GaimBuddy *buddy;
-
   GaimAccount *acct = gaim_connection_get_account(gc);
 
   const char *name = mwSametimeUser_getUser(stuser);
@@ -363,10 +369,112 @@ static GaimBuddy *ensure_buddy(GaimConnection *gc, GaimGroup *group,
   if(! buddy) {
     buddy = gaim_buddy_new(acct, name, alias);
     gaim_blist_add_buddy(buddy, NULL, group, NULL);
-    
+
+    /* why doesn't the above trigger this? */
+    serv_add_buddy(gc, buddy);
   }
 
   return buddy;
+}
+
+
+
+static void export_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
+  /* - find the account for this connection
+     - iterate through the buddy list
+     - add each buddy matching this account to the stlist
+  */
+
+  GaimAccount *acct;
+  GaimBuddyList *blist;
+  GaimBlistNode *gn, *cn, *bn;
+  GaimGroup *grp;
+  GaimBuddy *bdy;
+
+  struct mwSametimeGroup *stg = NULL;
+  struct mwIdBlock idb = { NULL, NULL };
+
+  acct = gaim_connection_get_account(gc);
+  g_return_if_fail(acct != NULL);
+
+  blist = gaim_get_blist();
+  g_return_if_fail(blist != NULL);
+
+  for(gn = blist->root; gn; gn = gn->next) {
+    if(! GAIM_BLIST_NODE_IS_GROUP(gn)) continue;
+    grp = (GaimGroup *) gn;
+
+    if(! gaim_group_on_account(grp, acct)) continue;
+    stg = mwSametimeGroup_new(stlist, grp->name);
+
+    for(cn = gn->child; cn; cn = cn->next) {
+      if(! GAIM_BLIST_NODE_IS_CONTACT(cn)) continue;
+
+      for(bn = cn->child; bn; bn = bn->next) {
+	if(! GAIM_BLIST_NODE_IS_BUDDY(bn)) continue;
+	bdy = (GaimBuddy *) bn;
+
+	if(bdy->account == acct) {
+	  idb.user = bdy->name;
+	  mwSametimeUser_new(stg, &idb, bdy->alias);
+	}	
+      }
+    }
+  }  
+}
+
+
+static void save_blist(GaimConnection *gc) {
+  /* - export blist
+     - serialize blist to buffer
+     - free blist
+     - store buffer as string
+     - free buffer */
+
+  struct mwSametimeList *stlist;
+
+  struct mwServiceStorage *storage;
+  struct mwStorageUnit *unit;
+
+  char *b, *buf;
+  gsize n, len;
+
+  struct mw_plugin_data *pd = PLUGIN_DATA(gc);
+  g_return_if_fail(pd != NULL);
+
+  storage = pd->srvc_store;
+  g_return_if_fail(storage != NULL);
+
+  if(MW_SERVICE_IS_DEAD(storage)) {
+    g_message("aborting save of blist: storage service is not alive");
+    return;
+  }
+
+  stlist = mwSametimeList_new();
+  export_blist(gc, stlist);
+
+  n = len = mwSametimeList_buflen(stlist);
+  b = buf = (char *) g_malloc0(len);
+
+  if(mwSametimeList_put(&b, &n, stlist)) {
+    g_free(buf);
+    mwSametimeList_free(stlist);
+    g_warning("export blist failed while serializing");
+    return;
+  }
+
+  mwSametimeList_free(stlist);
+
+  unit = mwStorageUnit_newString(mwStore_AWARE_LIST, buf);
+  g_free(buf);
+
+  mwServiceStorage_save(storage, unit, NULL, NULL);
+
+  /*
+  g_message("----- begin export blist -----\n"
+	    "%s\n"
+	    "------ end export blist ------", buf);
+  */
 }
 
 
@@ -404,14 +512,12 @@ static void storage_load_cb(struct mwServiceStorage *srvc, guint result,
   char *b, *tmp;
   gsize n;
 
-  g_message(" storage_cb, key = 0x%08x, result = 0x%08x, length = 0x%08x",
-	    item->key, result, item->data.len);
-
   if(result) return;
 
   b = tmp = mwStorageUnit_asString(item);
-  n = strlen(b);
+  if(b == NULL) return;
 
+  n = strlen(b);
   if(! n) return;
 
   stlist = mwSametimeList_new();
@@ -421,8 +527,6 @@ static void storage_load_cb(struct mwServiceStorage *srvc, guint result,
 
   mwSametimeList_free(stlist);
 
-  /* no need to free the storage unit, that will happen automatically
-     after this callback */
   g_free(tmp);
 }
 
@@ -446,13 +550,12 @@ static void on_loginAck(struct mwSession *s, struct mwMsgLoginAck *msg) {
 
   mwService_start(MW_SERVICE(pd->srvc_conf));
   mwService_start(MW_SERVICE(pd->srvc_im));
-
   mwService_start(MW_SERVICE(pd->srvc_store));
-  fetch_blist(pd->srvc_store);
 
-  /* do this last, otherwise the storage stuff won't receive initial
-     presence notification */
+  /* timing needs this to happen last */
   mwService_start(MW_SERVICE(pd->srvc_aware));
+
+  fetch_blist(pd->srvc_store);
 }
 
 
@@ -711,8 +814,6 @@ static void mw_login(GaimAccount *acct) {
   const char *host;
   unsigned int port;
 
-  DEBUG_INFO(" --> mw_login");
-
   gc->proto_data = pd = g_new0(struct mw_plugin_data, 1);
 
   /* session and call-backs to make everything work */
@@ -767,8 +868,6 @@ static void mw_login(GaimAccount *acct) {
 
   if(gaim_proxy_connect(acct, host, port, mw_login_callback, gc))
     gaim_connection_error(gc, "Unable to connect");
-
-  DEBUG_INFO(" <-- mw_login");  
 }
 
 
@@ -777,6 +876,11 @@ static void mw_close(GaimConnection *gc) {
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
 
   g_return_if_fail(pd != NULL);
+
+  if(pd->save_event) {
+    gaim_timeout_remove(pd->save_event);
+    pd->save_event = 0;
+  }
 
   session = pd->session;
   if(session) {
@@ -1037,6 +1141,30 @@ static struct mwAwareList *ensure_list(GaimConnection *gc, GaimGroup *group) {
 }
 
 
+static gboolean cb_stlist_save(gpointer data) {
+  GaimConnection *gc = (GaimConnection *) data;
+  struct mw_plugin_data *pd = PLUGIN_DATA(gc);
+
+  save_blist(gc);
+  pd->save_event = 0x00;
+  
+  return FALSE;
+}
+
+
+static void schedule_stlist_save(GaimConnection *gc) {
+  struct mw_plugin_data *pd = PLUGIN_DATA(gc);
+
+  g_return_if_fail(pd != NULL);
+
+  /* only schedule one save at a time. */
+  if(pd->save_event == 0) {
+    pd->save_event = gaim_timeout_add(BLIST_SAVE_SECONDS * 1000,
+				      cb_stlist_save, gc);
+  }
+}
+
+
 static void mw_add_buddy(GaimConnection *gc,
 			 GaimBuddy *buddy, GaimGroup *group) {
 
@@ -1047,6 +1175,7 @@ static void mw_add_buddy(GaimConnection *gc,
   list = ensure_list(gc, found);
 
   mwAwareList_addAware(list, &t, 1);
+  schedule_stlist_save(gc);
 }
 
 
@@ -1060,6 +1189,7 @@ static void mw_remove_buddy(GaimConnection *gc,
   list = ensure_list(gc, found);
 
   mwAwareList_removeAware(list, &t, 1);
+  schedule_stlist_save(gc);
 }
 
 
@@ -1099,8 +1229,6 @@ static void mw_chat_join(GaimConnection *gc, GHashTable *components) {
     conf->topic = g_strdup(topic);
     mwConference_create(conf);
   }
-
-  DEBUG_INFO(" ... leaving mw_chat_join");
 }
 
 

@@ -1,6 +1,8 @@
 
 version 0.79  Chris O'Brien  <siege@preoccupied.net>
-
+	2004-06-26: Fixed a crash bug, and added the ability to store
+	buddy lists back on the server.
+	
 	2004-06-23: The server-side buddy list is now imported on
 	login. Had to work around an apparent bug in the mw_add_buddy
 	call, in that the GaimGroup param was sometimes NULL. This caused

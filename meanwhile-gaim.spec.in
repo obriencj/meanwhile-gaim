@@ -8,6 +8,7 @@ Group: Applications/Internet
 URL: http://meanwhile.sf.net/
 Source0: %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
+BuildRequires: pkgconfig, libtool, glib2-devel, gaim-devel
 Requires: gaim >= 1:0.79, gaim < 1:0.80, meanwhile >= 0.3, meanwhile < 0.4
 
 

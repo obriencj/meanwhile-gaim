@@ -1,6 +1,6 @@
 
 AC_INIT
-AM_INIT_AUTOMAKE(gaim-meanwhile, 1.0.2)
+AM_INIT_AUTOMAKE(gaim-meanwhile, 1.0.1.99)
 
 AC_PREREQ([2.50])
 
@@ -26,7 +26,7 @@ AC_SUBST(GAIM_VER)
 AC_SUBST(GAIM_CAP)
 
 
-PKG_CONFIG_PATH="$PKG_CONFIG_PATH:/usr/local/lib/pkgconfig"
+PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$PREFIX/lib/pkgconfig"
 export PKG_CONFIG_PATH
 
 

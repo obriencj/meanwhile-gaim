@@ -1,0 +1,18 @@
+
+Since there is currently no proper gaim-devel package, and since we of course
+require certain gaim headers in our build process, the gaim source code needs
+to be available for this package to be built.
+
+The location of this package is not hard-coded anywhere. Instead, the user
+building the plugin should specifiy the path to the gaim src directory through
+the configure option as follows:
+
+	./configure --with-gaim-source=/path/to/gaim/src 
+
+This will generate the necessary Makefiles. Then just run:
+
+	make
+	su -c "make install"
+
+And eveything should be fine.
+

@@ -1,0 +1,19 @@
+
+version 0.78  Chris O'Brien  <siege@preoccupied.net>
+	2004-06-01: First import into sf.net CVS
+	
+	2004-05-17: Separated meanwhile-gaim from meanwhile
+	libraries. Versioning of meanwhile-gaim will continue to match
+	Gaim releases. First release using autoconf and automake.
+
+	* meanwhile.c:
+	* meanwhile.h:
+
+version 0.77  Chris O'Brien  <siege@preoccupied.net>
+
+	Tagged in CVS as v0_77
+
+version 0.76  Chris O'Brien  <siege@preoccupied.net>
+
+	Tagged in CVS as v0_76
+

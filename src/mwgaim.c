@@ -524,12 +524,6 @@ static void import_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
 
   GList *gl, *gtl, *ul, *utl;
 
-  /* check our preferences for loading */
-  if(BLIST_CHOICE_IS_NONE()) {
-    DEBUG_INFO("preferences indicate not to load remote buddy list\n");
-    return;
-  }
-
   gl = gtl = mwSametimeList_getGroups(stlist);
   for(; gl; gl = gl->next) {
 
@@ -559,6 +553,12 @@ static void fetch_blist_cb(struct mwServiceStorage *srvc,
   struct mwGetBuffer *b;
 
   g_return_if_fail(result == ERR_SUCCESS);
+
+  /* check our preferences for loading */
+  if(BLIST_CHOICE_IS_NONE()) {
+    DEBUG_INFO("preferences indicate not to load remote buddy list\n");
+    return;
+  }
 
   b = mwGetBuffer_wrap(mwStorageUnit_asOpaque(item));
 
@@ -2517,8 +2517,33 @@ static void active_msg_action(GaimPluginAction *act) {
 
 
 static void st_import_action_cb(GaimConnection *gc, char *filename) {
-  /** @todo import st list from file */
-  ;
+  struct mwSametimeList *l;
+
+  FILE *file;
+  char buf[1024];
+  size_t len;
+
+  GString *str;
+
+  file = fopen(filename, "r");
+  g_return_if_fail(file != NULL);
+
+  str = g_string_new(NULL);
+  while( (len = fread(buf, 1, 1024, file)) ) {
+    g_string_append_len(str, buf, len);
+  }
+
+  fclose(file);
+
+  DEBUG_INFO("loaded %u bytes into memory\n", str->len);
+  
+  l = mwSametimeList_load(str->str);
+  g_string_free(str, TRUE);
+
+  DEBUG_INFO("importing blist\n");
+
+  import_blist(gc, l);
+  mwSametimeList_free(l);
 }
 
 
@@ -2533,7 +2558,7 @@ static void st_import_action(GaimPluginAction *act) {
   title = g_strdup_printf("Import Sametime List for Account %s",
 			  gaim_account_get_username(account));
 
-  gaim_request_file(gc, title, NULL, TRUE,
+  gaim_request_file(gc, title, NULL, FALSE,
 		    G_CALLBACK(st_import_action_cb), NULL,
 		    gc);
 

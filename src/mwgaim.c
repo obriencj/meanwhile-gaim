@@ -901,14 +901,17 @@ static void got_conf_text(struct mwConference *conf, struct mwIdBlock *id,
   GaimConnection *gc = SESSION_TO_GC(conf->channel->session);
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
   GaimConversation *conv;
+  char *esc;
 
   conv = g_hash_table_lookup(pd->convo_map, conf);
   g_return_if_fail(conv != NULL);
 
   if(! text) return;
 
+  esc = gaim_escape_html(text);
   serv_got_chat_in(gc, gaim_conv_chat_get_id(GAIM_CONV_CHAT(conv)),
-		   id->user, 0, text, time(NULL));
+		   id->user, 0, esc, time(NULL));
+  g_free(esc);
 }
 
 

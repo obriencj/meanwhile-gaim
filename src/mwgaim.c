@@ -37,6 +37,8 @@
 #include <glib/ghash.h>
 #include <glib/glist.h>
 
+#include <stdio.h>
+
 #include <mw_cipher.h>
 #include <mw_common.h>
 #include <mw_error.h>
@@ -88,7 +90,12 @@
 
 
 /* key for associating a mwLoginType with a buddy */
-#define BUDDY_KEY_CLIENT  "buddy.client"
+#define BUDDY_KEY_CLIENT  "meanwhile.client"
+
+/* key for the real group name for a meanwhile group */
+#define GROUP_KEY_NAME  "meanwhile.group"
+
+#define GROUP_KEY_COLLAPSED  "collapsed"
 
 
 /* keys to get/set gaim plugin information */
@@ -289,11 +296,24 @@ static void export_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
   g_return_if_fail(blist != NULL);
 
   for(gn = blist->root; gn; gn = gn->next) {
+    const char *gname;
+    gboolean gopen;
+
     if(! GAIM_BLIST_NODE_IS_GROUP(gn)) continue;
     grp = (GaimGroup *) gn;
 
+    /* the group's actual name may be different from the gaim group's
+       name. Find whichever is there */
+    gname = gaim_blist_node_get_string(gn, GROUP_KEY_NAME);
+    if(! gname) gname = grp->name;
+
+    /* we save this, but never actually honor it */
+    gopen = ! gaim_blist_node_get_bool(gn, GROUP_KEY_COLLAPSED);
+
     if(! gaim_group_on_account(grp, acct)) continue;
-    stg = mwSametimeGroup_new(stlist, mwSametimeGroup_NORMAL, grp->name);
+    stg = mwSametimeGroup_new(stlist, mwSametimeGroup_NORMAL, gname);
+    mwSametimeGroup_setAlias(stg, grp->name);
+    mwSametimeGroup_setOpen(stg, gopen);
 
     for(cn = gn->child; cn; cn = cn->next) {
       if(! GAIM_BLIST_NODE_IS_CONTACT(cn)) continue;
@@ -394,6 +414,7 @@ static void list_on_aware(struct mwAwareList *list,
 
   case mwStatus_AWAY:
   case mwStatus_BUSY:
+    /* need to let gaim know that these are 'unavailable' states */
     type |= UC_UNAVAILABLE;
     break;
   }
@@ -468,15 +489,13 @@ static GaimBuddy *ensure_buddy(GaimConnection *gc, GaimGroup *group,
   buddy = gaim_find_buddy_in_group(acct, id, group);
   if(! buddy) {
     buddy = gaim_buddy_new(acct, id, alias);
-    buddy->server_alias = g_strdup(name);
   
     gaim_blist_add_buddy(buddy, NULL, group, NULL);
     add_buddy(pd, buddy);
-  
-  } else {
-    gaim_blist_alias_buddy(buddy, alias);
-    buddy->server_alias = g_strdup(name);
   }
+  
+  gaim_blist_alias_buddy(buddy, alias);
+  gaim_blist_server_alias_buddy(buddy, name);
 
   return buddy;
 }
@@ -486,12 +505,14 @@ static GaimGroup *ensure_group(GaimConnection *gc,
 			       struct mwSametimeGroup *stgroup) {
   GaimGroup *group;
   const char *name = mwSametimeGroup_getName(stgroup);
+  const char *alias = mwSametimeGroup_getAlias(stgroup);
 
-  group = gaim_find_group(name);
+  group = gaim_find_group(alias);
   if(! group) {
-    group = gaim_group_new(name);
+    group = gaim_group_new(alias);
     gaim_blist_add_group(group, NULL);
   }
+  gaim_blist_node_set_string((GaimBlistNode *) group, GROUP_KEY_NAME, name);
 
   return group;
 }
@@ -747,8 +768,6 @@ static void mw_session_loginRedirect(struct mwSession *session,
   mwSession_stop(session, 0x0);
 
   if(gaim_proxy_connect(account, host, port, connect_cb, pd)) {
-    /** @todo add more information to the error, based on the return
-	code from gaim_proxy_connect */
     gaim_connection_error(gc, "Unable to connect to host");
   }
 }
@@ -1576,9 +1595,10 @@ static void mw_prpl_login(GaimAccount *account) {
   user = g_strdup(gaim_account_get_username(account));
   pass = (char *) gaim_account_get_password(account);
 
-  /* obtain the host string as an account split. I'm not sure if I like
-     this better than making server an account option or not. We shall
-     see */
+#if 1
+  /* the new way to obtain the host string from an account split. I'm
+     not sure if I like this better than making server an account
+     option or not. We shall see */
   host = strrchr(user, ':');
   if(host) *host++ = '\0';
 
@@ -1598,7 +1618,11 @@ static void mw_prpl_login(GaimAccount *account) {
     }
   }
 
-  /* host = gaim_account_get_string(account, "server", PLUGIN_DEFAULT_HOST); */
+#else
+  /* the old way to obtain the host string */
+  host = gaim_account_get_string(account, "server", PLUGIN_DEFAULT_HOST);
+#endif
+
   port = gaim_account_get_int(account, MW_KEY_PORT, PLUGIN_DEFAULT_PORT);
 
   DEBUG_INFO("user: '%s'\n", user);
@@ -1613,8 +1637,6 @@ static void mw_prpl_login(GaimAccount *account) {
   gaim_connection_update_progress(gc, "Connecting", 1, MW_CONNECT_STEPS);
 
   if(gaim_proxy_connect(account, host, port, connect_cb, pd)) {
-    /** @todo use the return code of gaim_proxy_connect to provide
-	more error information */
     gaim_connection_error(gc, "Unable to connect to host");
   }
 }
@@ -2059,10 +2081,9 @@ static void mw_prpl_chat_leave(GaimConnection *gc, int id) {
 static void mw_prpl_chat_whisper(GaimConnection *gc, int id,
 				 const char *who, const char *message) {
 
-  /** forward a chat whisper on as an IM 
+  /** @todo is there a special flag we should use to indicate when a
+      whispered chat message has been forwarded over an IM? */
 
-      @todo is there a special flag we should send this message
-      with? */
   mw_prpl_send_im(gc, who, message, 0);
 }
 
@@ -2109,6 +2130,21 @@ static void mw_prpl_alias_buddy(GaimConnection *gc,
 }
 
 
+static void mw_prpl_rename_group(GaimConnection *gc, const char *old,
+				 GaimGroup *group, GList *buddies) {
+
+  struct mwGaimPluginData *pd = gc->proto_data;
+  g_return_if_fail(pd != NULL);
+
+  /* it's a change in the buddy list, so we've gotta reflect that in
+     the server copy. Also, having this function should prevent all
+     those buddies from being removed and re-added. We don't really
+     give a crap what the group is named in Gaim */
+
+  blist_save(pd);
+}
+
+
 static void mw_prpl_buddy_free(GaimBuddy *buddy) {
   /* I don't think we have any cleanup for buddies yet */
   ;
@@ -2144,6 +2180,13 @@ static const char *mw_prpl_normalize(const GaimAccount *account,
   static char buf[BUF_LEN];
   strncpy(buf, id, sizeof(buf));
   return buf;
+}
+
+
+static void mw_prpl_remove_group(GaimConnection *gc, GaimGroup *group) {
+  /** @todo check if it's a NAB group, and remove it from the aware
+      list as necessary */
+  ;
 }
 
 
@@ -2213,12 +2256,12 @@ static GaimPluginProtocolInfo mw_prpl_info = {
   .get_cb_away               = NULL,
   .alias_buddy               = mw_prpl_alias_buddy,
   .group_buddy               = NULL,
-  .rename_group              = NULL,
+  .rename_group              = mw_prpl_rename_group,
   .buddy_free                = mw_prpl_buddy_free,
   .convo_closed              = mw_prpl_convo_closed,
   .normalize                 = mw_prpl_normalize,
   .set_buddy_icon            = NULL,
-  .remove_group              = NULL,
+  .remove_group              = mw_prpl_remove_group,
   .get_cb_real_name          = NULL,
   .set_chat_topic            = NULL,
   .find_blist_chat           = NULL,
@@ -2314,6 +2357,70 @@ static void active_msg_action(GaimPluginAction *act) {
 }
 
 
+static void st_import_action_cb(GaimConnection *gc, char *filename) {
+  /** @todo import st list from file */
+  ;
+}
+
+
+/** prompts for a file to import blist from */
+static void st_import_action(GaimPluginAction *act) {
+  GaimConnection *gc;
+  GaimAccount *account;
+  char *title;
+
+  gc = act->context;
+  account = gaim_connection_get_account(gc);
+  title = g_strdup_printf("Import Sametime List for Account %s",
+			  gaim_account_get_username(account));
+
+  gaim_request_file(gc, title, NULL, TRUE,
+		    G_CALLBACK(st_import_action_cb), NULL,
+		    gc);
+
+  g_free(title);
+}
+
+
+static void st_export_action_cb(GaimConnection *gc, char *filename) {
+  struct mwSametimeList *l;
+  char *str;
+  FILE *file;
+
+  file = fopen(filename, "w");
+  g_return_if_fail(file != NULL);
+
+  l = mwSametimeList_new();
+  export_blist(gc, l);
+  str = mwSametimeList_store(l);
+  mwSametimeList_free(l);
+
+  fprintf(file, "%s", str);
+  fclose(file);
+
+  g_free(str);
+}
+
+
+/** prompts for a file to export blist to */
+static void st_export_action(GaimPluginAction *act) {
+  GaimConnection *gc;
+  GaimAccount *account;
+  char *title;
+
+  gc = act->context;
+  account = gaim_connection_get_account(gc);
+  title = g_strdup_printf("Export Sametime List for Account %s",
+			  gaim_account_get_username(account));
+
+  gaim_request_file(gc, title, NULL, TRUE,
+		    G_CALLBACK(st_export_action_cb), NULL,
+		    gc);
+
+  g_free(title);
+}
+
+
 static GList *mw_plugin_actions(GaimPlugin *plugin, gpointer context) {
   GaimPluginAction *act;
   GList *l = NULL;
@@ -2321,33 +2428,39 @@ static GList *mw_plugin_actions(GaimPlugin *plugin, gpointer context) {
   act = gaim_plugin_action_new("Set Active Message...", active_msg_action);
   l = g_list_append(l, act);
 
+  act = gaim_plugin_action_new("Import Sametime List...", st_import_action);
+  l = g_list_append(l, act);
+
+  act = gaim_plugin_action_new("Export Sametime List...", st_export_action);
+  l = g_list_append(l, act);
+
   return l;
 }
 
 
 static GaimPluginInfo mw_plugin_info = {
-  .magic            = GAIM_PLUGIN_MAGIC,
-  .major_version    = GAIM_MAJOR_VERSION,
-  .minor_version    = GAIM_MINOR_VERSION,
-  .type             = GAIM_PLUGIN_PROTOCOL,
-  .ui_requirement   = NULL,
-  .flags            = 0,
-  .dependencies     = NULL,
-  .priority         = GAIM_PRIORITY_DEFAULT,
-  .id               = PLUGIN_ID,
-  .name             = PLUGIN_NAME,
-  .version          = VERSION,
-  .summary          = PLUGIN_SUMMARY,
-  .description      = PLUGIN_DESC,
-  .author           = PLUGIN_AUTHOR,
-  .homepage         = PLUGIN_HOMEPAGE,
-  .load             = mw_plugin_load,
-  .unload           = mw_plugin_unload,
-  .destroy          = mw_plugin_destroy,
-  .ui_info          = NULL,
-  .extra_info       = &mw_prpl_info,
-  .prefs_info       = &mw_plugin_ui_info,
-  .actions          = mw_plugin_actions,
+  .magic           = GAIM_PLUGIN_MAGIC,
+  .major_version   = GAIM_MAJOR_VERSION,
+  .minor_version   = GAIM_MINOR_VERSION,
+  .type            = GAIM_PLUGIN_PROTOCOL,
+  .ui_requirement  = NULL,
+  .flags           = 0,
+  .dependencies    = NULL,
+  .priority        = GAIM_PRIORITY_DEFAULT,
+  .id              = PLUGIN_ID,
+  .name            = PLUGIN_NAME,
+  .version         = VERSION,
+  .summary         = PLUGIN_SUMMARY,
+  .description     = PLUGIN_DESC,
+  .author          = PLUGIN_AUTHOR,
+  .homepage        = PLUGIN_HOMEPAGE,
+  .load            = mw_plugin_load,
+  .unload          = mw_plugin_unload,
+  .destroy         = mw_plugin_destroy,
+  .ui_info         = NULL,
+  .extra_info      = &mw_prpl_info,
+  .prefs_info      = &mw_plugin_ui_info,
+  .actions         = mw_plugin_actions,
 };
 
 
@@ -2374,7 +2487,7 @@ static void mw_log_handler(const gchar *d, GLogLevelFlags flags,
   g_free(nl);
   
 #else
-  ; /* nothing at all */
+  ; /* nothing at all. nice and quiet */
 #endif
 }
 
@@ -2400,11 +2513,14 @@ static void mw_plugin_init(GaimPlugin *plugin) {
   gaim_prefs_add_none(MW_PRPL_OPT_BASE);
   gaim_prefs_add_int(MW_PRPL_OPT_BLIST_ACTION, BLIST_CHOICE_NONE);
 
-  /* use gaim's debug logging */
+  /* use gaim's debug logging. I don't think this is actually
+     necessary, since all the debugging calls now use the gaim debug
+     functions directly */
   g_log_set_handler(G_LOG_DOMAIN,
 		    G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION,
 		    mw_log_handler, NULL);
 
+  /* redirect meanwhile's logging to gaim's */
   g_log_set_handler("meanwhile",
 		    G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION,
 		    mw_log_handler, NULL);

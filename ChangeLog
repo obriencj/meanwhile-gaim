@@ -2,7 +2,7 @@
 version 1.2.1 (cvs)
 	
 	- building against meanwhile 0.4.1
-
+	
 	- quiet down error messages when the other end of a conversation
 	logs off. Only display when there are still unsent messages in the
 	conversation queue

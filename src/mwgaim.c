@@ -696,7 +696,7 @@ static void conversation_created_cb(GaimConversation *g_conv,
 
   convo_features(conv);
     
-  if(MW_CONVO_IS_CLOSED(conv))
+  if(mwConversation_isClosed(conv))
     mwConversation_open(conv);
 }
 
@@ -1259,7 +1259,8 @@ struct convo_msg {
 
 struct convo_data {
   struct mwConversation *conv;
-  GList *queue;
+  GList *queue;   /**< outgoing message queue, list of convo_msg */
+  GString *mime;  /**< incoming MIME segments buffer */
 };
 
 
@@ -1270,6 +1271,9 @@ static void convo_data_free(struct convo_data *cd) {
     if(m->clear) m->clear(m->data);
     g_free(m);
   }
+
+  if(cd->mime) g_string_free(cd->mime, TRUE);
+
   g_free(cd);
 }
 
@@ -1417,7 +1421,7 @@ static void convo_features(struct mwConversation *conv) {
 
   feat = gaim_conversation_get_features(gconv);
 
-  if(MW_CONVO_IS_OPEN(conv)) {
+  if(mwConversation_isOpen(conv)) {
     if(mwConversation_supports(conv, mwImSend_HTML)) {
       feat |= GAIM_CONNECTION_HTML;
     } else {
@@ -1611,7 +1615,7 @@ static char *make_cid(const char *cid) {
 
 static void im_recv_mime(struct mwConversation *conv,
 			 struct mwGaimPluginData *pd,
-			 struct mwOpaque *data) {
+			 const char *data) {
 
   struct mwIdBlock *idb;
 
@@ -1630,7 +1634,7 @@ static void im_recv_mime(struct mwConversation *conv,
 
   str = g_string_new(NULL);
   
-  doc = gaim_mime_document_parsen(data->data, data->len);
+  doc = gaim_mime_document_parse(data);
 
   /* handle all the MIME parts */
   parts = gaim_mime_document_get_parts(doc);
@@ -1683,7 +1687,9 @@ static void im_recv_mime(struct mwConversation *conv,
     GData *attribs;
     char *start, *end, *tmp = str->str;
 
-    while(gaim_markup_find_tag("img", tmp, &start, &end, &attribs)) {
+    while(tmp && *tmp &&
+	  gaim_markup_find_tag("img", tmp, &start, &end, &attribs)) {
+
       char *alt, *align, *border, *src;
       int img;
 
@@ -1760,7 +1766,7 @@ static void mw_conversation_recv(struct mwConversation *conv,
     break;
 
   case mwImSend_MIME:
-    im_recv_mime(conv, pd, (struct mwOpaque *) msg);
+    im_recv_mime(conv, pd, msg);
     break;
 
   default:
@@ -2121,7 +2127,7 @@ static int mw_prpl_send_im(GaimConnection *gc, const char *name,
 
   conv = mwServiceIm_getConversation(pd->srvc_im, &who);
 
-  if(MW_CONVO_IS_OPEN(conv)) {
+  if(mwConversation_isOpen(conv)) {
     int ret;
 
     if(mwConversation_supports(conv, mwImSend_HTML)) {
@@ -2139,7 +2145,7 @@ static int mw_prpl_send_im(GaimConnection *gc, const char *name,
   /* queue up the message */
   convo_queue(conv, mwImSend_PLAIN, message);
   
-  if(! MW_CONVO_IS_PENDING(conv))
+  if(! mwConversation_isPending(conv))
     mwConversation_open(conv);
 
   return 1;
@@ -2162,7 +2168,7 @@ static int mw_prpl_send_typing(GaimConnection *gc, const char *name,
 
   conv = mwServiceIm_getConversation(pd->srvc_im, &who);
 
-  if(MW_CONVO_IS_OPEN(conv))
+  if(mwConversation_isOpen(conv))
     return ! mwConversation_send(conv, mwImSend_TYPING, t);
 
   /* don't bother opening a conversation just to send the typing
@@ -2515,8 +2521,17 @@ static void add_buddy_resolved(struct mwServiceResolve *srvc,
       if(g_list_length(res->matches) == 1) {
 	struct mwResolveMatch *match = res->matches->data;
 
-	/* only one? that must be the right one! */
-	add_resolved_done(match->id, match->name, buddy);
+	/* only one? that might be the right one! */
+	if(strcmp(res->name, match->id)) {
+	  /* uh oh, the single result isn't identical to the search
+	     term, better safe then sorry, so let's make sure it's who
+	     the user meant to add */
+	  multi_resolved_query(res, buddy);
+
+	} else {
+	  /* same person, add 'em */
+	  add_resolved_done(match->id, match->name, buddy);
+	}
 
       } else {
 	/* prompt user if more than one match was returned */
@@ -2871,7 +2886,7 @@ static void mw_prpl_convo_closed(GaimConnection *gc, const char *who) {
   conv = mwServiceIm_findConversation(srvc, &idb);
   if(! conv) return;
 
-  if(MW_CONVO_IS_OPEN(conv))
+  if(mwConversation_isOpen(conv))
     mwConversation_free(conv);
 }
 

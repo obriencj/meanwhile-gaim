@@ -375,13 +375,14 @@ static void blist_save(struct mwGaimPluginData *pd) {
 }
 
 
-static void list_on_aware(struct mwAwareList *list,
-			  struct mwAwareSnapshot *aware,
-			  gpointer data) {
+static void mw_aware_list_on_aware(struct mwAwareList *list,
+				   struct mwAwareSnapshot *aware) {
 
-  GaimConnection *gc = data;
+  GaimConnection *gc;
   time_t idle = 0;
   guint type = aware->status.status;
+
+  gc = mwAwareList_getClientData(list);
 
   switch(type) {
   case mwStatus_IDLE:
@@ -399,6 +400,26 @@ static void list_on_aware(struct mwAwareList *list,
 }
 
 
+static void mw_aware_list_on_attrib(struct mwAwareList *list,
+				    struct mwAwareIdBlock *id,
+				    struct mwAwareAttribute *attrib) {
+
+  ; /** @todo handle user and group attributes */
+}
+
+
+static void mw_aware_list_clear(struct mwAwareList *list) {
+  ; /* nothing for now */
+}
+
+
+static struct mwAwareListHandler mw_aware_list_handler = {
+  .on_aware = mw_aware_list_on_aware,
+  .on_attrib = mw_aware_list_on_attrib,
+  .clear = mw_aware_list_clear,
+};
+
+
 /** Ensures that an Aware List is associated with the given group, and
     returns that list. */
 static struct mwAwareList *
@@ -411,8 +432,8 @@ ensure_list(struct mwGaimPluginData *pd, GaimGroup *group) {
 
   list = g_hash_table_lookup(pd->group_map, group);
   if(! list) {
-    list = mwAwareList_new(pd->srvc_aware);
-    mwAwareList_setOnAware(list, list_on_aware, pd->gc, NULL);
+    list = mwAwareList_new(pd->srvc_aware, &mw_aware_list_handler);
+    mwAwareList_setClientData(list, pd->gc, NULL);
     g_hash_table_replace(pd->group_map, group, list);
   }
   
@@ -761,9 +782,27 @@ static struct mwSessionHandler mw_session_handler = {
 };
 
 
+static void mw_aware_on_attrib(struct mwServiceAware *srvc,
+			       struct mwAwareAttribute *attrib) {
+
+  ; /** @todo handle server attributes */
+}
+
+
+static void mw_aware_clear(struct mwServiceAware *srvc) {
+  ; /* nothing for now */
+}
+
+
+static struct mwAwareHandler mw_aware_handler = {
+  .on_attrib = mw_aware_on_attrib,
+  .clear = mw_aware_clear,
+};
+
+
 static struct mwServiceAware *mw_srvc_aware_new(struct mwSession *s) {
   struct mwServiceAware *srvc;
-  srvc = mwServiceAware_new(s);
+  srvc = mwServiceAware_new(s, &mw_aware_handler);
   return srvc;
 };
 

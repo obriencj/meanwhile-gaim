@@ -1,4 +1,11 @@
 
+version cvs
+
+	- patch [ 1034727 ] Add mw_chat_name
+
+	- patch [ 1044218 ] Gaim_normalize called for meanwhile: add
+	mw_normalize
+
 version 1.0.0 (2004-09-18)
 
 	- version change to match Gaim, because that's what we do

@@ -26,7 +26,6 @@ USA. */
 #include <gaim/conversation.h>
 #include <gaim/debug.h>
 #include <gaim/internal.h>
-#include <gaim/multi.h>
 #include <gaim/notify.h>
 #include <gaim/plugin.h>
 #include <gaim/prpl.h>

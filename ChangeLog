@@ -1,4 +1,8 @@
 
+version 0.82 (cvs)
+
+	- gaim/multi.h removed from includes
+	
 version 0.81 (2004-08-06)
 
 	- Changed away status handling to strip the HTML from the away

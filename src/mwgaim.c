@@ -1310,16 +1310,19 @@ static void mw_prpl_login(GaimAccount *account) {
   GaimConnection *gc;
   struct mwGaimPluginData *pd;
 
-  char *user, *pass;
-  const char *host;
+  char *user, *pass, *host;
   guint port;
 
   gc = gaim_account_get_connection(account);
   pd = mwGaimPluginData_new(gc);
 
-  user = (char *) gaim_account_get_username(account);
+  user = g_strdup(gaim_account_get_username(account));
   pass = (char *) gaim_account_get_password(account);
-  host = gaim_account_get_string(account, "server", PLUGIN_DEFAULT_HOST);
+
+  host = strrchr(user, ':');
+  if(host) *host++ = '\0';
+
+  /* host = gaim_account_get_string(account, "server", PLUGIN_DEFAULT_HOST); */
   port = gaim_account_get_int(account, "port", PLUGIN_DEFAULT_PORT);
 
   mwSession_setProperty(pd->session, PROPERTY_SESSION_USER_ID, user, NULL);
@@ -1329,7 +1332,9 @@ static void mw_prpl_login(GaimAccount *account) {
 
   if(gaim_proxy_connect(account, host, port, connect_cb, pd)) {
     gaim_connection_error(gc, "Unable to connect to host");
-  }  
+  }
+
+  g_free(user);
 }
 
 
@@ -2138,18 +2143,21 @@ static void mw_log_handler(const gchar *d, GLogLevelFlags flags,
 
 
 static void mw_plugin_init(GaimPlugin *plugin) {
+  GaimAccountUserSplit *split;
   GaimAccountOption *opt;
-  GList *opts = NULL;
+  GList *l = NULL;
 
-  /* set up the server and port options */
-  opt = gaim_account_option_string_new("Server", MW_KEY_HOST,
-				       PLUGIN_DEFAULT_HOST);
-  opts = g_list_append(opts, opt);
+  /* set up account ID as user:server */
+  split = gaim_account_user_split_new(_("Server"), PLUGIN_DEFAULT_HOST, ':');
+  l = g_list_append(l, split);
+  mw_prpl_info.user_splits = l;
+  l = NULL;
 
+  /* hide the port in options though, since it's very rare to change */
   opt = gaim_account_option_int_new("Port", MW_KEY_PORT, PLUGIN_DEFAULT_PORT);
-  opts = g_list_append(opts, opt);
-
-  mw_prpl_info.protocol_options = opts;
+  l = g_list_append(l, opt);
+  mw_prpl_info.protocol_options = l;
+  l = NULL;
 
   /* set up the prefs for blist options */
   gaim_prefs_add_none(MW_PRPL_OPT_BASE);

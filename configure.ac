@@ -106,6 +106,7 @@ AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
 
+
 AC_CONFIG_FILES(
 	[Makefile dist/Makefile pixmaps/Makefile src/Makefile]
 	[gaim-meanwhile.spec]

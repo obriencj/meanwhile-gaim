@@ -1,11 +1,10 @@
 
-version 0.82 (cvs)
-
-	- gaim/multi.h removed from includes
-	
-	- removed os_read/os_write/os_close as they were unnecessary
+version 0.82 (2004-08-26)
 	
 	- updates to prpl structure as per Gaim API change
+
+	- joining a conference no longer shows a "joined" message for
+	existing conference members
 
 	- receiving html-like text is now displayed correctly verbatim
 	

@@ -277,7 +277,7 @@ static GaimBuddy *ensure_buddy(GaimConnection *gc, GaimGroup *group,
   GaimAccount *acct = gaim_connection_get_account(gc);
 
   const char *id = mwSametimeUser_getUser(stuser);
-  const char *name = mwSametimeUser_getName(stuser);
+  const char *name = mwSametimeUser_getShortName(stuser);
   const char *alias = mwSametimeUser_getAlias(stuser);
 
   buddy = gaim_find_buddy_in_group(acct, id, group);
@@ -340,26 +340,20 @@ static void fetch_blist_cb(struct mwServiceStorage *srvc,
   struct mwGaimPluginData *pd = data;
   struct mwSametimeList *stlist;
   struct mwSession *s;
-  char *b, *tmp;
-  gsize n;
+
+  struct mwGetBuffer *b;
 
   g_return_if_fail(result == ERR_SUCCESS);
 
-  b = tmp = mwStorageUnit_asString(item);
-  if(b == NULL) return;
-
-  n = strlen(b);
-  if(! n) return;
+  b = mwGetBuffer_wrap(mwStorageUnit_asOpaque(item));
 
   stlist = mwSametimeList_new();
-  mwSametimeList_get(&b, &n, stlist);
+  mwSametimeList_get(b, stlist);
 
   s = mwService_getSession(MW_SERVICE(srvc));
   import_blist(pd->gc, stlist);
 
   mwSametimeList_free(stlist);
-
-  g_free(tmp);
 }
 
 
@@ -1379,7 +1373,7 @@ static void export_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
     grp = (GaimGroup *) gn;
 
     if(! gaim_group_on_account(grp, acct)) continue;
-    stg = mwSametimeGroup_new(stlist, grp->name);
+    stg = mwSametimeGroup_new(stlist, mwSametimeGroup_NORMAL, grp->name);
 
     for(cn = gn->child; cn; cn = cn->next) {
       if(! GAIM_BLIST_NODE_IS_CONTACT(cn)) continue;
@@ -1389,9 +1383,11 @@ static void export_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
 	bdy = (GaimBuddy *) bn;
 
 	if(bdy->account == acct) {
+	  struct mwSametimeUser *stu;
 	  idb.user = bdy->name;
-	  mwSametimeUser_new(stg, &idb, mwUser_NORMAL,
-			     bdy->server_alias, bdy->alias);
+	  stu = mwSametimeUser_new(stg, mwSametimeUser_NORMAL, &idb);
+	  mwSametimeUser_setShortName(stu, bdy->server_alias);
+	  mwSametimeUser_setAlias(stu, bdy->alias);
 	}	
       }
     }
@@ -1407,8 +1403,8 @@ static void blist_store(struct mwGaimPluginData *pd) {
 
   GaimConnection *gc;
 
-  char *b, *buf;
-  gsize n, len;
+  struct mwPutBuffer *b;
+  struct mwOpaque *o;
 
   g_return_if_fail(pd != NULL);
 
@@ -1431,20 +1427,15 @@ static void blist_store(struct mwGaimPluginData *pd) {
   stlist = mwSametimeList_new();
   export_blist(gc, stlist);
 
-  n = len = mwSametimeList_buflen(stlist);
-  b = buf = (char *) g_malloc0(len);
+  b = mwPutBuffer_new();
 
-  if(mwSametimeList_put(&b, &n, stlist)) {
-    g_free(buf);
-    mwSametimeList_free(stlist);
-    DEBUG_WARN("export blist failed while serializing\n");
-    return;
-  }
-
+  mwSametimeList_put(b, stlist);
   mwSametimeList_free(stlist);
 
-  unit = mwStorageUnit_newString(mwStore_AWARE_LIST, buf);
-  g_free(buf);
+  unit = mwStorageUnit_new(mwStore_AWARE_LIST);
+  o = mwStorageUnit_asOpaque(unit);
+
+  mwPutBuffer_finalize(o, b);
 
   mwServiceStorage_save(srvc, unit, NULL, NULL, NULL);
 }

@@ -1,8 +1,8 @@
 
 AC_INIT
-AM_INIT_AUTOMAKE(meanwhile-gaim, 0.79)
+AM_INIT_AUTOMAKE(gaim-meanwhile, 0.79)
 
-RELEASE=1
+RELEASE=cvs
 AC_SUBST(RELEASE)
 
 AC_PREREQ([2.50])
@@ -74,5 +74,5 @@ AC_CHECK_LIB(meanwhile, mwSession_new, [meanwhile=yes], , $MEANWHILE_LIBS $GLIB_
 AC_SUBST(MEANWHILE_LIBS)
 
 
-AC_OUTPUT([Makefile src/Makefile pixmaps/Makefile meanwhile-gaim.spec])
+AC_OUTPUT([Makefile src/Makefile pixmaps/Makefile gaim-meanwhile.spec])
 

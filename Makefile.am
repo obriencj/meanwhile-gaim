@@ -1,5 +1,5 @@
 
-EXTRA_DIST = meanwhile-gaim.spec
+EXTRA_DIST = gaim-meanwhile.spec
 
 SUBDIRS = src pixmaps
 

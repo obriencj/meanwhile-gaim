@@ -4,9 +4,6 @@ AM_INIT_AUTOMAKE(gaim-meanwhile, 0.82)
 
 AC_PREREQ([2.50])
 
-dnl needed for mingw check
-AC_CANONICAL_HOST
-
 AC_PROG_CC
 AC_PROG_LIBTOOL
 LIBTOOL="$LIBTOOL --silent"
@@ -61,11 +58,6 @@ AM_PATH_GLIB_2_0(2.0.0,,AC_MSG_ERROR([
 
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
-
-if test "x$host_os" = "xmingw32"; then
-	WIN32_LIBS="-lwsock32"
-	AC_SUBST(WIN32_LIBS)
-fi
 
 AC_OUTPUT([Makefile src/Makefile pixmaps/Makefile gaim-meanwhile.spec])
 

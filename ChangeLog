@@ -7,6 +7,8 @@ version 0.82 (2004-08-26)
 	existing conference members
 
 	- receiving html-like text is now displayed correctly verbatim
+
+	- added support for compiling using a linux/mingw cross compiler
 	
 version 0.81 (2004-08-06)
 

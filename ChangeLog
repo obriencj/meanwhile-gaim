@@ -6,6 +6,8 @@ version 0.82 (cvs)
 	- removed os_read/os_write/os_close as they were unnecessary
 	
 	- updates to prpl structure as per Gaim API change
+
+	- receiving html-like text is now displayed correctly verbatim
 	
 version 0.81 (2004-08-06)
 

@@ -13,7 +13,10 @@ version 1.0.2.99 (cvs)
 	buddy list from server
 
 	- patch #1076834 Away/available state and debug logging
-	
+
+	- 'psychic mode' feature, to open an IM window when someone opens
+	an IM to you (before they send a message)
+
 version 1.0.2 (2004-11-09)
 	
 	- fix #1054818 html/xml tags in group chats

@@ -1,8 +1,11 @@
 
 version 0.81  Chris O'Brien  <siege@preoccupied.net>
 
-	2004-07-29: Changed away status handling to strip the HTML from
-	the away message, making multi-line messages display correctly.
+	- Changed away status handling to strip the HTML from the away
+	message, making multi-line messages display correctly.
+	
+	- Changed all logging functions to GAIM_DEBUG calls (patch by
+	Stephen Dawkins)
 	
 version 0.80  Chris O'Brien  <siege@preoccupied.net>
 

@@ -60,6 +60,7 @@ USA. */
 #define MW_PRPL_OPT_BLIST_ACTION  MW_PRPL_OPT_BASE "/blist_action"
 
 
+/* stages of connecting-ness */
 #define MW_CONNECT_STEPS  7
 #define MW_CONNECT_1  _("Looking up server")
 #define MW_CONNECT_2  _("Sending Handshake")
@@ -69,6 +70,7 @@ USA. */
 #define MW_CONNECT_6  _("Login Acknowledged")
 
 
+/* stages of conciousness */
 #define UC_NORMAL  0x10
 #define MW_STATE_OFFLINE  _("Offline")
 #define MW_STATE_ACTIVE   _("Active")
@@ -76,6 +78,7 @@ USA. */
 #define MW_STATE_BUSY     _("Do Not Disturb")
 #define MW_STATE_IDLE     _("Idle")
 #define MW_STATE_UNKNOWN  _("Unknown")
+#define MW_STATE_ENLIGHTENED  _("Buddha")
 
 
 /* keys to get/set chat information */
@@ -129,6 +132,7 @@ USA. */
 #define BLIST_CHOICE_SAVE  3
 
 
+/* testing for the above */
 #define BLIST_CHOICE_IS(n) (gaim_prefs_get_int(MW_PRPL_OPT_BLIST_ACTION)==(n))
 #define BLIST_CHOICE_IS_NONE  BLIST_CHOICE_IS(BLIST_CHOICE_NONE)
 #define BLIST_CHOICE_IS_LOAD  BLIST_CHOICE_IS(BLIST_CHOICE_LOAD)
@@ -174,10 +178,10 @@ USA. */
 #endif
 
 
-#define DEBUG_ERROR(a)  gaim_debug_error(G_LOG_DOMAIN, a "\n")
-#define DEBUG_INFO(a)   gaim_debug_info(G_LOG_DOMAIN, a "\n")
-#define DEBUG_MISC(a)   gaim_debug_misc(G_LOG_DOMAIN, a "\n")
-#define DEBUG_WARN(a)   gaim_debug_warning(G_LOG_DOMAIN, a "\n")
+#define DEBUG_ERROR(a...)  gaim_debug_error(G_LOG_DOMAIN, a)
+#define DEBUG_INFO(a...)   gaim_debug_info(G_LOG_DOMAIN, a)
+#define DEBUG_MISC(a...)   gaim_debug_misc(G_LOG_DOMAIN, a)
+#define DEBUG_WARN(a...)   gaim_debug_warning(G_LOG_DOMAIN, a)
 
 
 /** get the mw_handler from a mwSession */
@@ -214,7 +218,7 @@ struct mw_plugin_data {
   GHashTable *list_map;
   GHashTable *convo_map;
 
-  guint save_event;
+  guint save_event;  /**< event id for the save callback */
 };
 
 
@@ -241,7 +245,7 @@ static int mw_handler_write(struct mwSessionHandler *this,
 
   if(n > 0) {
     /* if there's data left over, something must have failed */
-    gaim_debug_error(G_LOG_DOMAIN, "mw_handler_write returning %i\n", ret);
+    DEBUG_ERROR("mw_handler_write returning %i\n", ret);
     gaim_connection_error(h->gc, "Connection died");
     return -1;
 
@@ -283,7 +287,7 @@ static void mw_read_callback(gpointer data, gint source,
 
     len = os_read(h->sock_fd, buf, len);
     if(len > 0) {
-      gaim_debug_info(G_LOG_DOMAIN, "read %i bytes\n", len);
+      DEBUG_INFO("read %i bytes\n",len);
       mwSession_recv(session, buf, (gsize) len);
       return;
     }
@@ -308,7 +312,7 @@ static void mw_login_callback(gpointer data, gint source,
 
   if(source < 0) {
     gaim_connection_error(gc, "Unable to connect");
-    DEBUG_ERROR(" unable to connect in mw_login_callback");
+    DEBUG_ERROR(" unable to connect in mw_login_callback\n");
     return;
   }
 
@@ -328,7 +332,7 @@ static void mw_keepalive(GaimConnection *gc) {
   g_return_if_fail(s);
 
   if(mw_handler_write(s->handler, &c, 1)) {
-    DEBUG_WARN("looks like keepalive byte failed");
+    DEBUG_WARN("sending keepalive byte failed\n");
 
   } else {
     /* close any OPEN or WAIT channels which have been inactive for at
@@ -480,12 +484,12 @@ static void save_blist(GaimConnection *gc) {
 
   /* check if we should do this, according to user prefs */
   if(! BLIST_CHOICE_IS_SAVE) {
-    g_message("preferences indicate not to save to remote blist");
+    DEBUG_INFO("preferences indicate not to save remote blist\n");
     return;
   }
 
   if(MW_SERVICE_IS_DEAD(storage)) {
-    g_message("aborting save of blist: storage service is not alive");
+    DEBUG_INFO("aborting save of blist: storage service is not alive\n");
     return;
   }
 
@@ -498,22 +502,19 @@ static void save_blist(GaimConnection *gc) {
   if(mwSametimeList_put(&b, &n, stlist)) {
     g_free(buf);
     mwSametimeList_free(stlist);
-    g_warning("export blist failed while serializing");
+    DEBUG_WARN("export blist failed while serializing\n");
     return;
   }
 
   mwSametimeList_free(stlist);
 
   unit = mwStorageUnit_newString(mwStore_AWARE_LIST, buf);
+  /* g_message("----- begin export blist -----\n"
+	    "%s\n"
+	    "------ end export blist ------", buf); */
   g_free(buf);
 
   mwServiceStorage_save(storage, unit, NULL, NULL);
-
-  /*
-  g_message("----- begin export blist -----\n"
-	    "%s\n"
-	    "------ end export blist ------", buf);
-  */
 }
 
 
@@ -528,7 +529,7 @@ static void import_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
 
   /* check our preferences for loading */
   if(BLIST_CHOICE_IS_NONE) {
-    g_message("preferences indicate not to import from remote buddy list");
+    DEBUG_INFO("preferences indicate not to load remote buddy list\n");
     return;
   }
 
@@ -754,11 +755,10 @@ static void got_invite(struct mwConference *conf, struct mwIdBlock *id,
   g_hash_table_insert(ht, CHAT_TOPIC_KEY, c);
   g_hash_table_insert(ht, CHAT_INVITE_KEY, d);
 
-  gaim_debug_info(G_LOG_DOMAIN,
-		  "Got invite: '%s', name: '%s', topic: '%s', text: '%s'\n",
-		  a, b, c, d);
+  DEBUG_INFO("Got invite: '%s', name: '%s', topic: '%s', text: '%s'\n",
+	     a, b, c, d);
 
-  DEBUG_INFO(" triggering serv_got_invite");
+  DEBUG_INFO(" triggering serv_got_invite\n");
   serv_got_chat_invite(gc, c, a, d, ht);
 }
 
@@ -770,7 +770,7 @@ static void got_welcome(struct mwConference *conf, struct mwIdBlock *members,
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
   GaimConversation *conv;
 
-  DEBUG_INFO(" got welcome");
+  DEBUG_INFO(" got welcome\n");
 
   conv = serv_got_joined_chat(gc, conf->channel->id, conf->topic);
   gaim_conv_chat_set_id(GAIM_CONV_CHAT(conv), conf->channel->id);
@@ -791,7 +791,7 @@ static void got_closed(struct mwConference *conf) {
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
   GaimConversation *conv;
 
-  DEBUG_INFO(" got closed");
+  DEBUG_INFO(" got closed\n");
 
   conv = (GaimConversation *) g_hash_table_lookup(pd->convo_map, conf);
 
@@ -809,7 +809,7 @@ static void got_join(struct mwConference *conf, struct mwIdBlock *id) {
   conv = (GaimConversation *) g_hash_table_lookup(pd->convo_map, conf);
   g_return_if_fail(conv);
 
-  DEBUG_INFO(" got join");
+  DEBUG_INFO(" got join\n");
   gaim_conv_chat_add_user(GAIM_CONV_CHAT(conv), id->user,
 			  NULL, GAIM_CBFLAGS_NONE);
 }
@@ -823,7 +823,7 @@ static void got_part(struct mwConference *conf, struct mwIdBlock *id) {
   conv = (GaimConversation *) g_hash_table_lookup(pd->convo_map, conf);
   g_return_if_fail(conv);
 
-  DEBUG_INFO(" got part");
+  DEBUG_INFO(" got part\n");
   gaim_conv_chat_remove_user(GAIM_CONV_CHAT(conv), id->user, NULL);
 }
 
@@ -1268,13 +1268,13 @@ static void mw_chat_join(GaimConnection *gc, GHashTable *components) {
   char *name = g_hash_table_lookup(components, CHAT_NAME_KEY);
 
   if(name) {
-    DEBUG_INFO(" accepting conference invite");
+    DEBUG_INFO("accepting conference invite\n");
     conf = mwConference_findByName(srvc, name);
     if(conf) mwConference_accept(conf);
 
   } else {
     char *topic;
-    DEBUG_INFO(" creating new conference");
+    DEBUG_INFO("creating new conference\n");
 
     topic = (char *) g_hash_table_lookup(components, CHAT_TOPIC_KEY);
     conf = mwConference_new(srvc);
@@ -1316,7 +1316,6 @@ static void mw_chat_leave(GaimConnection *gc, int id) {
   struct mwChannel *chan = mwChannel_find(GC_TO_SESSION(gc)->channels, uid);
   struct mwConference *conf = mwConference_findByChannel(srvc, chan);
 
-  DEBUG_INFO(" mw chat leave\n");
   mwConference_destroy(conf, ERR_SUCCESS, "Leaving");
 }
 

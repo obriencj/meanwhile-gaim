@@ -138,7 +138,6 @@ AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
 
-
 AC_CONFIG_FILES(
 	[src/config.h]
 	[Makefile dist/Makefile pixmaps/Makefile src/Makefile]
@@ -147,5 +146,15 @@ AC_CONFIG_FILES(
 
 AC_OUTPUT()
 
+
+echo
+echo Default active message... : \"$CONF_ACTIVE_MSG\"
+echo Default community host... : \"$CONF_DEFAULT_HOST\"
+echo Default community port... : $CONF_DEFAULT_PORT
+echo Client type identifier... : $CONF_CLIENT_TYPE
+
+echo
+echo configure complete, now run \`make\`
+echo
 
 # The End.

@@ -739,7 +739,7 @@ static void mw_session_loginRedirect(struct mwSession *session,
   pd = mwSession_getClientData(session);
   gc = pd->gc;
   account = gaim_connection_get_account(gc);
-  port = gaim_account_get_int(account, "port", PLUGIN_DEFAULT_PORT);
+  port = gaim_account_get_int(account, "port", MW_PLUGIN_DEFAULT_PORT);
 
   mwSession_stop(session, 0x0);
 
@@ -1585,7 +1585,7 @@ static void mw_prpl_login(GaimAccount *account) {
     /* for those without the host string, let's see if they have host
        specified in the account setting instead. */
 
-    h = gaim_account_get_string(account, MW_KEY_HOST, PLUGIN_DEFAULT_HOST);
+    h = gaim_account_get_string(account, MW_KEY_HOST, MW_PLUGIN_DEFAULT_HOST);
     if(h) {
       t = g_strdup_printf("%s:%s", user, h);
       gaim_account_set_username(account, t);
@@ -1596,10 +1596,10 @@ static void mw_prpl_login(GaimAccount *account) {
 
 #else
   /* the old way to obtain the host string */
-  host = gaim_account_get_string(account, "server", PLUGIN_DEFAULT_HOST);
+  host = gaim_account_get_string(account, "server", MW_PLUGIN_DEFAULT_HOST);
 #endif
 
-  port = gaim_account_get_int(account, MW_KEY_PORT, PLUGIN_DEFAULT_PORT);
+  port = gaim_account_get_int(account, MW_KEY_PORT, MW_PLUGIN_DEFAULT_PORT);
 
   DEBUG_INFO("user: '%s'\n", user);
   DEBUG_INFO("host: '%s'\n", host);
@@ -1608,7 +1608,7 @@ static void mw_prpl_login(GaimAccount *account) {
   mwSession_setProperty(pd->session, PROPERTY_SESSION_USER_ID, user, g_free);
   mwSession_setProperty(pd->session, PROPERTY_SESSION_PASSWORD, pass, NULL);
   mwSession_setProperty(pd->session, PROPERTY_CLIENT_TYPE_ID,
-			GUINT_TO_POINTER(CLIENT_TYPE_ID), NULL);
+			GUINT_TO_POINTER(MW_CLIENT_TYPE_ID), NULL);
 
   gaim_connection_update_progress(gc, "Connecting", 1, MW_CONNECT_STEPS);
 
@@ -1723,15 +1723,14 @@ static void mw_prpl_set_away(GaimConnection *gc, const char *state,
   g_return_if_fail(session != NULL);
 
   mwUserStatus_clone(&stat, mwSession_getUserStatus(session));
-
+  
+  /* when we go to/from a standard state, the state indicates whether
+     we're away or not */
   if(state) {
-    /* when we go to/from a standard state, the state indicates
-       whether we're away or not */
-
     if(! strcmp(state, GAIM_AWAY_CUSTOM)) {
+
       /* but when we go to/from a custom state, it's the message which
 	 indicates whether we're away or not */
-
       if(message) {
 	stat.status = mwStatus_AWAY;
 	m = message;
@@ -1761,7 +1760,7 @@ static void mw_prpl_set_away(GaimConnection *gc, const char *state,
 
     acct = gaim_connection_get_account(gc);
     m = gaim_account_get_string(acct, MW_KEY_ACTIVE_MSG,
-				PLUGIN_DEFAULT_ACTIVE_MSG);
+				MW_PLUGIN_DEFAULT_ACTIVE_MSG);
     stat.time = 0;
   }
 
@@ -2455,7 +2454,7 @@ static void active_msg_action(GaimPluginAction *act) {
   gc = act->context;
   account = gaim_connection_get_account(gc);
   desc = gaim_account_get_string(account, MW_KEY_ACTIVE_MSG,
-				 PLUGIN_DEFAULT_ACTIVE_MSG);
+				 MW_PLUGIN_DEFAULT_ACTIVE_MSG);
   
   gaim_request_input(gc, NULL, "Active Message:", NULL,
 		     desc,
@@ -2607,13 +2606,15 @@ static void mw_plugin_init(GaimPlugin *plugin) {
   GList *l = NULL;
 
   /* set up account ID as user:server */
-  split = gaim_account_user_split_new(_("Server"), PLUGIN_DEFAULT_HOST, ':');
+  split = gaim_account_user_split_new(_("Server"),
+				      MW_PLUGIN_DEFAULT_HOST, ':');
   l = g_list_append(l, split);
   mw_prpl_info.user_splits = l;
   l = NULL;
 
   /* hide the port in options though, since it's very rare to change */
-  opt = gaim_account_option_int_new("Port", MW_KEY_PORT, PLUGIN_DEFAULT_PORT);
+  opt = gaim_account_option_int_new("Port", MW_KEY_PORT,
+				    MW_PLUGIN_DEFAULT_PORT);
   l = g_list_append(l, opt);
   mw_prpl_info.protocol_options = l;
   l = NULL;

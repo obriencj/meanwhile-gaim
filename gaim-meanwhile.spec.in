@@ -8,8 +8,9 @@ Group: Applications/Internet
 URL: http://meanwhile.sf.net/
 Source0: %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
-BuildRequires: pkgconfig, libtool, glib2-devel, gaim-devel
-Requires: gaim >= 1:@GAIM_VER@  gaim < 1:@GAIM_CAP@, meanwhile >= 0.3, meanwhile < 0.4
+BuildRequires: pkgconfig, libtool, glib2-devel, gaim-devel, meanwhile-devel
+Requires: gaim >= 1:@GAIM_VER@  gaim < 1:@GAIM_CAP@
+Requires: meanwhile >= 0.3, meanwhile < 0.4
 Obsoletes: meanwhile-gaim
 
 
@@ -22,24 +23,15 @@ Lotus Sametime Community Client library plugin for Gaim
 
 
 %build
-rm -rf %{buildroot}
 %configure
-make prefix=%{buildroot}%{_prefix} bindir=%{buildroot}%{_bindir} \
-     datadir=%{buildroot}%{_datadir} includedir=%{buildroot}%{_includedir} \
-     libdir=%{buildroot}%{_libdir} mandir=%{buildroot}%{_mandir} \
-     sysconfdir=%{buildroot}%{_sysconfdir} \
-     all
+%{__make} %{?_smp_flags}
 
 
 %install
-make prefix=%{buildroot}%{_prefix} bindir=%{buildroot}%{_bindir} \
-     datadir=%{buildroot}%{_datadir} includedir=%{buildroot}%{_includedir} \
-     libdir=%{buildroot}%{_libdir} mandir=%{buildroot}%{_mandir} \
-     sysconfdir=%{buildroot}%{_sysconfdir} \
-     install
-
-rm -f %{buildroot}%{_libdir}/gaim/libmwgaim.a
-rm -f %{buildroot}%{_libdir}/gaim/libmwgaim.la
+%{__rm} -rf %{buildroot}
+%{makeinstall}
+%{__rm} -f %{buildroot}%{_libdir}/gaim/libmwgaim.a
+%{__rm} -f %{buildroot}%{_libdir}/gaim/libmwgaim.la
 
 
 %clean

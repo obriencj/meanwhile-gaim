@@ -362,12 +362,14 @@ static GaimBuddy *ensure_buddy(GaimConnection *gc, GaimGroup *group,
   GaimBuddy *buddy;
   GaimAccount *acct = gaim_connection_get_account(gc);
 
-  const char *name = mwSametimeUser_getUser(stuser);
+  const char *id = mwSametimeUser_getUser(stuser);
+  const char *name = mwSametimeUser_getName(stuser);
   const char *alias = mwSametimeUser_getAlias(stuser);
 
-  buddy = gaim_find_buddy_in_group(acct, name, group);
+  buddy = gaim_find_buddy_in_group(acct, id, group);
   if(! buddy) {
-    buddy = gaim_buddy_new(acct, name, alias);
+    buddy = gaim_buddy_new(acct, id, alias);
+    buddy->server_alias = g_strdup(name);
     gaim_blist_add_buddy(buddy, NULL, group, NULL);
 
     /* why doesn't the above trigger this? */
@@ -889,6 +891,8 @@ static void mw_close(GaimConnection *gc) {
     gaim_timeout_remove(pd->save_event);
     pd->save_event = 0;
   }
+
+  save_blist(gc);
 
   session = pd->session;
   if(session) {

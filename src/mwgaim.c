@@ -1632,7 +1632,8 @@ static void im_recv_mime(struct mwConversation *conv,
   img_by_cid = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
   images = NULL;
 
-  str = g_string_new(NULL);
+  /* don't want the contained string to ever be NULL */
+  str = g_string_new("");
   
   doc = gaim_mime_document_parse(data);
 
@@ -1685,10 +1686,11 @@ static void im_recv_mime(struct mwConversation *conv,
   { /* replace each IMG tag's SRC attribute with an ID attribute. This
        actually modifies the contents of str */
     GData *attribs;
-    char *start, *end, *tmp = str->str;
+    char *start, *end;
+    char *tmp = str->str;
 
-    while(tmp && *tmp &&
-	  gaim_markup_find_tag("img", tmp, &start, &end, &attribs)) {
+    while(*tmp && gaim_markup_find_tag("img", tmp, (const char **) &start,
+				       (const char **) &end, &attribs)) {
 
       char *alt, *align, *border, *src;
       int img;
@@ -2181,7 +2183,7 @@ static int mw_prpl_send_typing(GaimConnection *gc, const char *name,
 static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
 
   struct mwGaimPluginData *pd;
-  struct mwAwareIdBlock idb = { mwAware_USER, who, NULL };
+  struct mwAwareIdBlock idb = { mwAware_USER, (char *) who, NULL };
 
   GaimAccount *acct;
   GaimBuddy *b;
@@ -2240,7 +2242,7 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
   gaim_notify_formatted(gc, tmp, _("Buddy Information"), NULL,
 			str->str, NULL, NULL);
 
-  g_free(tmp);
+  g_free((char *) tmp);
   g_string_free(str, TRUE);
 }
 

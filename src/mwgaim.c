@@ -159,6 +159,10 @@
 #endif
 
 
+/** hander IDs from g_log_set_handler in mw_plugin_init */
+static guint log_handler[2] = { 0, 0 };
+
+
 /** the gaim plugin data.
     available as gc->proto_data and mwSession_getClientData */
 struct mwGaimPluginData {
@@ -617,17 +621,17 @@ static void fetch_msg_cb(struct mwServiceStorage *srvc,
 
   switch(mwStorageUnit_getKey(item)) {
   case mwStore_AWAY_MESSAGES:
-    DEBUG_INFO("setting away messages to \"%s\"", NSTR(msg));
+    DEBUG_INFO("setting away messages to \"%s\"\n", NSTR(msg));
     gaim_account_set_string(acct, MW_KEY_AWAY_MSG, msg);
     break;
 
   case mwStore_BUSY_MESSAGES:
-    DEBUG_INFO("setting busy messages to \"%s\"", NSTR(msg));
+    DEBUG_INFO("setting busy messages to \"%s\"\n", NSTR(msg));
     gaim_account_set_string(acct, MW_KEY_BUSY_MSG, msg);
     break;
 
   case mwStore_ACTIVE_MESSAGES:
-    DEBUG_INFO("setting active messages to \"%s\"", NSTR(msg));
+    DEBUG_INFO("setting active messages to \"%s\"\n", NSTR(msg));
     gaim_account_set_string(acct, MW_KEY_ACTIVE_MSG, msg);
     break;
 
@@ -1761,6 +1765,10 @@ static struct mwGaimPluginData *mwGaimPluginData_new(GaimConnection *gc) {
 
   g_return_val_if_fail(gc != NULL, NULL);
 
+  printf("mwGaimPluginData_new (printf)\n");
+  DEBUG_INFO("mwGaimPluginData_new (gaim_info)\n");
+  g_warning("mwGaimPluginData_new (g_warning)");
+
   pd = g_new0(struct mwGaimPluginData, 1);
   pd->gc = gc;
   pd->session = mwSession_new(&mw_session_handler);
@@ -2181,15 +2189,11 @@ static void mw_prpl_set_away(GaimConnection *gc,
   if(! message) {
     switch(stat.status) {
     case mwStatus_AWAY:
-      message = MW_STATE_AWAY;
-      /** @todo provide account setting for default away message */
       message = gaim_account_get_string(acct, MW_KEY_AWAY_MSG,
 					MW_PLUGIN_DEFAULT_AWAY_MSG);
       break;
 
     case mwStatus_BUSY:
-      message = MW_STATE_BUSY;
-      /** @todo provide account setting for default busy message */
       message = gaim_account_get_string(acct, MW_KEY_BUSY_MSG,
 					MW_PLUGIN_DEFAULT_BUSY_MSG);
       break;
@@ -2894,26 +2898,37 @@ static void status_msg_action_cb(GaimConnection *gc,
   GaimRequestField *f;
   const char *msg;
   gboolean prompt;
+
+  struct mwGaimPluginData *pd;
+  struct mwServiceStorage *srvc;
+  struct mwStorageUnit *unit;
+  
+  pd = gc->proto_data;
+  srvc = pd->srvc_store;
   
   acct = gaim_connection_get_account(gc);
 
   f = gaim_request_fields_get_field(fields, "active");
   msg = gaim_request_field_string_get_value(f);
   gaim_account_set_string(acct, MW_KEY_ACTIVE_MSG, msg);
+  unit = mwStorageUnit_newString(mwStore_ACTIVE_MESSAGES, msg);
+  mwServiceStorage_save(srvc, unit, NULL, NULL, NULL);
 
   f = gaim_request_fields_get_field(fields, "away");
   msg = gaim_request_field_string_get_value(f);
   gaim_account_set_string(acct, MW_KEY_AWAY_MSG, msg);
+  unit = mwStorageUnit_newString(mwStore_AWAY_MESSAGES, msg);
+  mwServiceStorage_save(srvc, unit, NULL, NULL, NULL);
 
   f = gaim_request_fields_get_field(fields, "busy");
   msg = gaim_request_field_string_get_value(f);
   gaim_account_set_string(acct, MW_KEY_BUSY_MSG, msg);  
+  unit = mwStorageUnit_newString(mwStore_BUSY_MESSAGES, msg);
+  mwServiceStorage_save(srvc, unit, NULL, NULL, NULL);
 
   f = gaim_request_fields_get_field(fields, "prompt");
   prompt = gaim_request_field_bool_get_value(f);
   gaim_account_set_bool(acct, MW_KEY_MSG_PROMPT, prompt);
-
-  /** @todo save status messages to storage service */
 
   /* need to propagate the message change if we're in any of those
      default states */
@@ -3150,7 +3165,8 @@ static gboolean mw_plugin_unload(GaimPlugin *plugin) {
 
 
 static void mw_plugin_destroy(GaimPlugin *plugin) {
-  ;
+  g_log_remove_handler(G_LOG_DOMAIN, log_handler[0]);
+  g_log_remove_handler("meanwhile", log_handler[1]);
 }
 
 
@@ -3180,25 +3196,25 @@ static GaimPluginInfo mw_plugin_info = {
 };
 
 
-static void mw_log_handler(const gchar *d, GLogLevelFlags flags,
-			   const gchar *m, gpointer data) {
+static void mw_log_handler(const gchar *domain, GLogLevelFlags flags,
+			   const gchar *msg, gpointer data) {
 #if DEBUG
   char *nl;
 
-  if(! m) return;
+  if(! msg) return;
 
   /* annoying! */
-  nl = g_strconcat(m, "\n", NULL);
+  nl = g_strdup_printf("%s\n", NSTR(msg));
 
   /* handle g_log requests via gaim's built-in debug logging */
   if(flags & G_LOG_LEVEL_ERROR) {
-    gaim_debug_error(d, nl);
+    gaim_debug_error(domain, nl);
 
   } else if(flags & G_LOG_LEVEL_WARNING) {
-    gaim_debug_warning(d, nl);
+    gaim_debug_warning(domain, nl);
 
   } else {
-    gaim_debug_info(d, nl);
+    gaim_debug_info(domain, nl);
   }
 
   g_free(nl);
@@ -3213,6 +3229,9 @@ static void mw_plugin_init(GaimPlugin *plugin) {
   GaimAccountUserSplit *split;
   GaimAccountOption *opt;
   GList *l = NULL;
+
+  GLogLevelFlags logf =
+    G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION;
 
   /* set up account ID as user:server */
   split = gaim_account_user_split_new(_("Server"),
@@ -3236,14 +3255,12 @@ static void mw_plugin_init(GaimPlugin *plugin) {
   /* forward all our g_log messages to gaim. Generally all the logging
      calls are using gaim_log directly, but the g_return macros will
      get caught here */
-  g_log_set_handler(G_LOG_DOMAIN,
-		    G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION,
-		    mw_log_handler, NULL);
-
+  log_handler[0] = g_log_set_handler(G_LOG_DOMAIN, logf,
+				     mw_log_handler, NULL);
+  
   /* redirect meanwhile's logging to gaim's */
-  g_log_set_handler("meanwhile",
-		    G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION,
-		    mw_log_handler, NULL);
+  log_handler[1] = g_log_set_handler("meanwhile", logf,
+				     mw_log_handler, NULL);
 }
 
 

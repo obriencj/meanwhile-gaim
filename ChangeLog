@@ -1,13 +1,15 @@
 
-version 1.0.2.99 (cvs)
+version 1.2.0 (cvs)
 
         - building against meanwhile 0.4.0 cvs
+
+	- building against gaim 1.2.0 cvs
 
 	- associate known client type identifier with buddies and display
 	in tooltip information
 
 	- perform resolve lookup on single-buddy additions to ensure they
-	really exist
+	really exist, and to prompt user if multiple matches exist
 	
 	- slightly better handling of server_alias data from loading of
 	buddy list from server
@@ -17,6 +19,14 @@ version 1.0.2.99 (cvs)
 	- 'psychic mode' feature, to open an IM window when someone opens
 	an IM to you (before they send a message)
 
+	- protocol action now permits setting active/away/busy messages
+	
+	- load and save active/away/busy messages to storage service
+
+	- support for sending/receiving NotesBuddy HTML
+
+	- support for receiving NotesBuddy images
+	
 version 1.0.2 (2004-11-09)
 	
 	- fix #1054818 html/xml tags in group chats

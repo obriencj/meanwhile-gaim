@@ -1,24 +1,23 @@
 
-/*
-Meanwhile Gaim Protocol Plugin (prpl). Adds Lotus Sametime support to Gaim.
+/* Meanwhile Gaim Protocol Plugin (prpl). Adds Lotus Sametime support
+to Gaim.
 
-Copyright (C) 2004 Christopher (siege) O'Brien <obriencj@us.ibm.com>
-Copyright (C) 2004 IBM Corporation
+Copyright (C) 2004 Christopher (siege) O'Brien <siege@preoccupied.net>
 
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or (at
+your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-*/
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
+USA. */
 
 
 #define GAIM_PLUGINS
@@ -42,9 +41,72 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <meanwhile/srvc_conf.h>
 #include <meanwhile/srvc_im.h>
 
-#include "mwgaim.h"
+
+/* considering that there's no display of this information for prpls,
+   I don't know why I even bother providing these. Oh valiant reader,
+   I do it all for you. */
+#define PLUGIN_ID        "prpl-meanwhile"
+#define PLUGIN_NAME      "Meanwhile"
+#define PLUGIN_SUMMARY   "Meanwhile Protocol Plugin"
+#define PLUGIN_DESC      "Open implementation of a Lotus Sametime client"
+#define PLUGIN_AUTHOR    "Christopher (siege) O'Brien <siege@preoccupied.net>"
+#define PLUGIN_HOMEPAGE  "http://meanwhile.sf.net/"
+
+#define MW_CONNECT_STEPS  7
+#define MW_CONNECT_1  _("Looking up server")
+#define MW_CONNECT_2  _("Sending Handshake")
+#define MW_CONNECT_3  _("Waiting for Handshake Acknowledgement")
+#define MW_CONNECT_4  _("Handshake Acknowledged, Sending Login")
+#define MW_CONNECT_5  _("Waiting for Login Acknowledgement")
+#define MW_CONNECT_6  _("Login Acknowledged")
+
+#define UC_NORMAL  0x10
+
+#define MW_STATE_OFFLINE  _("Offline")
+#define MW_STATE_ACTIVE   _("Active")
+#define MW_STATE_AWAY     _("Away")
+#define MW_STATE_BUSY     _("Do Not Disturb")
+#define MW_STATE_IDLE     _("Idle")
+#define MW_STATE_UNKNOWN  _("Unknown")
 
 
+/* keys to get/set chat information */
+#define CHAT_CREATOR_KEY  "chat_creator"
+#define CHAT_NAME_KEY     "chat_name"
+#define CHAT_TOPIC_KEY    "chat_topic"
+#define CHAT_INVITE_KEY   "chat_invite"
+
+
+/* keys to get/set gaim plugin information */
+#define MW_KEY_HOST       "server"
+#define MW_KEY_PORT       "port"
+
+
+/** default host for the gaim plugin. You can specialize a build to
+    default to your server by supplying this at compile time */
+#ifndef PLUGIN_DEFAULT_HOST
+#define PLUGIN_DEFAULT_HOST       ""
+#endif
+
+
+/** default port for the gaim plugin. You can specialize a build to
+    default to your server by supplying this at compile time */
+#ifndef PLUGIN_DEFAULT_PORT
+#define PLUGIN_DEFAULT_PORT       1533
+#endif
+
+
+/** the amount of data the plugin will attempt to read from a socket
+    in a single call */
+#define READ_BUFFER_SIZE  1024
+
+
+/** default inactivity threshold for the gaim plugin to pass to
+    mwChannel_destroyInactive. length in seconds */
+#define INACTIVE_THRESHOLD 30
+
+
+/* there's probably a better way, I just never bothered finding it */
 #ifndef os_write
 # ifndef _WIN32
 #  define os_write(fd, buffer, len) write(fd, buffer, len)
@@ -54,6 +116,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
+/* there's probably a better way, I just never bothered finding it */
 #ifndef os_read
 # ifndef _WIN32
 #  define os_read(fd, buffer, size) read(fd, buffer, size)
@@ -63,6 +126,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
+/* there's probably a better way, I just never bothered finding it */
 #ifndef os_close
 # ifndef _WIN32
 #  define os_close(fd) close(fd)
@@ -78,24 +142,29 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define DEBUG_WARN(a)   gaim_debug_warning(G_LOG_DOMAIN, a)
 
 
+/** get the mw_handler from a mwSession */
 #define SESSION_HANDLER(session) \
   ((struct mw_handler *) (session)->handler)
 
 
+/** get the mw_plugin_data from a GaimConnection */
 #define PLUGIN_DATA(gc) \
   ((struct mw_plugin_data *) (gc)->proto_data)
 
 
+/** get the mwSession from a GaimConnection */
 #define GC_TO_SESSION(gc) \
   ((PLUGIN_DATA(gc))->session)
 
 
+/** get the GaimConnection from a mwSession */
 #define SESSION_TO_GC(session) \
   ((SESSION_HANDLER(session))->gc)
 
 
 struct mw_plugin_data {
   struct mwSession *session;
+
   struct mwServiceIM *srvc_im;
   struct mwServiceAware *srvc_aware;
   struct mwServiceConf *srvc_conf;
@@ -111,8 +180,8 @@ struct mw_handler {
 };
 
 
-/* returns 0 if all bytes were written successfully, -1 for any sort of
-   failure. */
+/** returns 0 if all bytes were written successfully, -1 for any sort
+    of failure. */
 static int mw_handler_write(struct mwSessionHandler *this,
 			    const char *b, gsize n) {
 
@@ -120,18 +189,14 @@ static int mw_handler_write(struct mwSessionHandler *this,
   int ret;
 
   while(n) {
-    /* this looks weird, but it's almost sane. I'm going from an unsigned int
-       length to a signed int length. The likely-hood of n ever being that
-       large is super-duper-minimal, but I don't like chances. So mask off the
-       sign bit and only write that many bytes at a time. The normal write
-       loop then continues writing until n is decremented to zero, or os_write
-       errors */
-    ret = os_write(h->sock_fd, b, (n & 0xefffffff));
+    /* write 2048 bytes at a time */
+    ret = os_write(h->sock_fd, b, 2048);
     if(ret <= 0) break;
     n -= ret;
   }
-
-  if( (ret = n) ) {
+  
+  if(n > 0) {
+    /* if there's data left over, something must have failed */
     gaim_debug_error(G_LOG_DOMAIN, "mw_handler_write returning %i\n", ret);
     gaim_connection_error(h->gc, "Connection died");
     ret = -1;
@@ -167,7 +232,6 @@ static void mw_read_callback(gpointer data, gint source,
   
   if(cond & GAIM_INPUT_READ) {
 
-    /* READ_BUFFER_SIZE is defined in mwgaim.h */
     char buf[READ_BUFFER_SIZE];
     gsize len = READ_BUFFER_SIZE;
 
@@ -221,10 +285,11 @@ static void mw_keepalive(GaimConnection *gc) {
     DEBUG_WARN("looks like keepalive byte failed\n");
 
   } else {
-    /* close any OPEN or WAIT channels which have been inactive for
-       at least the INACTIVE_THRESHOLD seconds, but only if we're
-       still connected. */
-    mwChannelSet_destroyInactive(s->channels, time(NULL) - INACTIVE_THRESHOLD);
+    /* close any OPEN or WAIT channels which have been inactive for at
+       least the INACTIVE_THRESHOLD seconds, but only if we're still
+       connected. */
+    mwChannelSet_destroyInactive(s->channels,
+				 time(NULL) - INACTIVE_THRESHOLD);
   }
 }
 
@@ -295,10 +360,11 @@ static void on_closeConnect(struct mwSession *session, guint32 reason) {
 static void on_setUserStatus(struct mwSession *s,
 			     struct mwMsgSetUserStatus *msg) {
 
-  /* this plugin allows the user to add themselves to their buddy list. the
-     server's aware service doesn't always honor that by sending updates back
-     to us. so we're going to ensure our status is updated by passing it back
-     to the aware service when we receive a SetUserStatus message */
+  /* this plugin allows the user to add themselves to their buddy
+     list. the server's aware service doesn't always honor that by
+     sending updates back to us. so we're going to ensure our status
+     is updated by passing it back to the aware service when we
+     receive a SetUserStatus message */
 
   GaimConnection *gc = SESSION_TO_GC(s);
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
@@ -369,11 +435,13 @@ static void update_buddy(struct mwSession *s,
   GaimConnection *gc = SESSION_TO_GC(s);
 
   time_t idle = 0;
-  /* unsigned int i = idb->status.time; */
 
-  /* deadbeef or 0 from the client means not idle (unless the status indicates
-     otherwise), but deadbeef to the blist causes idle with no time */
+  /* deadbeef or 0 from the client means not idle (unless the status
+     indicates otherwise), but deadbeef to the blist causes idle with
+     no time */
   /*
+  unsigned int i = idb->status.time;
+
   if( (idb->status.status == mwStatus_IDLE) ||
       ((i > 0) && (i != 0xdeadbeef)) ) {
 
@@ -381,7 +449,7 @@ static void update_buddy(struct mwSession *s,
   }
   */
 
-  /* over-riding idle times until fixed in a later release */
+  /* idle times unused until fixed in a later release */
   if(idb->status.status == mwStatus_IDLE)
     idle = -1;
 
@@ -404,10 +472,11 @@ static void got_invite(struct mwConference *conf, struct mwIdBlock *id,
   GaimConnection *gc;
   GHashTable *ht;
 
-  /* the trick here is that we want these strings cleaned up when we're done,
-     but not until then. When we return, the originals will be cleaned up. The
-     copies are in the hash table, so when the hash table goes, they'll be
-     free'd too. Just don't try to free the keys */
+  /* the trick here is that we want these strings cleaned up when
+     we're done, but not until then. When we return, the originals
+     will be cleaned up. The copies are in the hash table, so when the
+     hash table goes, they'll be free'd too. Just don't try to free
+     the keys */
   char *a, *b, *c, *d;
 
   gc = SESSION_TO_GC(conf->channel->session);
@@ -505,7 +574,6 @@ static void got_conf_text(struct mwConference *conf, struct mwIdBlock *id,
   conv = (GaimConversation *) g_hash_table_lookup(pd->convo_map, conf);
   g_return_if_fail(conv);
 
-  gaim_debug_info("meanwhile", " got conf text: '%s'\n", text);
   serv_got_chat_in(gc, gaim_conv_chat_get_id(GAIM_CONV_CHAT(conv)),
 		   id->user, 0, text, time(NULL));
 }
@@ -514,7 +582,7 @@ static void got_conf_text(struct mwConference *conf, struct mwIdBlock *id,
 static void got_conf_typing(struct mwConference *conf, struct mwIdBlock *id,
 			    gboolean typing) {
 
-  /* no gaim support for this?? oh no! */
+  ; /* no gaim support for this?? oh no! */
 }
 
 
@@ -617,6 +685,9 @@ static const char *mw_blist_icon(GaimAccount *a, GaimBuddy *b) {
      pieces into an X shape, and drop the head back on the top, being
      careful to center it. Then, just change the color saturation to
      bring the red down a bit, and voila! */
+
+  /* then, throw all of that away and use sodipodi to make a new
+     icon. You know, LIKE A REAL MAN. */
 
   return "meanwhile";
 }
@@ -723,9 +794,10 @@ static void mw_set_idle(GaimConnection *gc, int t) {
 
   mwUserStatus_clone(&stat, &s->status);
 
-  /* re-reading the specification, this is incorrect. It should be the count
-     of minutes since last action. In order to fix this, I am going to turn
-     off all idle-time reporting for the next meanwhile version. */
+  /* re-reading the specification, this is incorrect. It should be the
+     count of minutes since last action. In order to fix this, I am
+     going to turn off all idle-time reporting for the next meanwhile
+     version. */
 
   /* stat.time = (t > 0)? time(NULL) - t: 0; */
 
@@ -765,12 +837,12 @@ static void mw_set_away(GaimConnection *gc, const char *state,
   mwUserStatus_clone(&stat, &s->status);
 
   if(state != NULL) {
-    /* when we go to/from a standard state, the state indicates whether we're
-       away or not */
+    /* when we go to/from a standard state, the state indicates
+       whether we're away or not */
 
     if(! strcmp(state, GAIM_AWAY_CUSTOM)) {
-      /* but when we go to/from a custom state, then it's the message which
-	 indicates whether we're away or not */
+      /* but when we go to/from a custom state, then it's the message
+	 which indicates whether we're away or not */
 
       if(message != NULL) {
 	stat.status = mwStatus_AWAY;
@@ -1081,6 +1153,7 @@ static void init_plugin(GaimPlugin *plugin) {
 }
 
 
-GAIM_INIT_PLUGIN(meanwhile, init_plugin, info)
+GAIM_INIT_PLUGIN(meanwhile, init_plugin, info);
 
 
+/* The End. */

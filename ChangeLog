@@ -7,6 +7,8 @@ version 0.79  Chris O'Brien  <siege@preoccupied.net>
 	be removed. mw_add_buddy, mw_add_buddies, mw_remove_buddy, and
 	mw_remove_buddies added GaimGroup params
 
+	* mwgaim.h: pretty unnecessary, so removed.
+	
 version 0.78  Chris O'Brien  <siege@preoccupied.net>
 	2004-06-01: First import into sf.net CVS
 	

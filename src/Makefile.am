@@ -3,7 +3,7 @@ pkg_LTLIBRARIES = libmwgaim.la
 
 pkgdir = $(libdir)/gaim
 
-libmwgaim_la_SOURCES = mwgaim.c mwgaim.h
+libmwgaim_la_SOURCES = mwgaim.c
 
 libmwgaim_la_CFLAGS = \
 	-DPLUGIN_VERSION=\"@VERSION@\" \

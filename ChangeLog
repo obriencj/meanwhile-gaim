@@ -1,4 +1,9 @@
 
+version 1.0.2.99 (cvs)
+
+	- slightly better handling of server_alias data from loading of
+	buddy list from server
+	
 version 1.0.2 (2004-11-09)
 	
 	- fix #1054818 html/xml tags in group chats

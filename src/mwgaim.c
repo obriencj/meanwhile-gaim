@@ -391,7 +391,6 @@ static GaimGroup *ensure_group(GaimConnection *gc,
 
 static GaimBuddy *ensure_buddy(GaimConnection *gc, GaimGroup *group,
 			       struct mwSametimeUser *stuser) {
-
   GaimBuddy *buddy;
   GaimAccount *acct = gaim_connection_get_account(gc);
 
@@ -403,11 +402,16 @@ static GaimBuddy *ensure_buddy(GaimConnection *gc, GaimGroup *group,
   if(! buddy) {
     buddy = gaim_buddy_new(acct, id, alias);
     buddy->server_alias = g_strdup(name);
+  
     gaim_blist_add_buddy(buddy, NULL, group, NULL);
 
     /* why doesn't the above trigger this? need to let meanwhile know
        about these buddies. */
     serv_add_buddy(gc, buddy);
+
+  } else {
+    gaim_blist_alias_buddy(buddy, alias);
+    buddy->server_alias = g_strdup(name);
   }
 
   return buddy;

@@ -1,4 +1,5 @@
 
+
 AC_INIT
 AM_INIT_AUTOMAKE(gaim-meanwhile, 1.0.1.99)
 
@@ -19,25 +20,37 @@ AC_C_CONST
 AC_STRUCT_TM
 
 
-# for the gaim version requirements, the lower and upper bounds
+
+# for the gaim version requirements, the lower and upper bounds. We
+# don't really care about anything but Major and Minor in the lower
+# bound, or Major in the upper bound.
 GAIM_VER=1.0.0
 GAIM_CAP=2.0.0
 AC_SUBST(GAIM_VER)
 AC_SUBST(GAIM_CAP)
 
 
-PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$PREFIX/lib/pkgconfig"
+
+# tell pkgconfig to look in the same prefix we're installing this to,
+# as that's likely where gaim will be found if it's not in the default
+# pkgconfig path
+PREFIX=$ac_default_prefix
+if test "$prefix" != "NONE"; then
+   PREFIX=$prefix
+fi
+
+PKG_CONFIG_PATH="$PKG_CONFIG_PATH":"$PREFIX/lib/pkgconfig"
 export PKG_CONFIG_PATH
 
 
-AC_ARG_ENABLE(debug, [  --enable-debug	  compile with debugging support],,enable_debug=no)
+
+AC_ARG_ENABLE(debug,
+	[  --enable-debug	  compile with debugging support],,
+	enable_debug=no)
+
 if test "$enable_debug" = yes; then
    AC_DEFINE(DEBUG, 1, [Define if debugging is enabled.])
 fi
-
-
-
-
 
 
 
@@ -62,12 +75,16 @@ AC_SUBST(MEANWHILE_LIBS)
 
 
 
+dnl Check for GLib
 AM_PATH_GLIB_2_0(2.0.0,,AC_MSG_ERROR([
 *** GLib 2.0 is required.]))
 
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
+
+
 AC_OUTPUT([Makefile src/Makefile pixmaps/Makefile gaim-meanwhile.spec dist/Makefile])
 
 
+# The End.

@@ -1,17 +1,23 @@
 Summary: Meanwhile Gaim Plugin
+
 Name: @PACKAGE@
+Obsoletes: meanwhile-gaim
+
 Epoch: 0
 Version: @VERSION@
-Release: 0
+Release: @RELEASE@
+
 License: GPL
 Group: Applications/Internet
 URL: http://meanwhile.sf.net/
+
 Source0: %{name}-%{version}.tar.gz
+
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildRequires: pkgconfig, libtool, glib2-devel, gaim-devel, meanwhile-devel
-Requires: gaim >= 1:@GAIM_VER@  gaim < 1:@GAIM_CAP@
-Requires: meanwhile >= 0.3, meanwhile < 0.4
-Obsoletes: meanwhile-gaim
+
+Requires: gaim >= 1:@GAIM_MIN@, gaim < 1:@GAIM_MAX@
+Requires: meanwhile >= @MEANWHILE_MIN@, meanwhile < @MEANWHILE_MAX@
 
 
 %description
@@ -30,12 +36,11 @@ Lotus Sametime Community Client library plugin for Gaim
 %install
 %{__rm} -rf %{buildroot}
 %{makeinstall}
-%{__rm} -f %{buildroot}%{_libdir}/gaim/libmwgaim.a
-%{__rm} -f %{buildroot}%{_libdir}/gaim/libmwgaim.la
+%{__rm} -f %{buildroot}%{_libdir}/gaim/libmwgaim*a
 
 
 %clean
-rm -rf %{buildroot}
+%{__rm} -rf %{buildroot}
 
 
 %files
@@ -45,6 +50,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Nov 09 2004  <siege@preoccupied.net>
+- Replaced GAIM_VER,_CAP with GAIM_MIN,_MAX
+- Added MEANWHILE_MIN,_MAX macros
+
 * Mon Sep 13 2004  <siege@preoccupied.net>
 - Replaced gaim dep versions with macros for GAIM_VER and GAIM_CAP
 

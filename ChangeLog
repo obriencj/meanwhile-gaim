@@ -1,6 +1,6 @@
 
 version 1.0.2 (2004-11-08)
-
+	
 	- fix #1054818 html/xml tags in group chats
 	
 	- fix a really stupid bug preventing the adding of new buddies.

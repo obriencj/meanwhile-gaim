@@ -1,7 +1,23 @@
 
 
+# version of this package
+m4_define(gaim_meanwhile_version,	1.0.1.99)
+
+# release of this package
+m4_define(gaim_meanwhile_release,	0)
+
+# lower and upper-bound versions of Meanwhile
+m4_define(meanwhile_required_min,	0.3)
+m4_define(meanwhile_required_max,	0.4.0)
+
+# lower and upper-bound versions of Gaim
+m4_define(gaim_required_min,		1.0.0)
+m4_define(gaim_required_max,		2.0.0)
+
+
+
 AC_INIT
-AM_INIT_AUTOMAKE(gaim-meanwhile, 1.0.1.99)
+AM_INIT_AUTOMAKE(gaim-meanwhile, gaim_meanwhile_version)
 
 AC_PREREQ([2.50])
 
@@ -21,13 +37,19 @@ AC_STRUCT_TM
 
 
 
-# for the gaim version requirements, the lower and upper bounds. We
-# don't really care about anything but Major and Minor in the lower
-# bound, or Major in the upper bound.
-GAIM_VER=1.0.0
-GAIM_CAP=2.0.0
-AC_SUBST(GAIM_VER)
-AC_SUBST(GAIM_CAP)
+# substitutions used in gaim-meanwhile.spec.in
+RELEASE=gaim_meanwhile_release
+AC_SUBST(RELEASE)
+
+GAIM_MIN=gaim_required_min
+GAIM_MAX=gaim_required_max
+AC_SUBST(GAIM_MIN)
+AC_SUBST(GAIM_MAX)
+
+MEANWHILE_MIN=meanwhile_required_min
+MEANWHILE_MAX=meanwhile_required_max
+AC_SUBST(MEANWHILE_MIN)
+AC_SUBST(MEANWHILE_MAX)
 
 
 
@@ -44,6 +66,7 @@ export PKG_CONFIG_PATH
 
 
 
+dnl debug mode
 AC_ARG_ENABLE(debug,
 	[  --enable-debug	  compile with debugging support],,
 	enable_debug=no)

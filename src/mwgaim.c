@@ -1296,11 +1296,6 @@ static void mw_chat_reject(GaimConnection *gc, GHashTable *components) {
   }
 }
 
-static char *mw_chat_name(GHashTable *components) {
-	char *name = g_hash_table_lookup(components, CHAT_NAME_KEY);
-	
-	return name;
-}
 
 static char *mw_chat_name(GHashTable *components) {
   return g_hash_table_lookup(components, CHAT_NAME_KEY);

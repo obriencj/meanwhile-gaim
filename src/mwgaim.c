@@ -1322,10 +1322,27 @@ static void mw_prpl_login(GaimAccount *account) {
   host = strrchr(user, ':');
   if(host) *host++ = '\0';
 
-  /* host = gaim_account_get_string(account, "server", PLUGIN_DEFAULT_HOST); */
-  port = gaim_account_get_int(account, "port", PLUGIN_DEFAULT_PORT);
+  if(! host) {
+    const char *h;
+    char *t;
 
-  mwSession_setProperty(pd->session, PROPERTY_SESSION_USER_ID, user, NULL);
+    h = gaim_account_get_string(account, MW_KEY_HOST, PLUGIN_DEFAULT_HOST);
+    if(h) {
+      t = g_strdup_printf("%s:%s", user, h);
+      gaim_account_set_username(account, t);
+      g_free(t);
+      host = (char *) h;
+    }
+  }
+
+  /* host = gaim_account_get_string(account, "server", PLUGIN_DEFAULT_HOST); */
+  port = gaim_account_get_int(account, MW_KEY_PORT, PLUGIN_DEFAULT_PORT);
+
+  DEBUG_INFO("user: '%s'\n", user);
+  DEBUG_INFO("host: '%s'\n", host);
+  DEBUG_INFO("port: %u\n", port);
+
+  mwSession_setProperty(pd->session, PROPERTY_SESSION_USER_ID, user, g_free);
   mwSession_setProperty(pd->session, PROPERTY_SESSION_PASSWORD, pass, NULL);
 
   gaim_connection_update_progress(gc, "Connecting", 1, MW_CONNECT_STEPS);
@@ -1333,8 +1350,6 @@ static void mw_prpl_login(GaimAccount *account) {
   if(gaim_proxy_connect(account, host, port, connect_cb, pd)) {
     gaim_connection_error(gc, "Unable to connect to host");
   }
-
-  g_free(user);
 }
 
 

@@ -107,26 +107,34 @@ static void fields_loadline(struct mime_fields *mf,
 			    const char *line, gsize len) {
 
   /* split the line into key: value */
-  char *ln;
   char *key, *val;
   char **tokens;
 
   /* feh, need it to be NUL terminated */
-  ln = g_strndup(line, len);
+  key = g_strndup(line, len);
 
-  /* this helps to normalize whitespace. */
-  tokens = g_strsplit_set(ln, ":\t\r\n", 0);
+  /* split */
+  val = strchr(key, ':');
+  if(! val) {
+    g_free(key);
+    return;
+  }
+  *val++ = '\0';
 
-  /* first token is the key, the rest of the tokens combine to form
-     voltron */
-  key = *tokens;
-  val = g_strjoinv("", tokens+1);
+  /* normalize whitespace (sorta) and trim on key and value */
+  tokens = g_strsplit(key, "\t\r\n", 0);
+  key = g_strjoinv("", tokens);
+  key = g_strstrip(key);
+  g_strfreev(tokens);
+
+  tokens = g_strsplit(val, "\t\r\n", 0);
+  val = g_strjoinv("", tokens);
   val = g_strstrip(val);
+  g_strfreev(tokens);
   
   fields_put(mf, key, val);
 
-  g_free(ln);
-  g_strfreev(tokens);
+  g_free(key);
   g_free(val);
 }
 

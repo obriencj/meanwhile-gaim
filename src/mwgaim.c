@@ -1104,6 +1104,8 @@ static void convo_data_free(struct convo_data *cd) {
 }
 
 
+/** allocates a convo_data structure and associates it with the
+    conversation in the client data slot */
 static void convo_data_new(struct mwConversation *conv) {
   struct convo_data *cd;
 
@@ -1133,7 +1135,7 @@ static void convo_queue(struct mwConversation *conv,
 
   switch(type) {
   case mwImSend_PLAIN:
-    m->data = g_strdup((char *) data);
+    m->data = g_strdup(data);
     m->clear = g_free;
     break;
     
@@ -1751,39 +1753,37 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
 }
 
 
-static void mw_prpl_set_away(GaimConnection *gc, const char *state,
+static void mw_prpl_set_away(GaimConnection *gc,
+			     const char *state,
 			     const char *message) {
 
+  GaimAccount *acct;
   struct mwSession *session;
   struct mwUserStatus stat;
-  const char *m = NULL;
-
+  
+  acct = gaim_connection_get_account(gc);
+  g_return_if_fail(acct != NULL);
+    
   session = gc_to_session(gc);
   g_return_if_fail(session != NULL);
 
+  /* get a working copy of the current status */
   mwUserStatus_clone(&stat, mwSession_getUserStatus(session));
-  
-  /* when we go to/from a standard state, the state indicates whether
-     we're away or not */
+
+  /* determine the state */
   if(state) {
     if(! strcmp(state, GAIM_AWAY_CUSTOM)) {
-
-      /* but when we go to/from a custom state, it's the message which
-	 indicates whether we're away or not */
       if(message) {
 	stat.status = mwStatus_AWAY;
-	m = message;
       } else {
 	stat.status = mwStatus_ACTIVE;
       }
 
     } else if(! strcmp(state, MW_STATE_AWAY)) {
       stat.status = mwStatus_AWAY;
-      m = MW_STATE_AWAY;
 
     } else if(! strcmp(state, MW_STATE_BUSY)) {
       stat.status = mwStatus_BUSY;
-      m = MW_STATE_BUSY;
 
     } else if(! strcmp(state, MW_STATE_ACTIVE)) {
       stat.status = mwStatus_ACTIVE;
@@ -1793,31 +1793,43 @@ static void mw_prpl_set_away(GaimConnection *gc, const char *state,
     stat.status = mwStatus_ACTIVE;
   }
 
-  /* use the optional active message for the account */
-  if(stat.status == mwStatus_ACTIVE) {
-    GaimAccount *acct;
+  /* determine the message */
+  if(! message) {
+    switch(stat.status) {
+    case mwStatus_AWAY:
+      message = MW_STATE_AWAY;
+      /** @todo provide account setting for default away message */
+      break;
 
-    acct = gaim_connection_get_account(gc);
-    m = gaim_account_get_string(acct, MW_KEY_ACTIVE_MSG,
-				MW_PLUGIN_DEFAULT_ACTIVE_MSG);
-    stat.time = 0;
+    case mwStatus_BUSY:
+      message = MW_STATE_BUSY;
+      /** @todo provide account setting for default busy message */
+      break;
+
+    case mwStatus_ACTIVE:
+      message = gaim_account_get_string(acct, MW_KEY_ACTIVE_MSG,
+					MW_PLUGIN_DEFAULT_ACTIVE_MSG);
+      stat.time = 0;
+      break;
+    }
   }
 
-  /* clean out the old status desc */
+  if(message) {
+    /* all the possible non-NULL values of message up to this point
+     are const, so we don't need to free them */
+    message = gaim_markup_strip_html(message);
+  }
+
+  /* out with the old */
   g_free(stat.desc);
   g_free(gc->away);
-  stat.desc = NULL;
-  gc->away = NULL;
 
-  /* copy in the new status desc if necessary */
-  if(m) {
-    char *um = gaim_markup_strip_html(m);
-    stat.desc = um;
-    gc->away = g_strdup(um);
-  }
+  /* in with the new */
+  stat.desc = message;
+  gc->away = g_strdup(message);
 
   mwSession_setUserStatus(session, &stat);
-  mwUserStatus_clear(&stat);
+  mwUserStatus_clear(&stat);  
 }
 
 

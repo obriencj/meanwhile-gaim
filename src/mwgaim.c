@@ -205,19 +205,74 @@ struct mwGaimPluginData {
 };
 
 
-/* blist functions */
-static void export_blist(GaimConnection *gc, struct mwSametimeList *stlist);
+/* blist and aware functions */
+
+static void blist_export(GaimConnection *gc, struct mwSametimeList *stlist);
+
 static void blist_store(struct mwGaimPluginData *pd);
+
 static void blist_schedule(struct mwGaimPluginData *pd);
+
+static void blist_import(GaimConnection *gc, struct mwSametimeList *stlist);
+
+static void buddy_add(struct mwGaimPluginData *pd, GaimBuddy *buddy);
+
+static GaimBuddy *
+buddy_ensure(GaimConnection *gc, GaimGroup *group,
+	     struct mwSametimeUser *stuser);
+
+static void group_add(struct mwGaimPluginData *pd, GaimGroup *group);
+
+static GaimGroup *
+group_ensure(GaimConnection *gc, struct mwSametimeGroup *stgroup);
+
+static struct mwAwareList *
+list_ensure(struct mwGaimPluginData *pd, GaimGroup *group);
 
 
 /* session functions */
-static struct mwSession *gc_to_session(GaimConnection *gc);
+
+static struct mwSession *
+gc_to_session(GaimConnection *gc);
+
 static GaimConnection *session_to_gc(struct mwSession *session);
 
+
+/* conference functions */
+
+static struct mwConference *
+conf_find_by_id(struct mwGaimPluginData *pd, int id);
+
+
 /* conversation functions */
+
+struct convo_msg {
+  enum mwImSendType type;
+  gpointer data;
+  GDestroyNotify clear;
+};
+
+
+struct convo_data {
+  struct mwConversation *conv;
+  GList *queue;   /**< outgoing message queue, list of convo_msg */
+};
+
 static void convo_data_new(struct mwConversation *conv);
+
+static void convo_data_free(struct convo_data *conv);
+
 static void convo_features(struct mwConversation *conv);
+
+static GaimConversation *convo_get_gconv(struct mwConversation *conv);
+
+
+/* resolved id */
+
+struct resolved_id {
+  char *id;
+  char *name;
+};
 
 
 /* ----- session ------ */
@@ -376,7 +431,7 @@ static struct mwAwareListHandler mw_aware_list_handler = {
 /** Ensures that an Aware List is associated with the given group, and
     returns that list. */
 static struct mwAwareList *
-ensure_list(struct mwGaimPluginData *pd, GaimGroup *group) {
+list_ensure(struct mwGaimPluginData *pd, GaimGroup *group) {
   
   struct mwAwareList *list;
   
@@ -396,7 +451,7 @@ ensure_list(struct mwGaimPluginData *pd, GaimGroup *group) {
 }
 
 
-static void export_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
+static void blist_export(GaimConnection *gc, struct mwSametimeList *stlist) {
   /* - find the account for this connection
      - iterate through the buddy list
      - add each buddy matching this account to the stlist
@@ -507,7 +562,7 @@ static void blist_store(struct mwGaimPluginData *pd) {
 
   /* create and export to a list object */
   stlist = mwSametimeList_new();
-  export_blist(gc, stlist);
+  blist_export(gc, stlist);
 
   /* write it to a buffer */
   b = mwPutBuffer_new();
@@ -544,7 +599,7 @@ static void blist_schedule(struct mwGaimPluginData *pd) {
 
 /** Actually add a buddy to the aware service, and schedule the buddy
     list to be saved to the server */
-static void add_buddy(struct mwGaimPluginData *pd,
+static void buddy_add(struct mwGaimPluginData *pd,
 		      GaimBuddy *buddy) {
 
   struct mwAwareIdBlock idb = { mwAware_USER, (char *) buddy->name, NULL };
@@ -556,7 +611,7 @@ static void add_buddy(struct mwGaimPluginData *pd,
   add = g_list_prepend(NULL, &idb);
 
   group = gaim_find_buddys_group(buddy);
-  list = ensure_list(pd, group);
+  list = list_ensure(pd, group);
 
   if(mwAwareList_addAware(list, add)) {
     gaim_blist_remove_buddy(buddy);
@@ -570,7 +625,7 @@ static void add_buddy(struct mwGaimPluginData *pd,
 
 /** ensure that a GaimBuddy exists in the group with data
     appropriately matching the st user entry from the st list */
-static GaimBuddy *ensure_buddy(GaimConnection *gc, GaimGroup *group,
+static GaimBuddy *buddy_ensure(GaimConnection *gc, GaimGroup *group,
 			       struct mwSametimeUser *stuser) {
 
   struct mwGaimPluginData *pd = gc->proto_data;
@@ -590,7 +645,7 @@ static GaimBuddy *ensure_buddy(GaimConnection *gc, GaimGroup *group,
     buddy = gaim_buddy_new(acct, id, alias);
   
     gaim_blist_add_buddy(buddy, NULL, group, NULL);
-    add_buddy(pd, buddy);
+    buddy_add(pd, buddy);
   }
   
   gaim_blist_alias_buddy(buddy, alias);
@@ -602,7 +657,7 @@ static GaimBuddy *ensure_buddy(GaimConnection *gc, GaimGroup *group,
 }
 
 
-static void add_group(struct mwGaimPluginData *pd,
+static void group_add(struct mwGaimPluginData *pd,
 		      GaimGroup *group) {
 
   struct mwAwareIdBlock idb = { mwAware_GROUP, NULL, NULL };
@@ -616,7 +671,7 @@ static void add_group(struct mwGaimPluginData *pd,
   idb.user = (char *) n;
   add = g_list_prepend(NULL, &idb);
 
-  list = ensure_list(pd, group);
+  list = list_ensure(pd, group);
   mwAwareList_addAware(list, add);
   g_list_free(add);
 }
@@ -624,7 +679,7 @@ static void add_group(struct mwGaimPluginData *pd,
 
 /** ensure that a GaimGroup exists in the blist with data
     appropriately matching the st group entry from the st list */
-static GaimGroup *ensure_group(GaimConnection *gc,
+static GaimGroup *group_ensure(GaimConnection *gc,
 			       struct mwSametimeGroup *stgroup) {
   GaimAccount *acct;
   GaimGroup *group;
@@ -650,7 +705,7 @@ static GaimGroup *ensure_group(GaimConnection *gc,
 
   if(type == mwSametimeGroup_DYNAMIC) {
     gaim_blist_node_set_string(gn, GROUP_KEY_OWNER, owner);
-    add_group(gc->proto_data, group);
+    group_add(gc->proto_data, group);
   }
   
   return group;
@@ -658,7 +713,7 @@ static GaimGroup *ensure_group(GaimConnection *gc,
 
 
 /** merge the entries from a st list into the gaim blist */
-static void import_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
+static void blist_import(GaimConnection *gc, struct mwSametimeList *stlist) {
   struct mwSametimeGroup *stgroup;
   struct mwSametimeUser *stuser;
 
@@ -671,13 +726,13 @@ static void import_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
   for(; gl; gl = gl->next) {
 
     stgroup = (struct mwSametimeGroup *) gl->data;
-    group = ensure_group(gc, stgroup);
+    group = group_ensure(gc, stgroup);
 
     ul = utl = mwSametimeGroup_getUsers(stgroup);
     for(; ul; ul = ul->next) {
 
       stuser = (struct mwSametimeUser *) ul->data;
-      buddy = ensure_buddy(gc, group, stuser);
+      buddy = buddy_ensure(gc, group, stuser);
     }
     g_list_free(utl);
   }
@@ -711,7 +766,7 @@ static void fetch_blist_cb(struct mwServiceStorage *srvc,
   mwSametimeList_get(b, stlist);
 
   s = mwService_getSession(MW_SERVICE(srvc));
-  import_blist(pd->gc, stlist);
+  blist_import(pd->gc, stlist);
 
   mwSametimeList_free(stlist);
 }
@@ -865,7 +920,7 @@ static void session_started(struct mwGaimPluginData *pd) {
 
     gt = gaim_blist_node_get_int(l, GROUP_KEY_TYPE);
     if(gt == mwSametimeGroup_DYNAMIC)
-      add_group(pd, group);
+      group_add(pd, group);
   }
 }
 
@@ -1153,7 +1208,7 @@ static void mw_conf_invited(struct mwConference *conf,
    in the various forms by which either may be indicated */
 
 #define CONF_TO_ID(conf)   (GPOINTER_TO_INT(conf))
-#define ID_TO_CONF(pd, id) (find_conf_by_id((pd), (id)))
+#define ID_TO_CONF(pd, id) (conf_find_by_id((pd), (id)))
 
 #define CHAT_TO_ID(chat)   (gaim_conv_chat_get_id(chat))
 #define ID_TO_CHAT(id)     (gaim_find_chat(id))
@@ -1166,7 +1221,7 @@ static void mw_conf_invited(struct mwConference *conf,
 
 
 static struct mwConference *
-find_conf_by_id(struct mwGaimPluginData *pd, int id) {
+conf_find_by_id(struct mwGaimPluginData *pd, int id) {
 
   struct mwServiceConference *srvc = pd->srvc_conf;
   struct mwConference *conf = NULL;
@@ -1390,19 +1445,6 @@ static struct mwServiceDirectory *mw_srvc_dir_new(struct mwSession *s) {
 #endif
 
 
-struct convo_msg {
-  enum mwImSendType type;
-  gpointer data;
-  GDestroyNotify clear;
-};
-
-
-struct convo_data {
-  struct mwConversation *conv;
-  GList *queue;   /**< outgoing message queue, list of convo_msg */
-};
-
-
 static void convo_data_free(struct convo_data *cd) {
   GList *l;
 
@@ -1587,7 +1629,7 @@ static void convo_features(struct mwConversation *conv) {
 /** triggered from mw_conversation_opened if the appropriate plugin
     preference is set. This will open a window for the conversation
     before the first message is sent. */
-static void do_psychic(struct mwConversation *conv) {
+static void convo_do_psychic(struct mwConversation *conv) {
   struct mwServiceIm *srvc;
   struct mwSession *session;
   struct mwGaimPluginData *pd;
@@ -1650,7 +1692,7 @@ static void mw_conversation_opened(struct mwConversation *conv) {
     convo_data_new(conv);
 
     if(gaim_prefs_get_bool(MW_PRPL_OPT_PSYCHIC)) {
-      do_psychic(conv);
+      convo_do_psychic(conv);
     }
   }
 
@@ -2488,12 +2530,6 @@ static void mw_prpl_set_idle(GaimConnection *gc, int time) {
 }
 
 
-struct resolved_id {
-  char *id;
-  char *name;
-};
-
-
 static void add_resolved_done(const char *id, const char *name,
 			      GaimBuddy *buddy) {
 
@@ -2517,7 +2553,7 @@ static void add_resolved_done(const char *id, const char *name,
   gaim_blist_server_alias_buddy(buddy, name);
   gaim_blist_node_set_string((GaimBlistNode *) buddy, BUDDY_KEY_NAME, name);
   
-  add_buddy(pd, buddy);
+  buddy_add(pd, buddy);
 }
 
 
@@ -2756,7 +2792,7 @@ static void mw_prpl_add_buddies(GaimConnection *gc,
     fn = gaim_blist_node_get_string((GaimBlistNode *) b, BUDDY_KEY_NAME);
     gaim_blist_server_alias_buddy(b, fn);
 
-    add_buddy(pd, b);
+    buddy_add(pd, b);
 
     buddies = buddies->next;
     groups = groups->next;
@@ -2777,7 +2813,7 @@ static void mw_prpl_remove_buddy(GaimConnection *gc,
 
   pd = gc->proto_data;
   group = gaim_find_buddys_group(buddy);
-  list = ensure_list(pd, group);
+  list = list_ensure(pd, group);
 
   mwAwareList_removeAware(list, rem);
   blist_schedule(pd);
@@ -2975,12 +3011,12 @@ static void mw_prpl_group_buddy(GaimConnection *gc,
 
   /* add who to new_group's aware list */
   group = gaim_find_group(new_group);
-  list = ensure_list(pd, group);
+  list = list_ensure(pd, group);
   mwAwareList_addAware(list, gl);
 
   /* remove who from old_group's aware list */
   group = gaim_find_group(old_group);
-  list = ensure_list(pd, group);
+  list = list_ensure(pd, group);
   mwAwareList_removeAware(list, gl);
 
   g_list_free(gl);
@@ -3333,7 +3369,7 @@ static void st_import_action_cb(GaimConnection *gc, char *filename) {
   l = mwSametimeList_load(str->str);
   g_string_free(str, TRUE);
 
-  import_blist(gc, l);
+  blist_import(gc, l);
   mwSametimeList_free(l);
 }
 
@@ -3366,7 +3402,7 @@ static void st_export_action_cb(GaimConnection *gc, char *filename) {
   g_return_if_fail(file != NULL);
 
   l = mwSametimeList_new();
-  export_blist(gc, l);
+  blist_export(gc, l);
   str = mwSametimeList_store(l);
   mwSametimeList_free(l);
 
@@ -3456,7 +3492,7 @@ static void remote_group_done(struct mwGaimPluginData *pd,
   gaim_blist_node_set_string(gn, GROUP_KEY_OWNER, owner);
   gaim_blist_add_group(group, NULL);
 
-  add_group(pd, group);
+  group_add(pd, group);
   blist_schedule(pd);
 }
 

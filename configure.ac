@@ -1,6 +1,6 @@
 
 AC_INIT
-AM_INIT_AUTOMAKE(gaim-meanwhile, 0.82)
+AM_INIT_AUTOMAKE(gaim-meanwhile, 0.83cvs)
 
 AC_PREREQ([2.50])
 

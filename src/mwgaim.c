@@ -579,21 +579,24 @@ static void on_loginAck(struct mwSession *s, struct mwMsgLoginAck *msg) {
 static void on_closeConnect(struct mwSession *session, guint32 reason) {
   GaimConnection *gc;
 
-  g_return_if_fail(SESSION_HANDLER(session));
+  if(SESSION_HANDLER(session) == NULL) return;
 
   gc = SESSION_TO_GC(session);
-  g_return_if_fail(gc);
+  g_return_if_fail(gc != NULL);
 
   if(reason & ERR_FAILURE) {
     gchar *text = mwError(reason);
     gaim_connection_error(gc, text);
     g_free(text);
 
+#if 0
   } else if(gc->inpa) {
+    /* therefore disconnect is not an error */
     /* remove the input checker, so that closing the socket won't be
        seen as an error, and won't trigger a re-connect */
     gaim_input_remove(gc->inpa);
     gc->inpa = 0;
+#endif
   }
 }
 
@@ -1428,20 +1431,41 @@ static GaimPluginInfo info = {
 };
 
 
+#ifdef _WIN32
+static void dummy_log_handler(const gchar *d, GLogLevel flags,
+			      const gchar *m, gpointer data) {
+  ; /* nothing at all */
+}
+#endif
+
+
 static void init_plugin(GaimPlugin *plugin) {
   GaimAccountOption *opt;
-  
+
+  /* set up the server and port options */
   opt = gaim_account_option_string_new("Server", MW_KEY_HOST,
 				       PLUGIN_DEFAULT_HOST);
   prpl_info.protocol_options = g_list_append(prpl_info.protocol_options, opt);
-  
+
   opt = gaim_account_option_int_new("Port", MW_KEY_PORT, PLUGIN_DEFAULT_PORT);
   prpl_info.protocol_options = g_list_append(prpl_info.protocol_options, opt);
 
-  meanwhile_plugin = plugin;
-
+  /* set up the prefs for blist options */
   gaim_prefs_add_none(MW_PRPL_OPT_BASE);
   gaim_prefs_add_int(MW_PRPL_OPT_BLIST_ACTION, BLIST_CHOICE_NONE);
+
+  /* silence plugin and meanwhile library logging for win32 */
+  #ifdef _WIN32
+  g_log_set_handler(G_LOG_DOMAIN,
+		    G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION,
+		    dummy_log_handler, NULL);
+  g_log_set_handler("meanwhile",
+		    G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION,
+		    dummy_log_handler, NULL);
+  #endif
+
+  /* static context */
+  meanwhile_plugin = plugin;
 }
 
 

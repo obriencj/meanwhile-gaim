@@ -99,16 +99,19 @@
 #define BUDDY_KEY_CLIENT  "meanwhile.client"
 
 /* store the remote alias so that we can re-create it easily */
-#define BUDDY_KEY_NAME  "meanwhile.shortname"
+#define BUDDY_KEY_NAME    "meanwhile.shortname"
 
 /* enum mwSametimeUserType */
-#define BUDDY_KEY_TYPE  "meanwhile.type"
+#define BUDDY_KEY_TYPE    "meanwhile.type"
 
 /* key for the real group name for a meanwhile group */
-#define GROUP_KEY_NAME  "meanwhile.group"
+#define GROUP_KEY_NAME    "meanwhile.group"
 
 /* enum mwSametimeGroupType */
-#define GROUP_KEY_TYPE  "meanwhile.type"
+#define GROUP_KEY_TYPE    "meanwhile.type"
+
+/* NAB group owning account */
+#define GROUP_KEY_OWNER   "meanwhile.account"
 
 /* key gtk blist uses to indicate a collapsed group */
 #define GROUP_KEY_COLLAPSED  "collapsed"
@@ -623,10 +626,16 @@ static void add_group(struct mwGaimPluginData *pd,
     appropriately matching the st group entry from the st list */
 static GaimGroup *ensure_group(GaimConnection *gc,
 			       struct mwSametimeGroup *stgroup) {
+  GaimAccount *acct;
   GaimGroup *group;
+  GaimBlistNode *gn;
   const char *name = mwSametimeGroup_getName(stgroup);
   const char *alias = mwSametimeGroup_getAlias(stgroup);
+  const char *owner;
   enum mwSametimeGroupType type = mwSametimeGroup_getType(stgroup);
+
+  acct = gaim_connection_get_account(gc);
+  owner = gaim_account_get_username(acct);
 
   group = gaim_find_group(alias);
   if(! group) {
@@ -634,10 +643,13 @@ static GaimGroup *ensure_group(GaimConnection *gc,
     gaim_blist_add_group(group, NULL);
   }
 
-  gaim_blist_node_set_string((GaimBlistNode *) group, GROUP_KEY_NAME, name);
-  gaim_blist_node_set_int((GaimBlistNode *) group, GROUP_KEY_TYPE, type);
+  gn = (GaimBlistNode *) group;
+
+  gaim_blist_node_set_string(gn, GROUP_KEY_NAME, name);
+  gaim_blist_node_set_int(gn, GROUP_KEY_TYPE, type);
 
   if(type == mwSametimeGroup_DYNAMIC) {
+    gaim_blist_node_set_string(gn, GROUP_KEY_OWNER, owner);
     add_group(gc->proto_data, group);
   }
   
@@ -843,9 +855,13 @@ static void session_started(struct mwGaimPluginData *pd) {
   for(l = blist->root; l; l = l->next) {
     GaimGroup *group = (GaimGroup *) l;
     enum mwSametimeGroupType gt;
+    const char *owner;
 
     if(! GAIM_BLIST_NODE_IS_GROUP(l)) continue;
-    if(! gaim_group_on_account(group, acct)) continue;
+
+    owner = gaim_blist_node_get_string(l, GROUP_KEY_OWNER);
+    if(!owner || strcmp(gaim_account_get_username(acct), owner))
+      continue;
 
     gt = gaim_blist_node_get_int(l, GROUP_KEY_TYPE);
     if(gt == mwSametimeGroup_DYNAMIC)
@@ -3405,17 +3421,39 @@ static void remote_group_multi_cleanup(gpointer ignore,
 static void remote_group_done(struct mwGaimPluginData *pd,
 			      const char *id, const char *name) {
   GaimConnection *gc;
+  GaimAccount *acct;
   GaimGroup *group;
   GaimBlistNode *gn;
+  const char *owner;
 
   g_return_if_fail(pd != NULL);
 
   gc = pd->gc;
+  acct = gaim_connection_get_account(gc);
+  
+  /* collision checking */
+  group = gaim_find_group(name);
+  if(group) {
+    char *msgA, *msgB;
+
+    msgA = "Unable to add group: group exists";
+    msgB = "A group named '%s' already exists in your buddy list.";
+    msgB = g_strdup_printf(msgB, name);
+
+    gaim_notify_error(gc, "Unable to add group", msgA, msgB);
+
+    g_free(msgB);
+    return;
+  }
+
   group = gaim_group_new(name);
   gn = (GaimBlistNode *) group;
 
+  owner = gaim_account_get_username(acct);
+
   gaim_blist_node_set_string(gn, GROUP_KEY_NAME, id);
   gaim_blist_node_set_int(gn, GROUP_KEY_TYPE, mwSametimeGroup_DYNAMIC);
+  gaim_blist_node_set_string(gn, GROUP_KEY_OWNER, owner);
   gaim_blist_add_group(group, NULL);
 
   add_group(pd, group);
@@ -3556,25 +3594,16 @@ static void remote_group_action_cb(GaimConnection *gc, const char *name) {
 
 
 static void remote_group_action(GaimPluginAction *act) {
-  /** @todo implement remote group additions
-
-      prompt for group name and alias
-      resolve name
-      if multi resolve, prompt for exact
-      check that no existing group (by name and alias)
-      add group, set real group name
-      subscribe to group presence
-  */
-  
   GaimConnection *gc;
-  const char *title, *msg;
+  const char *msgA, *msgB;
 
   gc = act->context;
 
-  title = "Add Group";
-  msg = "Add a Notes Address Book group to the buddy list";
+  msgA = "Notes Address Book Group";
+  msgB = ("Enter the name of a Notes Address Book group in the field below"
+	  " to add the group and its members to your buddy list.");
 
-  gaim_request_input(gc, title, msg, NULL, NULL,
+  gaim_request_input(gc, "Add Group", msgA, msgB, NULL,
 		     FALSE, FALSE, NULL,
 		     "Add", G_CALLBACK(remote_group_action_cb),
 		     "Cancel", NULL,

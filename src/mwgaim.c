@@ -2400,8 +2400,7 @@ static char *mw_prpl_get_chat_name(GHashTable *components) {
 
 
 static void mw_prpl_chat_invite(GaimConnection *gc, int id,
-				const char *who, const char *invitation) {
-
+				const char *invitation, const char *who) {
   struct mwGaimPluginData *pd;
   struct mwConference *conf;
   struct mwIdBlock idb = { (char *) who, NULL };

@@ -4,7 +4,7 @@ PRIVATE_PIXMAP = $(HOME)/.gaim/pixmaps/default
 
 EXTRA_DIST = gaim-meanwhile.spec
 
-SUBDIRS = src pixmaps
+SUBDIRS = src pixmaps dist
 
 private-install:	all
 	mkdir -p $(PRIVATE_PLUGIN) $(PRIVATE_PIXMAP)

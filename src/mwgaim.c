@@ -2763,6 +2763,8 @@ static void mw_prpl_add_buddy(GaimConnection *gc,
   req = mwServiceResolve_resolve(srvc, query, flags, add_buddy_resolved,
 				 buddy, NULL);
 
+  g_list_free(query);
+
   if(req == SEARCH_ERROR) {
     gaim_blist_remove_buddy(buddy);
     blist_schedule(pd);
@@ -3617,11 +3619,12 @@ static void remote_group_action_cb(GaimConnection *gc, const char *name) {
   pd = gc->proto_data;
   srvc = pd->srvc_resolve;
 
-  query = g_list_prepend(NULL, name);
+  query = g_list_prepend(NULL, (char *) name);
   flags = mwResolveFlag_FIRST | mwResolveFlag_GROUPS;
   
   req = mwServiceResolve_resolve(srvc, query, flags, remote_group_resolved,
 				 NULL, NULL);
+  g_list_free(query);
 
   if(req == SEARCH_ERROR) {
     /** @todo display error */

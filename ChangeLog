@@ -23,6 +23,8 @@ version 1.2.1 (cvs)
 	saved to the storage service (and possibly loaded by another
 	client, which doesn't permit multi-line messages). Custom away
 	messages may still be multi-line
+
+	- Get Info for buddies in the blist is functional
 	
 version 1.2.0 (2005-03-18)
 

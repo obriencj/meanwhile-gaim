@@ -218,7 +218,9 @@ static int mw_session_io_write(struct mwSession *session,
 
   pd = mwSession_getClientData(session);
 
-  g_return_val_if_fail(pd->socket != 0, -1);
+  /* socket was already closed. */
+  if(pd->socket == 0)
+    return 1;
 
   while(len) {
     ret = write(pd->socket, buf, len);
@@ -228,7 +230,7 @@ static int mw_session_io_write(struct mwSession *session,
 
   if(len > 0) {
     DEBUG_ERROR("mw_session_io_write returning %i\n", ret);
-    gaim_connection_error(pd->gc, "Connection closed");
+    gaim_connection_error(pd->gc, "Connection closed (writing)");
     close(pd->socket);
     pd->socket = 0;
     return -1;
@@ -475,9 +477,82 @@ static void mw_session_admin(struct mwSession *session,
 }
 
 
+static void read_cb(gpointer data, gint source,
+		    GaimInputCondition cond) {
+
+  struct mwGaimPluginData *pd = data;
+
+  g_return_if_fail(pd != NULL);
+
+  if(cond & GAIM_INPUT_READ) {
+    char buf[READ_BUFFER_SIZE];
+    int len = READ_BUFFER_SIZE;
+
+    len = read(pd->socket, buf, len);
+    if(len > 0) {
+      DEBUG_INFO("read %u bytes\n", len);
+      mwSession_recv(pd->session, buf, len);
+      return;
+    }
+  }
+
+  /* fall-through indicates error */
+
+  if(pd->socket) {
+    close(pd->socket);
+    pd->socket = 0;
+  }
+
+  if(pd->gc->inpa) {
+    gaim_input_remove(pd->gc->inpa);
+    pd->gc->inpa = 0;
+  }
+
+  gaim_connection_destroy(pd->gc);
+}
+
+
+static void connect_cb(gpointer data, gint source,
+		       GaimInputCondition cond) {
+
+  struct mwGaimPluginData *pd = data;
+  GaimConnection *gc = pd->gc;
+
+  if(! g_list_find(gaim_connections_get_all(), pd->gc)) {
+    close(source);
+    g_return_if_reached();
+  }
+
+  if(source < 0) {
+    gaim_connection_error(pd->gc, "Unable to connect to host");
+    return;
+  }
+
+  pd->socket = source;
+  gc->inpa = gaim_input_add(source, GAIM_INPUT_READ, read_cb, pd);
+
+  mwSession_start(pd->session);
+}
+
+
 static void mw_session_loginRedirect(struct mwSession *session,
 				     const char *host) {
-  ;
+
+  struct mwGaimPluginData *pd;
+  GaimConnection *gc;
+  GaimAccount *account;
+  guint port;
+
+  pd = mwSession_getClientData(session);
+  gc = pd->gc;
+  account = gaim_connection_get_account(gc);
+  port = gaim_account_get_int(account, "port", PLUGIN_DEFAULT_PORT);
+
+  mwSession_stop(session, 0x0);
+
+  if(gaim_proxy_connect(account, host, port, connect_cb, pd)) {
+    gaim_connection_error(gc, "Unable to connect to host");
+  }
 }
 
 
@@ -1228,57 +1303,6 @@ static GList *mw_prpl_chat_info(GaimConnection *gc) {
 static GHashTable *mw_prpl_chat_info_defaults(GaimConnection *gc,
 					      const char *name) {
   return NULL;
-}
-
-
-static void read_cb(gpointer data, gint source,
-		    GaimInputCondition cond) {
-
-  struct mwGaimPluginData *pd = data;
-
-  g_return_if_fail(pd != NULL);
-
-  if(cond & GAIM_INPUT_READ) {
-    char buf[READ_BUFFER_SIZE];
-    int len = READ_BUFFER_SIZE;
-
-    len = read(pd->socket, buf, len);
-    if(len > 0) {
-      DEBUG_INFO("read %u bytes\n", len);
-      mwSession_recv(pd->session, buf, len);
-      return;
-    }
-  }
-
-  /* fall-through indicates error */
-  gaim_connection_destroy(pd->gc);
-  if(pd->gc->inpa) {
-    gaim_input_remove(pd->gc->inpa);
-    pd->gc->inpa = 0;
-  }
-}
-
-
-static void connect_cb(gpointer data, gint source,
-		       GaimInputCondition cond) {
-
-  struct mwGaimPluginData *pd = data;
-  GaimConnection *gc = pd->gc;
-
-  if(! g_list_find(gaim_connections_get_all(), pd->gc)) {
-    close(source);
-    g_return_if_reached();
-  }
-
-  if(source < 0) {
-    gaim_connection_error(pd->gc, "Unable to connect to host");
-    return;
-  }
-
-  pd->socket = source;
-  gc->inpa = gaim_input_add(source, GAIM_INPUT_READ, read_cb, pd);
-
-  mwSession_start(pd->session);
 }
 
 
@@ -2088,7 +2112,11 @@ static GaimPluginInfo mw_plugin_info = {
 static void mw_log_handler(const gchar *d, GLogLevelFlags flags,
 			   const gchar *m, gpointer data) {
 #if defined(DEBUG)
-  char *nl = g_strconcat(m, "\n", NULL);
+  char *nl;
+
+  if(! m) return;
+
+  nl = g_strconcat(m, "\n", NULL);
 
   /* handle g_log requests via gaim's built-in debug logging */
   if(flags & G_LOG_LEVEL_ERROR) {

@@ -66,7 +66,7 @@
 
 
 /* stages of connecting-ness */
-#define MW_CONNECT_STEPS  8
+#define MW_CONNECT_STEPS  9
 
 
 /* stages of conciousness */
@@ -876,8 +876,8 @@ static void mw_conversation_closed(struct mwConversation *conv,
 
   struct convo_data *cd;
   struct mwIdBlock *idb;
-  GaimConversation *gconv;
 
+  GaimConversation *gconv = NULL;
   char *text = NULL, *tmp = NULL;
 
   g_return_if_fail(conv != NULL);
@@ -892,14 +892,14 @@ static void mw_conversation_closed(struct mwConversation *conv,
   g_return_if_fail(cd != NULL);
 
   idb = mwConversation_getTarget(conv);
-  gconv = gaim_find_conversation_with_account(idb->user, acct);
 
   if(reason) {
     tmp = mwError(reason);
     text = g_strconcat("Unable to send message: ", tmp, NULL);
+    gconv = gaim_find_conversation_with_account(idb->user, acct);
   }
 
-  if(text && !gaim_conv_present_error(idb->user, gconv->account, text)) {
+  if(gconv && !gaim_conv_present_error(idb->user, gconv->account, text)) {
     g_free(text);
     text = g_strdup_printf("Unable to send message to %s:",
 			   (idb->user)? idb->user: "(unknown)");
@@ -1475,11 +1475,8 @@ static int mw_prpl_send_typing(GaimConnection *gc, const char *name,
   if(MW_CONVO_IS_OPEN(conv))
     return ! mwConversation_send(conv, mwImSend_TYPING, t);
 
-  /* queue up the message */
-  convo_queue(conv, mwImSend_TYPING, t);
-  
-  if(! MW_CONVO_IS_PENDING(conv))
-    mwConversation_open(conv);
+  /* don't bother opening a conversation just to send typing
+     notification */
 
   return 1;
 }
@@ -1524,6 +1521,9 @@ static void mw_prpl_set_away(GaimConnection *gc, const char *state,
     } else if(! strcmp(state, MW_STATE_BUSY)) {
       stat.status = mwStatus_BUSY;
       m = MW_STATE_BUSY;
+
+    } else if(! strcmp(state, MW_STATE_ACTIVE)) {
+      stat.status = mwStatus_ACTIVE;
     }
 
   } else {
@@ -2083,13 +2083,15 @@ static GaimPluginInfo mw_plugin_info = {
 static void mw_log_handler(const gchar *d, GLogLevelFlags flags,
 			   const gchar *m, gpointer data) {
 #if defined(DEBUG)
-  gchar *nl = g_strconcat(m, "\n", NULL);
+  char *nl = g_strconcat(m, "\n", NULL);
 
   /* handle g_log requests via gaim's built-in debug logging */
   if(flags & G_LOG_LEVEL_ERROR) {
     gaim_debug_error(d, nl);
+
   } else if(flags & G_LOG_LEVEL_WARNING) {
     gaim_debug_warning(d, nl);
+
   } else {
     gaim_debug_info(d, nl);
   }

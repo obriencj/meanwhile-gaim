@@ -1,0 +1,16 @@
+
+aclocal.m4
+autom4te.cache
+compile
+config.*
+configure
+depcomp
+*.in
+install-sh
+libtool
+Makefile
+missing
+*.rpm
+*.spec
+*.tar.gz
+tmp

@@ -1,0 +1,36 @@
+
+
+/* CFLAGS trumps configure values */
+
+
+/** default active message */
+#ifndef PLUGIN_DEFAULT_ACTIVE_MSG
+#define PLUGIN_DEFAULT_ACTIVE_MSG  "@CONF_ACTIVE_MSG@"
+#endif
+/* "Talk to me" */
+
+
+/** default host for the gaim plugin. You can specialize a build to
+    default to your server by supplying this at compile time */
+#ifndef PLUgIN_DEFAULT_HOST
+#define PLUGIN_DEFAULT_HOST  "@CONF_DEFAULT_HOST@"
+#endif
+/* "" */
+
+
+/** default port for the gaim plugin. You can specialize a build to
+    default to your server by supplying this at compile time */
+#ifndef PLUGIN_DEFAULT_PORT
+#define PLUGIN_DEFAULT_PORT  @CONF_DEFAULT_PORT@
+#endif
+/* 1533 */
+
+
+/** client id to report to the server. See mwLoginType in meanwhile's
+    mw_common.h for some sample values */
+#ifndef CLIENT_TYPE_ID
+#define CLIENT_TYPE_ID  @CONF_CLIENT_TYPE@
+#endif
+/*  mwLogin_MEANWHILE */
+
+

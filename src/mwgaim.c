@@ -51,6 +51,8 @@
 #include <mw_srvc_store.h>
 #include <mw_st_list.h>
 
+#include "config.h"
+
 
 /* considering that there's no display of this information for prpls,
    I don't know why I even bother providing these. Oh valiant reader,
@@ -102,32 +104,6 @@
 #define MW_KEY_HOST        "server"
 #define MW_KEY_PORT        "port"
 #define MW_KEY_ACTIVE_MSG  "active_msg"
-
-
-#ifndef PLUGIN_DEFAULT_ACTIVE_MSG
-#define PLUGIN_DEFAULT_ACTIVE_MSG  "Talk to me"
-#endif
-
-
-/** default host for the gaim plugin. You can specialize a build to
-    default to your server by supplying this at compile time */
-#ifndef PLUGIN_DEFAULT_HOST
-#define PLUGIN_DEFAULT_HOST  ""
-#endif
-
-
-/** default port for the gaim plugin. You can specialize a build to
-    default to your server by supplying this at compile time */
-#ifndef PLUGIN_DEFAULT_PORT
-#define PLUGIN_DEFAULT_PORT  1533
-#endif
-
-
-/** client id to report to the server. See mwLoginType in meanwhile's
-    mw_common.h for some sample values */
-#ifndef CLIENT_TYPE_ID
-#define CLIENT_TYPE_ID  mwLogin_MEANWHILE
-#endif
 
 
 /** the amount of data the plugin will attempt to read from a socket

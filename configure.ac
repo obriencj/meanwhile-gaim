@@ -65,6 +65,35 @@ PKG_CONFIG_PATH="$PKG_CONFIG_PATH":"$PREFIX/lib/pkgconfig"
 export PKG_CONFIG_PATH
 
 
+withval="Talk to me"
+AC_ARG_WITH(active_msg,
+	[ --with-active-msg=["Talk to me"]
+                                     define the default active message])
+CONF_ACTIVE_MSG=$withval
+AC_SUBST(CONF_ACTIVE_MSG)
+
+
+withval=""
+AC_ARG_WITH(host,
+	[ --with-host=[""]           define the default community host])
+CONF_DEFAULT_HOST=$withval
+AC_SUBST(CONF_DEFAULT_HOST)
+
+
+withval=1533
+AC_ARG_WITH(port,
+	[ --with-port=[1533]         define the default community port])
+CONF_DEFAULT_PORT=$withval
+AC_SUBST(CONF_DEFAULT_PORT)
+
+
+withval=mwLogin_MEANWHILE
+AC_ARG_WITH(client,
+	[ --with-client=[mwLogin_MEANWHILE]
+                                     define the client identifier])
+CONF_CLIENT_TYPE=$withval
+AC_SUBST(CONF_CLIENT_TYPE)
+
 
 # debug mode
 AC_ARG_ENABLE(debug,
@@ -111,6 +140,7 @@ AC_SUBST(GLIB_LIBS)
 
 
 AC_CONFIG_FILES(
+	[src/config.h]
 	[Makefile dist/Makefile pixmaps/Makefile src/Makefile]
 	[gaim-meanwhile.spec]
 )

@@ -1,5 +1,7 @@
 
-version 0.83 (cvs)
+version 1.0.0 (cvs)
+
+	- version change to match Gaim, because that's what we do
 
 	- g_log calls for meanwhile and mwgaim no longer result in a DOS
 	console under win32

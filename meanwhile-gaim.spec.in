@@ -22,11 +22,7 @@ Lotus Sametime Community Client library plugin for Gaim
 
 %build
 rm -rf %{buildroot}
-if [ -n $gaim_src_dir ] ; then
-	%configure --with-gaim-source=$gaim_src_dir
-else
-	%configure
-fi
+%configure
 make prefix=%{buildroot}%{_prefix} bindir=%{buildroot}%{_bindir} \
      datadir=%{buildroot}%{_datadir} includedir=%{buildroot}%{_includedir} \
      libdir=%{buildroot}%{_libdir} mandir=%{buildroot}%{_mandir} \
@@ -53,6 +49,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Jun 27 2004  <siege@preoccupied.net>
+- Now uses gaim-devel rather than gaim-source-dir
+
 * Mon May 17 2004  <siege@preoccupied.net>
 - further separated meanwhile-gaim into its own CVS module
 - First distribution with autoconf/automake/libtool

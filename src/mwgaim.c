@@ -168,7 +168,6 @@ struct mw_plugin_data {
   struct mwSession *session;
 
   struct mwServiceAware *srvc_aware;
-  struct mwAwareList *aware_list;
 
   struct mwServiceConf *srvc_conf;
 
@@ -176,6 +175,7 @@ struct mw_plugin_data {
 
   struct mwServiceStorage *srvc_store;
 
+  GHashTable *list_map;
   GHashTable *convo_map;
 };
 
@@ -334,20 +334,80 @@ static void on_login(struct mwSession *s, struct mwMsgLogin *msg) {
 }
 
 
-static void storage_cb(struct mwServiceStorage *srvc, guint result,
-		       struct mwStorageUnit *item, gpointer dat) {
+static GaimGroup *ensure_group(GaimConnection *gc,
+			       struct mwSametimeGroup *stgroup) {
+  GaimGroup *group;
+  const char *name = mwSametimeGroup_getName(stgroup);
 
-  struct mwSametimeList *stlist;
+  group = gaim_find_group(name);
+  if(! group) {
+    group = gaim_group_new(name);
+    gaim_blist_add_group(group, NULL);
+  }
+
+  return group;
+}
+
+
+static GaimBuddy *ensure_buddy(GaimConnection *gc, GaimGroup *group,
+			       struct mwSametimeUser *stuser) {
+
+  GaimBuddy *buddy;
+
+  GaimAccount *acct = gaim_connection_get_account(gc);
+
+  const char *name = mwSametimeUser_getUser(stuser);
+  const char *alias = mwSametimeUser_getAlias(stuser);
+
+  buddy = gaim_find_buddy_in_group(acct, name, group);
+  if(! buddy) {
+    buddy = gaim_buddy_new(acct, name, alias);
+    gaim_blist_add_buddy(buddy, NULL, group, NULL);
+    
+  }
+
+  return buddy;
+}
+
+
+static void import_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
   struct mwSametimeGroup *stgroup;
   struct mwSametimeUser *stuser;
 
+  GaimGroup *group;
+  GaimBuddy *buddy;
+
   GList *gl, *gtl, *ul, *utl;
 
+  gl = gtl = mwSametimeList_getGroups(stlist);
+  for(; gl; gl = gl->next) {
+
+    stgroup = (struct mwSametimeGroup *) gl->data;
+    group = ensure_group(gc, stgroup);
+
+    ul = utl = mwSametimeGroup_getUsers(stgroup);
+    for(; ul; ul = ul->next) {
+
+      stuser = (struct mwSametimeUser *) ul->data;
+      buddy = ensure_buddy(gc, group, stuser);
+    }
+    g_list_free(utl);
+  }
+  g_list_free(gtl);
+}
+
+
+static void storage_load_cb(struct mwServiceStorage *srvc, guint result,
+			    struct mwStorageUnit *item, gpointer dat) {
+
+  struct mwSametimeList *stlist;
   char *b, *tmp;
   gsize n;
 
   g_message(" storage_cb, key = 0x%08x, result = 0x%08x, length = 0x%08x",
 	    item->key, result, item->data.len);
+
+  if(result) return;
 
   b = tmp = mwStorageUnit_asString(item);
   n = strlen(b);
@@ -357,32 +417,19 @@ static void storage_cb(struct mwServiceStorage *srvc, guint result,
   stlist = mwSametimeList_new();
   mwSametimeList_get(&b, &n, stlist);
 
-  gl = gtl = mwSametimeList_getGroups(stlist);
-  for(; gl; gl = gl->next) {
-    stgroup = (struct mwSametimeGroup *) gl->data;
-    g_message(" Group: %s", stgroup->name);
+  import_blist(SESSION_TO_GC(mwService_getSession(MW_SERVICE(srvc))), stlist);
 
-    ul = utl = mwSametimeGroup_getUsers(stgroup);
-    for(; ul; ul = ul->next) {
-      stuser = (struct mwSametimeUser *) ul->data;
-      g_message("  User: %s (%s)", stuser->id.user, stuser->alias);
-    }
-    g_list_free(utl);
-  }
-  g_list_free(gtl);    
-  
   mwSametimeList_free(stlist);
 
   /* no need to free the storage unit, that will happen automatically
      after this callback */
   g_free(tmp);
-  mwService_stop(MW_SERVICE(srvc));
 }
 
 
-static void storage_test(struct mwServiceStorage *srvc) {
+static void fetch_blist(struct mwServiceStorage *srvc) {
   struct mwStorageUnit *unit = mwStorageUnit_new(mwStore_AWARE_LIST);
-  mwServiceStorage_load(srvc, unit, storage_cb, NULL);
+  mwServiceStorage_load(srvc, unit, storage_load_cb, NULL);
 }
 
 
@@ -396,12 +443,16 @@ static void on_loginAck(struct mwSession *s, struct mwMsgLoginAck *msg) {
 
   /* later this won't be necessary, as the session will auto-start
      services on receipt of the service available message */
-  mwService_start(MW_SERVICE(pd->srvc_aware));
+
   mwService_start(MW_SERVICE(pd->srvc_conf));
   mwService_start(MW_SERVICE(pd->srvc_im));
 
   mwService_start(MW_SERVICE(pd->srvc_store));
-  storage_test(pd->srvc_store);  
+  fetch_blist(pd->srvc_store);
+
+  /* do this last, otherwise the storage stuff won't receive initial
+     presence notification */
+  mwService_start(MW_SERVICE(pd->srvc_aware));
 }
 
 
@@ -653,7 +704,6 @@ static void mw_login(GaimAccount *acct) {
   struct mw_plugin_data *pd;
   struct mwSession *session;
   struct mwServiceAware *srvc_aware;
-  struct mwAwareList *aware_list;
   struct mwServiceIM *srvc_im;
   struct mwServiceConf *srvc_conf;
   struct mwServiceStorage *srvc_store;
@@ -684,9 +734,6 @@ static void mw_login(GaimAccount *acct) {
   pd->srvc_aware = srvc_aware = mwServiceAware_new(session);
   mwSession_putService(session, MW_SERVICE(srvc_aware));
 
-  pd->aware_list = aware_list = mwAwareList_new(srvc_aware);
-  mwAwareList_setOnAware(aware_list, got_aware, gc);
-
   /* im service and call-backs */
   pd->srvc_im = srvc_im = mwServiceIM_new(session);
   srvc_im->got_error = got_error;
@@ -706,6 +753,7 @@ static void mw_login(GaimAccount *acct) {
   mwSession_putService(session, MW_SERVICE(srvc_conf));
 
   pd->convo_map = g_hash_table_new(NULL, NULL);
+  pd->list_map = g_hash_table_new(NULL, NULL);
 
   /* storage service */
   pd->srvc_store = srvc_store = mwServiceStorage_new(session);
@@ -971,69 +1019,39 @@ static void mw_convo_closed(GaimConnection *gc, const char *name) {
 }
 
 
-static void mw_add_buddy(GaimConnection *gc, GaimBuddy *buddy,
-			 GaimGroup *group) {
+static struct mwAwareList *ensure_list(GaimConnection *gc, GaimGroup *group) {
 
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
-  struct mwAwareIdBlock t = { mwAware_USER, (char *) buddy->name, NULL };
+  struct mwAwareList *list;
 
-  mwAwareList_addAware(pd->aware_list, &t, 1);
+  list = (struct mwAwareList *) g_hash_table_lookup(pd->list_map, group);
+  if(! list) {
+    list = mwAwareList_new(pd->srvc_aware);
+    mwAwareList_setOnAware(list, got_aware, gc);
+    g_hash_table_insert(pd->list_map, group, list);
+  }
+  
+  return list;
 }
 
 
-static void mw_add_buddies(GaimConnection *gc,
-			   GList *buddies, GList *groups) {
+static void mw_add_buddy(GaimConnection *gc,
+			 GaimBuddy *buddy, GaimGroup *group) {
 
-  struct mw_plugin_data *pd = PLUGIN_DATA(gc);
-  unsigned int count, c;
-  struct mwAwareIdBlock *t;
-
-  count = g_list_length(buddies);
-  t = g_new0(struct mwAwareIdBlock, count);
-
-  for(c = count; c--; buddies = buddies->next) {
-    struct mwAwareIdBlock *b = t + c;
-    GaimBuddy *buddy = (GaimBuddy *) buddies->data;
-
-    b->type = mwAware_USER;
-    b->user = buddy->name;
-  }
+  struct mwAwareIdBlock t = { mwAware_USER, (char *) buddy->name, NULL };
+  struct mwAwareList *list = ensure_list(gc, group);
   
-  mwAwareList_addAware(pd->aware_list, t, count);
-  g_free(t);
+  mwAwareList_addAware(list, &t, 1);
 }
 
 
 static void mw_remove_buddy(GaimConnection *gc,
 			    GaimBuddy *buddy, GaimGroup *group) {
   
-  struct mw_plugin_data *pd = PLUGIN_DATA(gc);
   struct mwAwareIdBlock t = { mwAware_USER, (char *) buddy->name, NULL };
+  struct mwAwareList *list = ensure_list(gc, group);
 
-  mwAwareList_removeAware(pd->aware_list, &t, 1);
-}
-
-
-static void mw_remove_buddies(GaimConnection *gc,
-			      GList *buddies, GList *groups) {
-
-  struct mw_plugin_data *pd = PLUGIN_DATA(gc);
-  unsigned int count, c;
-  struct mwAwareIdBlock *t;
-
-  count = g_list_length(buddies);
-  t = g_new0(struct mwAwareIdBlock, count);
-
-  for(c = count; c--; buddies = buddies->next) {
-    struct mwAwareIdBlock *b = t + c;
-    GaimBuddy *buddy = buddies->data;
-
-    b->type = mwAware_USER;
-    b->user = buddy->name;
-  }
-  
-  mwAwareList_removeAware(pd->aware_list, t, count);
-  g_free(t);
+  mwAwareList_removeAware(list, &t, 1);
 }
 
 
@@ -1152,9 +1170,9 @@ static GaimPluginProtocolInfo prpl_info = {
   mw_set_idle,
   NULL, /* change password, */
   mw_add_buddy,
-  mw_add_buddies,
+  NULL, /* mw_add_buddies, */
   mw_remove_buddy,
-  mw_remove_buddies,
+  NULL, /* mw_remove_buddies, */
   NULL, /* mw_add_permit, */
   NULL, /* mw_add_deny, */
   NULL, /* mw_rem_permit, */

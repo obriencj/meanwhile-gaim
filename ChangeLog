@@ -1,5 +1,8 @@
 
 version 0.79  Chris O'Brien  <siege@preoccupied.net>
+
+	2004-06-23: The server-side buddy list is now imported on login.
+	
 	2004-06-21: Changes to work with evolving Meanwhile API. Gaim is
 	in string-freeze for a 0.79 release targeted for the 24th.
 
@@ -15,6 +18,7 @@ version 0.79  Chris O'Brien  <siege@preoccupied.net>
 	* mwgaim.h: pretty unnecessary, so removed.
 	
 version 0.78  Chris O'Brien  <siege@preoccupied.net>
+	
 	2004-06-01: First import into sf.net CVS
 	
 	2004-05-17: Separated meanwhile-gaim from meanwhile

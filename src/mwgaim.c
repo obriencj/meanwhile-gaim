@@ -136,10 +136,10 @@ USA. */
 #endif
 
 
-#define DEBUG_ERROR(a)  gaim_debug_error(G_LOG_DOMAIN, a)
-#define DEBUG_INFO(a)   gaim_debug_info(G_LOG_DOMAIN, a)
-#define DEBUG_MISC(a)   gaim_debug_misc(G_LOG_DOMAIN, a)
-#define DEBUG_WARN(a)   gaim_debug_warning(G_LOG_DOMAIN, a)
+#define DEBUG_ERROR(a)  gaim_debug_error(G_LOG_DOMAIN, a "\n")
+#define DEBUG_INFO(a)   gaim_debug_info(G_LOG_DOMAIN, a "\n")
+#define DEBUG_MISC(a)   gaim_debug_misc(G_LOG_DOMAIN, a "\n")
+#define DEBUG_WARN(a)   gaim_debug_warning(G_LOG_DOMAIN, a "\n")
 
 
 /** get the mw_handler from a mwSession */
@@ -237,7 +237,7 @@ static void mw_read_callback(gpointer data, gint source,
 
     len = os_read(h->sock_fd, buf, len);
     if(len > 0) {
-      gaim_debug_info(G_LOG_DOMAIN, "read %u bytes", len);
+      gaim_debug_info(G_LOG_DOMAIN, "read %u bytes\n", len);
       mwSession_recv(session, buf, (unsigned int) len);
       return;
     }
@@ -262,7 +262,7 @@ static void mw_login_callback(gpointer data, gint source,
 
   if(source < 0) {
     gaim_connection_error(gc, "Unable to connect");
-    DEBUG_ERROR(" unable to connect in mw_login_callback\n");
+    DEBUG_ERROR(" unable to connect in mw_login_callback");
     return;
   }
 
@@ -282,7 +282,7 @@ static void mw_keepalive(GaimConnection *gc) {
   g_return_if_fail(s);
 
   if(mw_handler_write(s->handler, &c, 1)) {
-    DEBUG_WARN("looks like keepalive byte failed\n");
+    DEBUG_WARN("looks like keepalive byte failed");
 
   } else {
     /* close any OPEN or WAIT channels which have been inactive for at
@@ -496,7 +496,7 @@ static void got_invite(struct mwConference *conf, struct mwIdBlock *id,
 		  "Got invite: '%s', name: '%s', topic: '%s', text: '%s'\n",
 		  a, b, c, d);
 
-  DEBUG_INFO(" triggering serv_got_invite\n");
+  DEBUG_INFO(" triggering serv_got_invite");
   serv_got_chat_invite(gc, c, a, d, ht);
 }
 
@@ -508,7 +508,7 @@ static void got_welcome(struct mwConference *conf, struct mwIdBlock *members,
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
   GaimConversation *conv;
 
-  DEBUG_INFO(" got welcome\n");
+  DEBUG_INFO(" got welcome");
 
   conv = serv_got_joined_chat(gc, conf->channel->id, conf->topic);
   gaim_conv_chat_set_id(GAIM_CONV_CHAT(conv), conf->channel->id);
@@ -528,7 +528,7 @@ static void got_closed(struct mwConference *conf) {
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
   GaimConversation *conv;
 
-  DEBUG_INFO(" got closed\n");
+  DEBUG_INFO(" got closed");
 
   conv = (GaimConversation *) g_hash_table_lookup(pd->convo_map, conf);
 
@@ -546,7 +546,7 @@ static void got_join(struct mwConference *conf, struct mwIdBlock *id) {
   conv = (GaimConversation *) g_hash_table_lookup(pd->convo_map, conf);
   g_return_if_fail(conv);
 
-  DEBUG_INFO(" got join\n");
+  DEBUG_INFO(" got join");
   gaim_conv_chat_add_user(GAIM_CONV_CHAT(conv), id->user, NULL);
 }
 
@@ -559,7 +559,7 @@ static void got_part(struct mwConference *conf, struct mwIdBlock *id) {
   conv = (GaimConversation *) g_hash_table_lookup(pd->convo_map, conf);
   g_return_if_fail(conv);
 
-  DEBUG_INFO(" got part\n");
+  DEBUG_INFO(" got part");
   gaim_conv_chat_remove_user(GAIM_CONV_CHAT(conv), id->user, NULL);
 }
 
@@ -598,7 +598,7 @@ static void mw_login(GaimAccount *acct) {
   const char *host;
   unsigned int port;
 
-  DEBUG_INFO(" --> mw_login\n");
+  DEBUG_INFO(" --> mw_login");
 
   gc->proto_data = pd = g_new0(struct mw_plugin_data, 1);
 
@@ -651,7 +651,7 @@ static void mw_login(GaimAccount *acct) {
   if(gaim_proxy_connect(acct, host, port, mw_login_callback, gc))
     gaim_connection_error(gc, "Unable to connect");
 
-  DEBUG_INFO(" <-- mw_login\n");  
+  DEBUG_INFO(" <-- mw_login");  
 }
 
 
@@ -986,13 +986,13 @@ static void mw_chat_join(GaimConnection *gc, GHashTable *components) {
   char *name = g_hash_table_lookup(components, CHAT_NAME_KEY);
 
   if(name) {
-    DEBUG_INFO(" accepting conference invite\n");
+    DEBUG_INFO(" accepting conference invite");
     conf = mwConference_findByName(srvc, name);
     if(conf) mwConference_accept(conf);
 
   } else {
     char *topic;
-    DEBUG_INFO(" creating new conference\n");
+    DEBUG_INFO(" creating new conference");
 
     topic = (char *) g_hash_table_lookup(components, CHAT_TOPIC_KEY);
     conf = mwConference_new(srvc);
@@ -1000,7 +1000,7 @@ static void mw_chat_join(GaimConnection *gc, GHashTable *components) {
     mwConference_create(conf);
   }
 
-  DEBUG_INFO(" ... leaving mw_chat_join\n");
+  DEBUG_INFO(" ... leaving mw_chat_join");
 }
 
 

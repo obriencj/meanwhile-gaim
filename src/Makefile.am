@@ -11,8 +11,10 @@ libmwgaim_la_CFLAGS = \
 
 libmwgaim_la_LDFLAGS = -module -avoid-version -no-undefined
 
-#TODO remove -lmeanwhile
-libmwgaim_la_LIBADD = $(GLIB_LIBS) $(GAIM_LIBS) $(MEANWHILE_LIBS) -lmeanwhile $(WIN32_LIBS)
+#TODO remove -lmeanwhile when using meanwhile >= 0.4
+libmwgaim_la_LIBADD = \
+	$(GLIB_LIBS) $(WIN32_LIBS) \
+	$(GAIM_LIBS) $(MEANWHILE_LIBS) -lmeanwhile
 
 INCLUDES = $(GLIB_CFLAGS) $(GAIM_CFLAGS) $(MEANWHILE_CFLAGS)
 

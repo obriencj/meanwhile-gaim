@@ -333,8 +333,8 @@ static void on_login(struct mwSession *s, struct mwMsgLogin *msg) {
 }
 
 
-static void storage_cb(guint result, struct mwStorageUnit *item,
-		       gpointer srvc) {
+static void storage_cb(struct mwServiceStorage *srvc, guint result,
+		       struct mwStorageUnit *item, gpointer dat) {
 
   char *tmp = mwStorageUnit_asString(item);
 
@@ -705,14 +705,15 @@ static void mw_close(GaimConnection *gc) {
   session = pd->session;
   if(session) {
     mwSession_stop(session, ERR_SUCCESS);
+
+    mwService_free(MW_SERVICE(pd->srvc_aware));
+    mwService_free(MW_SERVICE(pd->srvc_conf));
+    mwService_free(MW_SERVICE(pd->srvc_im));
+    mwService_free(MW_SERVICE(pd->srvc_store));
+
     g_free(session->handler);
     mwSession_free(session);
   }
-
-  mwService_free(MW_SERVICE(pd->srvc_aware));
-  mwService_free(MW_SERVICE(pd->srvc_conf));
-  mwService_free(MW_SERVICE(pd->srvc_im));
-  mwService_free(MW_SERVICE(pd->srvc_store));
 
   gc->proto_data = NULL;
   g_hash_table_destroy(pd->convo_map);
@@ -1102,9 +1103,10 @@ static GaimPlugin *meanwhile_plugin = NULL;
 
 static GaimPluginProtocolInfo prpl_info = {
   GAIM_PRPL_API_VERSION, /* options */
-  0, /* flags? */
+  0, /* flags */
   NULL,
   NULL,
+  NO_BUDDY_ICONS, /* icon spec */
   mw_blist_icon,
   mw_blist_emblems,
   mw_list_status_text,

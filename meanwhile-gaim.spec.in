@@ -5,10 +5,10 @@ Epoch: 0
 Release: 0
 License: GPL
 Group: Applications/Internet
-URL: http://w3.opensource.ibm.com/~meanwhile/
+URL: http://meanwhile.sf.net/
 Source0: %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
-Requires: gaim >= 1:0.78, gaim < 1:0.79, meanwhile = 0.2
+Requires: gaim >= 1:0.79, gaim < 1:0.80, meanwhile >= 0.3, meanwhile < 0.4
 
 
 %description

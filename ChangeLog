@@ -1,4 +1,15 @@
 
+version 1.2.1 (cvs)
+
+	- fixed a problem with moving buddies between groups that would
+	cause the change not to be saved.
+
+	- changed the active/away/busy messages dialog to only allow
+	single-line messages, to prevent problems when the messages are
+	saved to the storage service (and possibly loaded by another
+	client, which doesn't permit multi-line messages). Custom away
+	messages may still be multi-line
+	
 version 1.2.0 (2005-03-18)
 
         - building against meanwhile 0.4.0

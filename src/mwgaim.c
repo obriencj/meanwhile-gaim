@@ -120,13 +120,13 @@ USA. */
 
 
 /** blist storage option, local only */
-#define BLIST_CHOICE_NONE  0
+#define BLIST_CHOICE_NONE  1
 
 /** blist storage option, load from server */
-#define BLIST_CHOICE_LOAD  1
+#define BLIST_CHOICE_LOAD  2
 
 /** blist storage option, load and save to server */
-#define BLIST_CHOICE_SAVE  2
+#define BLIST_CHOICE_SAVE  3
 
 
 #define BLIST_CHOICE_IS_NONE \
@@ -1325,12 +1325,9 @@ static GaimPluginPrefFrame *get_plugin_pref_frame(GaimPlugin *plugin) {
   pref = gaim_plugin_pref_new_with_label("Remotely Stored Buddy List");
   gaim_plugin_pref_frame_add(frame, pref);
 
+
   pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_BLIST_ACTION);
-  gaim_plugin_pref_set_label(pref, "Buddy List Storage Options. Please note"
-			     " that the 'load and save' option is still"
-			     " experimental, and highly volatile. Back up"
-			     " your buddy list with an official client before"
-			     " enabling. Loading takes effect at login.");
+  gaim_plugin_pref_set_label(pref, "Buddy List Storage Options");
 
   gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_CHOICE);
   gaim_plugin_pref_add_choice(pref, "Local Buddy List Only",
@@ -1340,6 +1337,14 @@ static GaimPluginPrefFrame *get_plugin_pref_frame(GaimPlugin *plugin) {
   gaim_plugin_pref_add_choice(pref, "Load and Save List to Server",
 			      GINT_TO_POINTER(BLIST_CHOICE_SAVE));
 
+  gaim_plugin_pref_frame_add(frame, pref);
+
+  pref = gaim_plugin_pref_new();
+  gaim_plugin_pref_set_label(pref, "Please note:\n"
+			     "the 'load and save' option above is still\n"
+			     "experimental, and highly volatile. Back up\n"
+			     "your buddy list with an official client before\n"
+			     "enabling. Loading takes effect at login.");
   gaim_plugin_pref_frame_add(frame, pref);
 
   return frame;

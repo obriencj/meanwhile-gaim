@@ -3012,12 +3012,12 @@ mw_plugin_get_plugin_pref_frame(GaimPlugin *plugin) {
 
   pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_FORCE_LOGIN);
   gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_NONE);
-  gaim_plugin_pref_set_label(pref, "Force Login (Ignore Login Redirect)");
+  gaim_plugin_pref_set_label(pref, "Force Login (Ignore Login Redirects)");
   gaim_plugin_pref_frame_add(frame, pref);
 
   pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_PSYCHIC);
   gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_NONE);
-  gaim_plugin_pref_set_label(pref, "Enable psychic mode");
+  gaim_plugin_pref_set_label(pref, "Enable Psychic Mode");
   gaim_plugin_pref_frame_add(frame, pref);
 
   return frame;

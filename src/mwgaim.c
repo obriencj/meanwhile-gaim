@@ -189,8 +189,7 @@ static int mw_handler_write(struct mwSessionHandler *this,
   int ret = 0;
 
   while(n) {
-    /* write 2048 bytes at a time */
-    ret = os_write(h->sock_fd, b, 2048);
+    ret = os_write(h->sock_fd, b, n);
     if(ret <= 0) break;
     n -= ret;
   }

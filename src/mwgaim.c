@@ -340,9 +340,7 @@ static void fetch_blist_cb(struct mwServiceStorage *srvc,
   char *b, *tmp;
   gsize n;
 
-  g_return_if_fail(result);
-
-  if(result) return;
+  g_return_if_fail(result == ERR_SUCCESS);
 
   b = tmp = mwStorageUnit_asString(item);
   if(b == NULL) return;
@@ -759,7 +757,6 @@ struct convo_msg {
 struct convo_data {
   struct mwConversation *conv;
   GList *queue;
-  GaimConversation *gconv;
 };
 
 
@@ -871,23 +868,38 @@ static void mw_conversation_opened(struct mwConversation *conv) {
 static void mw_conversation_closed(struct mwConversation *conv,
 				   guint32 reason) {
 
+  struct mwServiceIm *srvc;
+  struct mwSession *session;
+  struct mwGaimPluginData *pd;
+  GaimConnection *gc;
+  GaimAccount *acct;
+
   struct convo_data *cd;
-  GaimConversation *gconv;
   struct mwIdBlock *idb;
-  char *text, *tmp;
+  GaimConversation *gconv;
+
+  char *text = NULL, *tmp = NULL;
 
   g_return_if_fail(conv != NULL);
+
+  srvc = mwConversation_getService(conv);
+  session = mwService_getSession(MW_SERVICE(srvc));
+  pd = mwSession_getClientData(session);
+  gc = pd->gc;
+  acct = gaim_connection_get_account(gc);
 
   cd = mwConversation_getClientData(conv);
   g_return_if_fail(cd != NULL);
 
-  gconv = cd->gconv;
   idb = mwConversation_getTarget(conv);
+  gconv = gaim_find_conversation_with_account(idb->user, acct);
 
-  tmp = mwError(reason);
-  text = g_strconcat("Unable to send message: ", tmp, NULL);
+  if(reason) {
+    tmp = mwError(reason);
+    text = g_strconcat("Unable to send message: ", tmp, NULL);
+  }
 
-  if(! gaim_conv_present_error(idb->user, gconv->account, text)) {
+  if(text && !gaim_conv_present_error(idb->user, gconv->account, text)) {
     g_free(text);
     text = g_strdup_printf("Unable to send message to %s:",
 			   (idb->user)? idb->user: "(unknown)");
@@ -1396,6 +1408,8 @@ static void mw_prpl_close(GaimConnection *gc) {
 
   pd = gc->proto_data;
   g_return_if_fail(pd != NULL);
+
+  mwSession_stop(pd->session, 0x00);
 
   if(pd->save_event) {
     gaim_timeout_remove(pd->save_event);

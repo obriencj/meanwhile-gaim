@@ -71,6 +71,7 @@
 #define MW_PRPL_OPT_BASE          "/plugins/prpl/meanwhile"
 #define MW_PRPL_OPT_BLIST_ACTION  MW_PRPL_OPT_BASE "/blist_action"
 #define MW_PRPL_OPT_PSYCHIC       MW_PRPL_OPT_BASE "/psychic"
+#define MW_PRPL_OPT_FORCE_LOGIN   MW_PRPL_OPT_BASE "/force_login"
 
 
 /* stages of connecting-ness */
@@ -817,7 +818,7 @@ static void mw_session_setUserStatus(struct mwSession *session) {
   gc = pd->gc;
   g_return_if_fail(gc != NULL);
 
-  idb.user = mwSession_getProperty(session, PROPERTY_SESSION_USER_ID);
+  idb.user = mwSession_getProperty(session, mwSession_AUTH_USER_ID);
   stat = mwSession_getUserStatus(session);
 
   mwServiceAware_setStatus(pd->srvc_aware, &idb, stat);
@@ -873,6 +874,8 @@ static void read_cb(gpointer data, gint source,
 }
 
 
+/** Callback passed to gaim_proxy_connect when an account is logged
+    in, and if the session logging in receives a redirect message */
 static void connect_cb(gpointer data, gint source,
 		       GaimInputCondition cond) {
 
@@ -885,8 +888,23 @@ static void connect_cb(gpointer data, gint source,
   }
 
   if(source < 0) {
-    gaim_connection_error(pd->gc, "Unable to connect to host");
+    /* connection failed */
+
+    if(pd->socket) {
+      /* this is a redirect connect, force login on existing socket */
+      mwSession_forceLogin(pd->session);
+
+    } else {
+      /* this is a regular connect, error out */
+      gaim_connection_error(pd->gc, "Unable to connect to host");
+    }
+
     return;
+  }
+
+  if(pd->socket) {
+    /* stop any existing login attempt */
+    mwSession_stop(pd->session, ERR_SUCCESS);
   }
 
   pd->socket = source;
@@ -909,10 +927,10 @@ static void mw_session_loginRedirect(struct mwSession *session,
   account = gaim_connection_get_account(gc);
   port = gaim_account_get_int(account, "port", MW_PLUGIN_DEFAULT_PORT);
 
-  mwSession_stop(session, 0x0);
+  if(gaim_prefs_get_bool(MW_PRPL_OPT_FORCE_LOGIN) ||
+     gaim_proxy_connect(account, host, port, connect_cb, pd)) {
 
-  if(gaim_proxy_connect(account, host, port, connect_cb, pd)) {
-    gaim_connection_error(gc, "Unable to connect to host");
+    mwSession_forceLogin(session);
   }
 }
 
@@ -1512,9 +1530,12 @@ static void mw_conversation_opened(struct mwConversation *conv) {
 static void mw_conversation_closed(struct mwConversation *conv,
 				   guint32 reason) {
 
+  struct convo_data *cd;
+
   g_return_if_fail(conv != NULL);
 
-  if(reason) {
+  cd = mwConversation_getClientData(conv);
+  if(reason && cd && cd->queue) {
     convo_error(conv, reason);
   }
 
@@ -2041,9 +2062,9 @@ static void mw_prpl_login(GaimAccount *account) {
   DEBUG_INFO("host: '%s'\n", host);
   DEBUG_INFO("port: %u\n", port);
 
-  mwSession_setProperty(pd->session, PROPERTY_SESSION_USER_ID, user, g_free);
-  mwSession_setProperty(pd->session, PROPERTY_SESSION_PASSWORD, pass, NULL);
-  mwSession_setProperty(pd->session, PROPERTY_CLIENT_TYPE_ID,
+  mwSession_setProperty(pd->session, mwSession_AUTH_USER_ID, user, g_free);
+  mwSession_setProperty(pd->session, mwSession_AUTH_PASSWORD, pass, NULL);
+  mwSession_setProperty(pd->session, mwSession_CLIENT_TYPE_ID,
 			GUINT_TO_POINTER(MW_CLIENT_TYPE_ID), NULL);
 
   gaim_connection_update_progress(gc, "Connecting", 1, MW_CONNECT_STEPS);
@@ -2179,7 +2200,8 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
 			   b->server_alias);
   }
 
-  /* @todo capabilities string */
+  /* @todo append capabilities string (file transfer, microphone,
+     video, etc) */
 
   type = gaim_blist_node_get_int((GaimBlistNode *) b, BUDDY_KEY_CLIENT);
   if(type) {
@@ -2202,12 +2224,12 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
 
   tmp = mwServiceAware_getText(pd->srvc_aware, &idb);
   g_string_append(str, tmp);
-
-  /* 1: trigger the event */
-  /* 2: if the event returned TRUE, display info */
   
   tmp = (b->server_alias)? b->server_alias: b->name;
   tmp = g_strdup_printf("Info for %s", tmp);
+
+  /* @todo emit a signal to allow a plugin to override the display of
+     this notification, so that it can create its own */
 
   gaim_notify_formatted(gc, tmp, _("Buddy Information"), NULL,
 			str->str, NULL, NULL);
@@ -2988,6 +3010,11 @@ mw_plugin_get_plugin_pref_frame(GaimPlugin *plugin) {
   pref = gaim_plugin_pref_new_with_label("General Options");
   gaim_plugin_pref_frame_add(frame, pref);
 
+  pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_FORCE_LOGIN);
+  gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_NONE);
+  gaim_plugin_pref_set_label(pref, "Force Login (Ignore Login Redirect)");
+  gaim_plugin_pref_frame_add(frame, pref);
+
   pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_PSYCHIC);
   gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_NONE);
   gaim_plugin_pref_set_label(pref, "Enable psychic mode");
@@ -3289,7 +3316,7 @@ static void mw_log_handler(const gchar *domain, GLogLevelFlags flags,
   if(! msg) return;
 
   /* annoying! */
-  nl = g_strdup_printf("%s\n", NSTR(msg));
+  nl = g_strdup_printf("%s\n", msg);
 
   /* handle g_log requests via gaim's built-in debug logging */
   if(flags & G_LOG_LEVEL_ERROR) {
@@ -3336,6 +3363,7 @@ static void mw_plugin_init(GaimPlugin *plugin) {
   gaim_prefs_add_none(MW_PRPL_OPT_BASE);
   gaim_prefs_add_int(MW_PRPL_OPT_BLIST_ACTION, BLIST_CHOICE_DEFAULT);
   gaim_prefs_add_bool(MW_PRPL_OPT_PSYCHIC, FALSE);
+  gaim_prefs_add_bool(MW_PRPL_OPT_FORCE_LOGIN, FALSE);
 
   /* forward all our g_log messages to gaim. Generally all the logging
      calls are using gaim_log directly, but the g_return macros will

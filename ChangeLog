@@ -1,6 +1,18 @@
 
 version 1.2.1 (cvs)
+	
+	- building against meanwhile 0.4.1
 
+	- quiet down error messages when the other end of a conversation
+	logs off. Only display when there are still unsent messages in the
+	conversation queue
+	
+	- added support for sending the LoginCont message when the server
+	issues a LoginRedirect if the redirect connect fails
+
+	- added a plugin option to always LoginCont and never attempt a
+	redirected login
+	
 	- fixed a problem with moving buddies between groups that would
 	cause the change not to be saved.
 

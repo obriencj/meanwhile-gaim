@@ -20,7 +20,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
 USA. */
 
 
-#define GAIM_PLUGINS
 #include <gaim.h>
 #include <accountopt.h>
 #include <conversation.h>
@@ -252,11 +251,11 @@ static void mw_read_callback(gpointer data, gint source,
     char buf[READ_BUFFER_SIZE];
     int len = READ_BUFFER_SIZE;
 
-    /* note, don't use gsize. len might be -1 */
+    /* note, don't use gsize. len might become -1 */
 
     len = read(h->sock_fd, buf, len);
     if(len > 0) {
-      DEBUG_INFO("read %i bytes\n",len);
+      DEBUG_INFO("read %i bytes\n", len);
       mwSession_recv(session, buf, (gsize) len);
       return;
     }
@@ -1335,9 +1334,6 @@ static GaimPluginPrefFrame *get_plugin_pref_frame(GaimPlugin *plugin) {
 }
 
 
-static GaimPlugin *meanwhile_plugin = NULL;
-
-
 static GaimPluginProtocolInfo prpl_info = {
   GAIM_PRPL_API_VERSION,    /* api version */
   0,                        /* flags */
@@ -1373,6 +1369,7 @@ static GaimPluginProtocolInfo prpl_info = {
   NULL,                     /* mw_warn */
   mw_chat_join,
   mw_chat_reject,
+  NULL,                     /* mw_chat_name, */
   mw_chat_invite,
   mw_chat_leave,
   NULL,                     /* mw_chat_whisper, */
@@ -1406,28 +1403,28 @@ static GaimPluginUiInfo prefs_info = {
 
 
 static GaimPluginInfo info = {
-  GAIM_PLUGIN_API_VERSION,        /**< api_version    */
-  GAIM_PLUGIN_PROTOCOL,           /**< type           */
-  NULL,                           /**< ui_requirement */
-  0,                              /**< flags          */
-  NULL,                           /**< dependencies   */
-  GAIM_PRIORITY_DEFAULT,          /**< priority       */
+  GAIM_PLUGIN_API_VERSION,  /**< api_version */
+  GAIM_PLUGIN_PROTOCOL,     /**< type */
+  NULL,                     /**< ui_requirement */
+  0,                        /**< flags */
+  NULL,                     /**< dependencies */
+  GAIM_PRIORITY_DEFAULT,    /**< priority */
   
-  PLUGIN_ID,                      /**< id             */
-  PLUGIN_NAME,                    /**< name           */
-  PLUGIN_VERSION,                 /**< version        */
-  PLUGIN_SUMMARY,                 /**< summary        */
-  PLUGIN_DESC,                    /**< description    */
-  PLUGIN_AUTHOR,                  /**< author         */
-  PLUGIN_HOMEPAGE,                /**< homepage       */
+  PLUGIN_ID,                /**< id */
+  PLUGIN_NAME,              /**< name */
+  VERSION,                  /**< version */
+  PLUGIN_SUMMARY,           /**< summary */
+  PLUGIN_DESC,              /**< description */
+  PLUGIN_AUTHOR,            /**< author */
+  PLUGIN_HOMEPAGE,          /**< homepage */
   
-  NULL,                           /**< load           */
-  NULL,                           /**< unload         */
-  NULL,                           /**< destroy        */
-  NULL,                           /**< ui_info        */
-  &prpl_info,                     /**< extra_info     */
-  &prefs_info,                    /**< prefs info     */
-  NULL                            /**< actions        */
+  NULL,                     /**< load */
+  NULL,                     /**< unload */
+  NULL,                     /**< destroy */
+  NULL,                     /**< ui_info */
+  &prpl_info,               /**< extra_info */
+  &prefs_info,              /**< prefs info */
+  NULL                      /**< actions */
 };
 
 
@@ -1463,13 +1460,8 @@ static void init_plugin(GaimPlugin *plugin) {
 		    G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION,
 		    dummy_log_handler, NULL);
   #endif
-
-  /* static context */
-  meanwhile_plugin = plugin;
 }
 
 
-GAIM_INIT_PLUGIN(meanwhile, init_plugin, info);
-
-
+GAIM_INIT_PLUGIN(meanwhile, init_plugin, info)
 /* The End. */

@@ -1464,7 +1464,7 @@ static GaimPluginInfo info = {
 };
 
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(DEBUG) 
 static void dummy_log_handler(const gchar *d, GLogLevelFlags flags,
 			      const gchar *m, gpointer data) {
   ; /* nothing at all */
@@ -1487,15 +1487,16 @@ static void init_plugin(GaimPlugin *plugin) {
   gaim_prefs_add_none(MW_PRPL_OPT_BASE);
   gaim_prefs_add_int(MW_PRPL_OPT_BLIST_ACTION, BLIST_CHOICE_NONE);
 
-  /* silence plugin and meanwhile library logging for win32 */
-  #ifdef _WIN32
+  /* silence plugin and meanwhile library logging for win32 
+		 sd, where debugging isn't enabled */
+#if defined(_WIN32) && !defined(DEBUG)
   g_log_set_handler(G_LOG_DOMAIN,
 		    G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION,
 		    dummy_log_handler, NULL);
   g_log_set_handler("meanwhile",
 		    G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION,
 		    dummy_log_handler, NULL);
-  #endif
+#endif
 }
 
 

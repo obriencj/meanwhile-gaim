@@ -6,5 +6,5 @@ aclocal && \
 automake --add-missing --copy &&
 autoconf &&
 automake &&
-./configure
+./configure $@
 

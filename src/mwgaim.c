@@ -1348,7 +1348,7 @@ static GaimPluginProtocolInfo prpl_info = {
   mw_away_states,
   NULL,                     /* mw_buddy_menu, */
   mw_chat_info,
-  /* NULL, */                     /* mw_chat_info_defaults, */
+  NULL,                     /* mw_chat_info_defaults, */
   mw_login,
   mw_close,
   mw_im_send,

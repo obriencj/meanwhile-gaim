@@ -289,7 +289,7 @@ static void doc_parts_load(GaimMimeDocument *doc,
   bnd = g_strdup_printf("--%s", boundary);
   bl = strlen(bnd);
 
-  while( (b = g_strstr_len(b, n, bnd)) ) {
+  for(b = g_strstr_len(b, n, bnd); b; ) {
     char *tail;
 
     /* skip the boundary */
@@ -315,6 +315,8 @@ static void doc_parts_load(GaimMimeDocument *doc,
 	doc->parts = g_list_append(doc->parts, part);
       }
     }
+
+    b = tail;
   }
 }
 

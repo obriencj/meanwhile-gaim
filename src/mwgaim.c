@@ -1394,20 +1394,27 @@ static void convo_features(struct mwConversation *conv) {
 
   feat = gaim_conversation_get_features(gconv);
 
-  if(MW_CONVO_IS_OPEN(conv) &&
-     mwConversation_supports(conv, mwImSend_HTML)) {
+  if(MW_CONVO_IS_OPEN(conv)) {
+    if(mwConversation_supports(conv, mwImSend_HTML)) {
+      feat |= GAIM_CONNECTION_HTML;
+    } else {
+      feat &= ~GAIM_CONNECTION_HTML;
+    }
 
-    feat |= GAIM_CONNECTION_HTML;
-    feat |= GAIM_CONNECTION_NO_IMAGES;
+#if 0
+    if(mwConversation_supports(conv, mwImSend_MIME)) {
+      feat &= ~GAIM_CONNECTION_NO_IMAGES;
+    } else {
+      feat |= GAIM_CONNECTION_NO_IMAGES;
+    }
+#endif
+
+    DEBUG_INFO("conversation features set to 0x%04x\n", feat);
+    gaim_conversation_set_features(gconv, feat);
 
   } else {
-    feat &= ~GAIM_CONNECTION_HTML;
-    feat &= ~GAIM_CONNECTION_NO_IMAGES;
+    convo_nofeatures(conv);
   }
-
-  DEBUG_INFO("conversation features set to 0x%04x\n", feat);
-
-  gaim_conversation_set_features(gconv, feat);
 }
 
 
@@ -1605,7 +1612,7 @@ static void im_recv_mime(struct mwConversation *conv,
     GaimMimePart *part = parts->data;
     const char *type;
 
-    type = gaim_mime_part_get_field(part, "Content-Type");
+    type = gaim_mime_part_get_field(part, "content-type");
     DEBUG_INFO("MIME part Content-Type: %s\n", NSTR(type));
 
     if(! type) {
@@ -1645,8 +1652,8 @@ static void im_recv_mime(struct mwConversation *conv,
 
   gaim_mime_document_free(doc);
 
-  {  /* replace each IMG tag's SRC attribute with an ID
-	attribute. This actually modifies the contents of str */
+  { /* replace each IMG tag's SRC attribute with an ID attribute. This
+       actually modifies the contents of str */
     GData *attribs;
     char *start, *end, *tmp = str->str;
 
@@ -1663,24 +1670,15 @@ static void im_recv_mime(struct mwConversation *conv,
       if(img) {
 	GString *atstr;
 	gsize len = (end - start);
-	char *tt;
+	gsize mov;
 
 	atstr = g_string_new("");
 	if(alt) g_string_append_printf(atstr, " alt=\"%s\"", alt);
 	if(align) g_string_append_printf(atstr, " align=\"%s\"", align);
 	if(border) g_string_append_printf(atstr, " border=\"%s\"", border);
 
-	tt = g_strndup(start, len);
-	DEBUG_INFO("rewriting IMG\n{%s}\n", tt);
-	g_free(tt);
-
-	gsize mov = g_snprintf(start, len, "<img%s id=\"%i\"",
-			       atstr->str, img);
+	mov = g_snprintf(start, len, "<img%s id=\"%i\"", atstr->str, img);
 	while(mov < len) start[mov++] = ' ';
-
-	tt = g_strndup(start, len);
-	DEBUG_INFO("rewrote IMG\n{%s}\n", tt);
-	g_free(tt);
 
 	g_string_free(atstr, TRUE);
       }
@@ -2005,6 +2003,9 @@ static void mw_prpl_login(GaimAccount *account) {
   gc = gaim_account_get_connection(account);
   pd = mwGaimPluginData_new(gc);
 
+  /* while we do support images, the default is to not offer it */
+  gc->flags |= GAIM_CONNECTION_NO_IMAGES;
+
   user = g_strdup(gaim_account_get_username(account));
   pass = (char *) gaim_account_get_password(account);
 
@@ -2157,9 +2158,51 @@ static int mw_prpl_send_typing(GaimConnection *gc, const char *name,
 
 
 static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
-  /** @todo we can scrounge up some information on the buddy, I'm
-      sure */
-  ;
+
+  struct mwGaimPluginData *pd;
+  struct mwAwareIdBlock t = { mwAware_USER, who, NULL };
+
+  GaimAccount *acct;
+  GaimBuddy *b;
+  
+  GString *str;
+  const char *tmp;
+  guint32 type;
+
+  pd = gc->proto_data;
+
+  acct = gaim_connection_get_account(gc);
+  b = gaim_find_buddy(acct, who);
+
+  g_return_if_fail(b != NULL);
+
+  str = g_string_new(NULL);
+
+  tmp = status_text(b);
+  g_string_append_printf(str, "\n<b>Status:</b> %s", tmp);
+
+  tmp = mwServiceAware_getText(pd->srvc_aware, &t);
+  if(tmp) g_string_append_printf(str, "\n<b>Message</b>: %s", tmp);
+
+  type = gaim_blist_node_get_int((GaimBlistNode *) b, BUDDY_KEY_CLIENT);
+  if(type) {
+
+    g_string_append(str, "\n<b>Last Known Client</b>: ");
+
+    tmp = mwLoginType_getName(type);
+    if(tmp) {
+      g_string_append(str, tmp);
+    } else {
+      g_string_append_printf(str, "0x%04x", type);
+    }
+  }
+
+  tmp = str->str;
+
+  /* 1: trigger the event */
+  /* 2: if the event returned TRUE, display info */
+
+  g_string_free(str, TRUE);
 }
 
 

@@ -416,7 +416,7 @@ static void export_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
 
 	if(bdy->account == acct) {
 	  idb.user = bdy->name;
-	  mwSametimeUser_new(stg, &idb, bdy->alias);
+	  mwSametimeUser_new(stg, &idb, bdy->server_alias, bdy->alias);
 	}	
       }
     }
@@ -657,6 +657,8 @@ static void got_aware(struct mwAwareList *list,
 		      struct mwSnapshotAwareIdBlock *idb, gpointer data) {
 
   GaimConnection *gc = (GaimConnection *) data;
+  GaimAccount *acct = gaim_connection_get_account(gc);
+  GaimBuddy *buddy;
   time_t idle = 0;
 
   /* deadbeef or 0 from the client means not idle (unless the status
@@ -676,8 +678,14 @@ static void got_aware(struct mwAwareList *list,
   if(idb->status.status == mwStatus_IDLE)
     idle = -1;
 
+  buddy = gaim_find_buddy(acct, idb->id.user);
+  g_return_if_fail(buddy != NULL);
+
   serv_got_update(gc, idb->id.user, idb->online,
 		  0, 0, idle, idb->status.status);
+
+  g_free(buddy->server_alias);
+  buddy->server_alias = g_strdup(idb->alt_id);
 }
 
 

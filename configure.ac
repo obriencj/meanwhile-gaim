@@ -43,6 +43,32 @@ AM_PATH_GLIB_2_0(2.0.0,,AC_MSG_ERROR([
 *** GLib 2.0 is required.]))
 
 AC_SUBST(GLIB_CFLAGS)
+AC_SUBST(GLIB_LIBS)
+
+dnl Check for Meanwhile includes
+AC_ARG_WITH(meanwhile-includes, [  --with-meanwhile-includes=DIR
+                          Compile the Gaim plugin against Meanwhile includes in DIR ], [ac_meanwhile_includes="$withval"], [ac_meanwhile_includes="no"])
+MEANWHILE_INCLUDES="-I$prefix/include"
+if test "$ac_meanwhile_includes" != "no"; then
+	MEANWHILE_INCLUDES="-I$ac_meanwhile_includes"
+fi
+CPPFLAGS_save="$CPPFLAGS"
+CPPFLAGS="$CPPFLAGS $MEANWHILE_INCLUDES $GLIB_CFLAGS"
+AC_CHECK_HEADER(meanwhile/meanwhile.h, [meanwhileincludes=yes])
+CPPFLAGS="$CPPFLAGS_save"
+AC_SUBST(MEANWHILE_INCLUDES)
+
+
+dnl check for Meanwhile library
+AC_ARG_WITH(meanwhile-libs, [  --with-meanwhile-libs=DIR
+                          Compile the Gaim plugin against the Meanwhile libs in DIR], [ac_meanwhile_libs="$withval"], [ac_meanwhile_libs="no"])
+MEANWHILE_LIBS="-L$prefix/lib"
+if test "$ac_meanwhile_libs" != "no"; then
+    MEANWHILE_LIBS="-L$ac_meanwhile_libs"
+fi
+MEANWHILE_LIBS="$MEANWHILE_LIBS -lmeanwhile"
+AC_CHECK_LIB(meanwhile, mwSession_new, [meanwhile=yes], , $MEANWHILE_LIBS $GLIB_LIBS)
+AC_SUBST(MEANWHILE_LIBS)
 
 AC_OUTPUT([Makefile src/Makefile pixmaps/Makefile meanwhile-gaim.spec])
 

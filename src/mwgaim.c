@@ -166,21 +166,21 @@ static void mw_read_callback(gpointer data, gint source,
   struct mw_handler *h = SESSION_HANDLER(session);
   
   if(cond & GAIM_INPUT_READ) {
+
+    /* READ_BUFFER_SIZE is defined in mwgaim.h */
     char buf[READ_BUFFER_SIZE];
-    int len = READ_BUFFER_SIZE;
+    gsize len = READ_BUFFER_SIZE;
 
     len = os_read(h->sock_fd, buf, len);
     if(len > 0) {
-      gaim_debug_info("meanwhile", "reading %u bytes\n", len);
+      gaim_debug_info(G_LOG_DOMAIN, "read %u bytes", len);
       mwSession_recv(session, buf, (unsigned int) len);
-
-    } else {
-      gaim_connection_destroy(gc);
+      return;
     }
-
-  } else {
-    gaim_connection_destroy(gc);
   }
+
+  /* fall-through indicates an error */
+  gaim_connection_destroy(gc);
 }
 
 
@@ -191,18 +191,14 @@ static void mw_login_callback(gpointer data, gint source,
   struct mwSession *session = GC_TO_SESSION(gc);
   struct mw_handler *h;
 
-  DEBUG_INFO(" --> mw_login_callback\n");
-
   if(! g_list_find(gaim_connections_get_all(), data)) {
     os_close(source);
-    DEBUG_INFO(" <-- mw_login_callback (connection not found)\n");
-    return;
+    g_return_if_reached();
   }
 
   if(source < 0) {
     gaim_connection_error(gc, "Unable to connect");
     DEBUG_ERROR(" unable to connect in mw_login_callback\n");
-    DEBUG_INFO(" <-- mw_login_callback (unable to connect)\n");
     return;
   }
 
@@ -212,8 +208,6 @@ static void mw_login_callback(gpointer data, gint source,
 
   gc->inpa = gaim_input_add(source, GAIM_INPUT_READ, mw_read_callback, gc);
   mwSession_initConnect(session);
-
-  DEBUG_INFO(" <-- mw_login_callback\n");
 }
 
 
@@ -238,19 +232,15 @@ static void mw_keepalive(GaimConnection *gc) {
 static void on_initConnect(struct mwSession *s) {
   GaimConnection *gc = SESSION_TO_GC(s);
 
-  DEBUG_INFO(" --> on_initConnect\n");
   gaim_connection_update_progress(gc, MW_CONNECT_2, 2, MW_CONNECT_STEPS);
   initConnect_sendHandshake(s);
-  DEBUG_INFO(" <-- on_initConnect\n");
 }
 
 
 static void on_handshake(struct mwSession *s, struct mwMsgHandshake *msg) {
   GaimConnection *gc = SESSION_TO_GC(s);
 
-  DEBUG_INFO(" --> on_handshake\n");
   gaim_connection_update_progress(gc, MW_CONNECT_3, 3, MW_CONNECT_STEPS);
-  DEBUG_INFO(" <-- on_handshake\n");
 }
 
 
@@ -259,68 +249,46 @@ static void on_handshakeAck(struct mwSession *s,
 
   GaimConnection *gc = SESSION_TO_GC(s);
 
-  DEBUG_INFO(" --> on_handshakeAck\n");
   gaim_connection_update_progress(gc, MW_CONNECT_4, 4, MW_CONNECT_STEPS);
   handshakeAck_sendLogin(s, msg);
-  DEBUG_INFO(" <-- on_handshakeAck\n");
 }
 
 
 static void on_login(struct mwSession *s, struct mwMsgLogin *msg) {
   GaimConnection *gc = SESSION_TO_GC(s);
 
-  DEBUG_INFO(" --> on_login\n");
   gaim_connection_update_progress(gc, MW_CONNECT_5, 5, MW_CONNECT_STEPS);
-  DEBUG_INFO(" <-- on_login\n");
 }
 
 
 static void on_loginAck(struct mwSession *s, struct mwMsgLoginAck *msg) {
   GaimConnection *gc = SESSION_TO_GC(s);
-  /* struct mwUserStatus stat = { mwStatus_ACTIVE, 0, NULL }; */
 
-  DEBUG_INFO(" --> on_loginAck\n");
   gaim_connection_update_progress(gc, MW_CONNECT_6, 6, MW_CONNECT_STEPS);
-
-  DEBUG_INFO(" 1\n");
   gaim_connection_set_state(gc, GAIM_CONNECTED);
-
-  DEBUG_INFO(" 2\n");
   serv_finish_login(gc);
-
-  /* Have to do this. Would be nicer if this happened in the session
-     code. */
-  /* DEBUG_INFO(" 3\n");
-     mwSession_setUserStatus(s, &stat); */
-
-  DEBUG_INFO(" <-- on_loginAck\n");
 }
 
 
 static void on_closeConnect(struct mwSession *session, guint32 reason) {
-
   GaimConnection *gc;
 
-  DEBUG_INFO(" --> on_closeConnect\n");
+  g_return_if_fail(SESSION_HANDLER(session));
 
-  if(SESSION_HANDLER(session)) {
-    gc = SESSION_TO_GC(session);
-    if(! gc) return;
+  gc = SESSION_TO_GC(session);
+  g_return_if_fail(gc);
 
-    if(reason & ERR_FAILURE) {
-      gchar *text = mwError(reason);
-      gaim_connection_error(gc, text);
-      g_free(text);
+  if(reason & ERR_FAILURE) {
+    gchar *text = mwError(reason);
+    gaim_connection_error(gc, text);
+    g_free(text);
 
-    } else if(gc->inpa) {
-      /* remove the input checker, so that closing the socket won't be
-	 seen as an error, and won't trigger a re-connect */
-      gaim_input_remove(gc->inpa);
-      gc->inpa = 0;
-    }
+  } else if(gc->inpa) {
+    /* remove the input checker, so that closing the socket won't be
+       seen as an error, and won't trigger a re-connect */
+    gaim_input_remove(gc->inpa);
+    gc->inpa = 0;
   }
-
-  DEBUG_INFO(" <-- on_closeConnect\n");
 }
 
 
@@ -337,22 +305,16 @@ static void on_setUserStatus(struct mwSession *s,
   struct mwServiceAware *srvc = pd->srvc_aware;
 
   struct mwAwareIdBlock id = { mwAware_USER,
-			       s->login.user_id, s->login.community };
+			       s->login.user_id,
+			       s->login.community };
 
   mwServiceAware_setStatus(srvc, &id, &msg->status);
 }
 
 
 static void on_admin(struct mwSession *s, struct mwMsgAdmin *msg) {
-  DEBUG_INFO(" admin message:\n");
-  DEBUG_INFO(msg->text);
-
-  gaim_connection_notice(SESSION_TO_GC(s), msg->text);
-
-  /*
   gaim_notify_message(SESSION_TO_GC(s), GAIM_NOTIFY_MSG_INFO,
 		      _("Admin Alert"), msg->text, NULL, NULL, NULL);
-  */
 }
 
 
@@ -387,16 +349,17 @@ static void got_text(struct mwServiceIM *srvc,
 
 
 static void got_typing(struct mwServiceIM *srvc,
-		       struct mwIdBlock *who, int typing) {
+		       struct mwIdBlock *who, gboolean typing) {
 
   /* if user@community split, compose buddy name */
 
   struct mwSession *s = srvc->service.session;
 
-  if(typing)
+  if(typing) {
     serv_got_typing(SESSION_TO_GC(s), who->user, 0, GAIM_TYPING);
-  else
-    serv_got_typing_stopped(SESSION_TO_GC(s), who->user);    
+  } else {
+    serv_got_typing_stopped(SESSION_TO_GC(s), who->user);
+  }
 }
 
 
@@ -447,8 +410,6 @@ static void got_invite(struct mwConference *conf, struct mwIdBlock *id,
      free'd too. Just don't try to free the keys */
   char *a, *b, *c, *d;
 
-  DEBUG_INFO(" --> got invite\n");
-
   gc = SESSION_TO_GC(conf->channel->session);
   ht = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_free);
 
@@ -462,14 +423,12 @@ static void got_invite(struct mwConference *conf, struct mwIdBlock *id,
   g_hash_table_insert(ht, CHAT_TOPIC_KEY, c);
   g_hash_table_insert(ht, CHAT_INVITE_KEY, d);
 
-  gaim_debug_info("meanwhile",
-		  "invitor: '%s', name: '%s', topic: '%s', text: '%s'\n",
+  gaim_debug_info(G_LOG_DOMAIN,
+		  "Got invite: '%s', name: '%s', topic: '%s', text: '%s'\n",
 		  a, b, c, d);
 
   DEBUG_INFO(" triggering serv_got_invite\n");
   serv_got_chat_invite(gc, c, a, d, ht);
-
-  DEBUG_INFO(" <-- got invite\n");
 }
 
 
@@ -516,10 +475,10 @@ static void got_join(struct mwConference *conf, struct mwIdBlock *id) {
   GaimConversation *conv;
 
   conv = (GaimConversation *) g_hash_table_lookup(pd->convo_map, conf);
-  if(conv) {
-    DEBUG_INFO(" got join\n");
-    gaim_conv_chat_add_user(GAIM_CONV_CHAT(conv), id->user, NULL);
-  }
+  g_return_if_fail(conv);
+
+  DEBUG_INFO(" got join\n");
+  gaim_conv_chat_add_user(GAIM_CONV_CHAT(conv), id->user, NULL);
 }
 
 
@@ -529,10 +488,10 @@ static void got_part(struct mwConference *conf, struct mwIdBlock *id) {
   GaimConversation *conv;
 
   conv = (GaimConversation *) g_hash_table_lookup(pd->convo_map, conf);
-  if(conv) {
-    DEBUG_INFO(" got part\n");
-    gaim_conv_chat_remove_user(GAIM_CONV_CHAT(conv), id->user, NULL);
-  }
+  g_return_if_fail(conv);
+
+  DEBUG_INFO(" got part\n");
+  gaim_conv_chat_remove_user(GAIM_CONV_CHAT(conv), id->user, NULL);
 }
 
 
@@ -544,16 +503,16 @@ static void got_conf_text(struct mwConference *conf, struct mwIdBlock *id,
   GaimConversation *conv;
 
   conv = (GaimConversation *) g_hash_table_lookup(pd->convo_map, conf);
-  if(conv) {
-    gaim_debug_info("meanwhile", " got conf text: '%s'\n", text);
-    serv_got_chat_in(gc, gaim_conv_chat_get_id(GAIM_CONV_CHAT(conv)),
-		     id->user, 0, text, time(NULL));
-  }
+  g_return_if_fail(conv);
+
+  gaim_debug_info("meanwhile", " got conf text: '%s'\n", text);
+  serv_got_chat_in(gc, gaim_conv_chat_get_id(GAIM_CONV_CHAT(conv)),
+		   id->user, 0, text, time(NULL));
 }
 
 
 static void got_conf_typing(struct mwConference *conf, struct mwIdBlock *id,
-			    int typing) {
+			    gboolean typing) {
 
   /* no gaim support for this?? oh no! */
 }
@@ -586,13 +545,8 @@ static void mw_login(GaimAccount *acct) {
   session->on_setUserStatus = on_setUserStatus;
   session->on_admin = on_admin;
 
-  /* user_id, community */
+  /* user_id, password */
   session->login.user_id = g_strdup(gaim_account_get_username(acct));
-  /* session->login.community =
-     g_strdup(gaim_account_get_string(acct, MW_KEY_COMMUNITY,
-     PLUGIN_DEFAULT_COMMUNITY)); */
-
-  /* password */
   session->auth.password = g_strdup(gaim_account_get_password(acct));
 
   /* aware service and call-backs */
@@ -637,26 +591,21 @@ static void mw_close(GaimConnection *gc) {
   struct mwSession *session;
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
 
-  DEBUG_INFO(" --> mw_close\n"); 
+  g_return_if_fail(pd);
 
-  if(pd) {
-    session = GC_TO_SESSION(gc);
-
-    if(session) {
-      mwSession_closeConnect(session, ERR_SUCCESS);
-
-      /* we created it, so we need to clean it up */
-      g_free(session->handler);
-      session->handler = NULL;
-      mwSession_free(&session);
-    }
-
-    gc->proto_data = NULL;
-    g_hash_table_destroy(pd->convo_map);
-    g_free(pd);
+  session = GC_TO_SESSION(gc);
+  if(session) {
+    mwSession_closeConnect(session, ERR_SUCCESS);
+    
+    /* we created it, so we need to clean it up */
+    g_free(session->handler);
+    session->handler = NULL;
+    mwSession_free(&session);
   }
 
-  DEBUG_INFO(" <-- mw_close\n"); 
+  gc->proto_data = NULL;
+  g_hash_table_destroy(pd->convo_map);
+  g_free(pd);
 }
 
 
@@ -723,12 +672,13 @@ static char *mw_status_text(GaimBuddy *b) {
 
 
 static char *mw_list_status_text(GaimBuddy *b) {
-  g_return_val_if_fail(b, NULL);
+  GaimConnection *gc = b->account->gc;
+  struct mw_plugin_data *pd = PLUGIN_DATA(gc);
+  struct mwIdBlock i = { b->name, NULL};
+  const char *t;
 
-  struct mw_plugin_data *pd = PLUGIN_DATA(b->account->gc);
-  struct mwIdBlock i = { b->name, NULL };
-  const char *t = mwServiceAware_getText(pd->srvc_aware, &i);
-  return t? g_strdup(t): NULL;
+  t = mwServiceAware_getText(pd->srvc_aware, &i);
+  return t ? g_strdup(t) : NULL;
 }
 
 
@@ -877,19 +827,21 @@ static void mw_convo_closed(GaimConnection *gc, const char *name) {
 }
 
 
-static void mw_add_buddy(GaimConnection *gc, const char *name,
+static void mw_add_buddy(GaimConnection *gc, GaimBuddy *buddy,
 			 GaimGroup *group) {
 
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
 
   /* later support name@community splits */
-  struct mwIdBlock t = { (char *) name, NULL };
+  struct mwIdBlock t = { (char *) buddy->name, NULL };
 
   mwServiceAware_add(pd->srvc_aware, &t, 1);
 }
 
 
-static void mw_add_buddies(GaimConnection *gc, GList *buddies) {
+static void mw_add_buddies(GaimConnection *gc, GList *buddies,
+			  GList *groups) {
+  GaimBuddy *buddy;
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
   unsigned int count, c;
   struct mwIdBlock *t;
@@ -897,8 +849,10 @@ static void mw_add_buddies(GaimConnection *gc, GList *buddies) {
   count = g_list_length(buddies);
   t = g_new0(struct mwIdBlock, count);
 
-  for(c = count; c--; buddies = buddies->next)
-    (t + c)->user = (char *) buddies->data;
+  for(c = count; c--; buddies = buddies->next) {
+	buddy = buddies->data;
+    (t + c)->user = buddy->name;
+  }
   
   mwServiceAware_add(pd->srvc_aware, t, count);
   g_free(t);
@@ -906,20 +860,20 @@ static void mw_add_buddies(GaimConnection *gc, GList *buddies) {
 
 
 static void mw_remove_buddy(GaimConnection *gc,
-			    const char *name, const char *group) {
+			    GaimBuddy *buddy, GaimGroup *group) {
   
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
 
   /* later support name@community splits */
-  struct mwIdBlock t = { (char *) name, NULL };
+  struct mwIdBlock t = { (char *) buddy->name, NULL };
 
   mwServiceAware_remove(pd->srvc_aware, &t, 1);
 }
 
 
 static void mw_remove_buddies(GaimConnection *gc, GList *buddies,
-			      const char *group) {
-
+			      GList *groups) {
+  GaimBuddy *buddy;
   struct mw_plugin_data *pd = PLUGIN_DATA(gc);
   unsigned int count, c;
   struct mwIdBlock *t;
@@ -927,8 +881,10 @@ static void mw_remove_buddies(GaimConnection *gc, GList *buddies,
   count = g_list_length(buddies);
   t = g_new0(struct mwIdBlock, count);
 
-  for(c = count; c--; buddies = buddies->next)
-    (t + c)->user = (char *) buddies->data;
+  for(c = count; c--; buddies = buddies->next) {
+	buddy = buddies->data;
+    (t + c)->user = (char *) buddy->name;
+  }
   
   mwServiceAware_remove(pd->srvc_aware, t, count);
   g_free(t);
@@ -1107,7 +1063,7 @@ static GaimPluginInfo info = {
   NULL,                           /**< ui_info        */
   &prpl_info,                     /**< extra_info     */
   NULL,                           /**< prefs info     */
-  NULL
+  NULL                            /**< actions        */
 };
 
 
@@ -1120,12 +1076,6 @@ static void init_plugin(GaimPlugin *plugin) {
   
   opt = gaim_account_option_int_new("Port", MW_KEY_PORT, PLUGIN_DEFAULT_PORT);
   prpl_info.protocol_options = g_list_append(prpl_info.protocol_options, opt);
-
-  /*
-  opt = gaim_account_option_string_new("Community", MW_KEY_COMMUNITY,
-				       PLUGIN_DEFAULT_COMMUNITY);
-  prpl_info.protocol_options = g_list_append(prpl_info.protocol_options, opt);
-  */
 
   meanwhile_plugin = plugin;
 }

@@ -1968,7 +1968,7 @@ static void multi_resolved_query(struct mwResolveResult *result,
      before you add a required field to the group. Feh. */
   gaim_request_fields_add_group(fields, g);
 
-  f = gaim_request_field_list_new("user", "user");
+  f = gaim_request_field_list_new("user", "Possible Matches");
   gaim_request_field_list_set_multi_select(f, FALSE);
   gaim_request_field_set_required(f, TRUE);
 

@@ -1361,7 +1361,7 @@ static void im_recv_mime(struct mwConversation *conv,
   GString *str;
 
   GaimMimeDocument *doc;
-  GList *parts;
+  const GList *parts;
 
   idb = mwConversation_getTarget(conv);
 
@@ -1397,7 +1397,7 @@ static void im_recv_mime(struct mwConversation *conv,
       gaim_base64_decode(dat, &d_dat, &d_len);
       
       /* look up the content id */
-      cid = gaim_mime_part_get_field(part, "Content-ID");
+      cid = (char *) gaim_mime_part_get_field(part, "Content-ID");
       cid = make_cid(cid);
 
       /* add image to the gaim image store */

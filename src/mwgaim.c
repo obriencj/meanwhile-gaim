@@ -474,7 +474,10 @@ static void save_blist(GaimConnection *gc) {
   g_return_if_fail(storage != NULL);
 
   /* check if we should do this, according to user prefs */
-  if(! BLIST_CHOICE_IS_SAVE) return;
+  if(! BLIST_CHOICE_IS_SAVE) {
+    g_message("preferences indicate not to save to remote blist");
+    return;
+  }
 
   if(MW_SERVICE_IS_DEAD(storage)) {
     g_message("aborting save of blist: storage service is not alive");
@@ -519,7 +522,10 @@ static void import_blist(GaimConnection *gc, struct mwSametimeList *stlist) {
   GList *gl, *gtl, *ul, *utl;
 
   /* check our preferences for loading */
-  if(BLIST_CHOICE_IS_NONE) return;
+  if(BLIST_CHOICE_IS_NONE) {
+    g_message("preferences indicate not to import from remote buddy list");
+    return;
+  }
 
   gl = gtl = mwSametimeList_getGroups(stlist);
   for(; gl; gl = gl->next) {

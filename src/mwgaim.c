@@ -25,6 +25,7 @@
 #include <accountopt.h>
 #include <conversation.h>
 #include <debug.h>
+#include <imgstore.h>
 #include <internal.h>
 #include <notify.h>
 #include <plugin.h>
@@ -52,6 +53,7 @@
 #include <mw_st_list.h>
 
 #include "config.h"
+#include "mime.h"
 
 
 /* considering that there's no display of this information for prpls,
@@ -1332,12 +1334,150 @@ static void im_recv_subj(struct mwConversation *conv,
 }
 
 
+static char *make_cid(const char *cid) {
+  gsize n;
+  char *c, *d;
+
+  n = strlen(cid) - 2;
+  c = g_strndup(cid+1, n);
+  d = g_strdup_printf("cid:%s", c);
+
+  DEBUG_INFO("made a cid \"%s\"\n", d);
+
+  g_free(c);
+  return d;
+}
+
+
 static void im_recv_mime(struct mwConversation *conv,
 			 struct mwGaimPluginData *pd,
 			 struct mwOpaque *data) {
 
-  /** @todo implement IM MIME receiving */
-  ;
+  struct mwIdBlock *idb;
+
+  GHashTable *img_by_cid;
+  GList *images;
+
+  GString *str;
+
+  GaimMimeDocument *doc;
+  GList *parts;
+
+  idb = mwConversation_getTarget(conv);
+
+  img_by_cid = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+  images = NULL;
+
+  str = g_string_new(NULL);
+  
+  doc = gaim_mime_document_new();
+  gaim_mime_document_parse_len(doc, data->data, data->len);
+
+  /* handle all the MIME parts */
+  parts = gaim_mime_document_get_parts(doc);
+  for(; parts; parts = parts->next) {
+    GaimMimePart *part = parts->data;
+    const char *type;
+
+    type = gaim_mime_part_get_field(part, "Content-Type");
+    DEBUG_INFO("MIME part Content-Type: %s\n", NSTR(type));
+
+    if(! type) {
+      ; /* feh */
+      
+    } else if(g_str_has_prefix(type, "image")) {
+      const char *dat;
+      char *d_dat;
+      gsize d_len;
+      char *cid;
+      int img;
+
+      /* obtain and unencode the data */
+      dat = gaim_mime_part_get_data(part);
+      gaim_base64_decode(dat, &d_dat, &d_len);
+      
+      /* look up the content id */
+      cid = gaim_mime_part_get_field(part, "Content-ID");
+      cid = make_cid(cid);
+
+      /* add image to the gaim image store */
+      img = gaim_imgstore_add(d_dat, d_len, cid);
+
+      /* map the cid to the image store identifier */
+      g_hash_table_insert(img_by_cid, cid, GINT_TO_POINTER(img));
+
+      /* recall the image for dereferencing later */
+      images = g_list_append(images, GINT_TO_POINTER(img));
+      
+    } else if(g_str_has_prefix(type, "text")) {
+      g_string_append(str, gaim_mime_part_get_data(part));
+    }
+  }
+
+  gaim_mime_document_free(doc);
+
+  /* replace each IMG tag's SRC attribute with an ID attribute */
+  {
+    GData *attribs;
+    char *start, *end, *tmp = str->str;
+
+    while(gaim_markup_find_tag("img", tmp, &start, &end, &attribs)) {
+      char *alt, *align, *border, *hspace, *vspace, *src;
+      int img;
+
+      alt = g_datalist_get_data(&attribs, "alt");
+      hspace = g_datalist_get_data(&attribs, "hspace");
+      vspace = g_datalist_get_data(&attribs, "vspace");
+      align = g_datalist_get_data(&attribs, "align");
+      border = g_datalist_get_data(&attribs, "border");
+      src = g_datalist_get_data(&attribs, "src");
+
+      img = GPOINTER_TO_INT(g_hash_table_lookup(img_by_cid, src));
+      if(img) {
+	GString *atstr;
+	gsize len = (end - start);
+	char *tt;
+
+	atstr = g_string_new(NULL);
+	if(alt) g_string_append_printf(atstr, " alt=\"%s\"", alt);
+	if(align) g_string_append_printf(atstr, " align=\"%s\"", align);
+	if(border) g_string_append_printf(atstr, " border=\"%s\"", border);
+	if(hspace) g_string_append_printf(atstr, " hspace=\"%s\"", hspace);
+	if(vspace) g_string_append_printf(atstr, " vspace=\"%s\"", vspace);
+
+	tt = g_strndup(start, len);
+	DEBUG_INFO("rewriting IMG\n{%s}\n", tt);
+	g_free(tt);
+
+	gsize mov = g_snprintf(start, len, "<img%s id=\"%i\"",
+			       atstr->str, img);
+	while(mov < len) start[mov++] = ' ';
+
+	tt = g_strndup(start, len);
+	DEBUG_INFO("rewrote IMG\n{%s}\n", tt);
+	g_free(tt);
+
+	g_string_free(atstr, TRUE);
+      }
+
+      g_datalist_clear(&attribs);
+
+      tmp = end + 1;
+    }
+  }
+
+  /* actually display the message */
+  serv_got_im(pd->gc, idb->user, str->str, 0, time(NULL));
+
+  g_string_free(str, TRUE);
+  
+  /* clean up the images */
+  g_hash_table_destroy(img_by_cid);
+
+  while(images) {
+    gaim_imgstore_unref(GPOINTER_TO_INT(images->data));
+    images = g_list_delete_link(images, images);
+  }
 }
 
 
@@ -1397,6 +1537,7 @@ static struct mwImHandler mw_im_handler = {
 static struct mwServiceIm *mw_srvc_im_new(struct mwSession *s) {
   struct mwServiceIm *srvc;
   srvc = mwServiceIm_new(s, &mw_im_handler);
+  mwServiceIm_setClientType(srvc, mwImClient_NOTESBUDDY);
   return srvc;
 }
 

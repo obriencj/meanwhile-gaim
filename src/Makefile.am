@@ -5,7 +5,8 @@ pkgdir = $(libdir)/gaim
 
 pkg_LTLIBRARIES = libmwgaim.la
 
-libmwgaim_la_SOURCES = mwgaim.c
+libmwgaim_la_SOURCES = mwgaim.c \
+	mime.c
 
 libmwgaim_la_CFLAGS = \
 	$(DEBUG_CFLAGS) \

@@ -473,6 +473,7 @@ static void blist_export(GaimConnection *gc, struct mwSametimeList *stlist) {
   g_return_if_fail(blist != NULL);
 
   for(gn = blist->root; gn; gn = gn->next) {
+    const char *owner;
     const char *gname;
     enum mwSametimeGroupType gtype;
     gboolean gopen;
@@ -484,10 +485,14 @@ static void blist_export(GaimConnection *gc, struct mwSametimeList *stlist) {
     gtype = gaim_blist_node_get_int(gn, GROUP_KEY_TYPE);
     if(! gtype) gtype = mwSametimeGroup_NORMAL;
 
-    if(! gaim_group_on_account(grp, acct)) {
-      if(gtype == mwSametimeGroup_NORMAL)
-	continue;
-    }
+    /* if it's a normal group with none of our people in it, skip it */
+    if(gtype == mwSametimeGroup_NORMAL && !gaim_group_on_account(grp, acct))
+      continue;
+    
+    /* if the group has an owner and we're not it, skip it */
+    owner = gaim_blist_node_get_string(gn, GROUP_KEY_OWNER);
+    if(owner && strcmp(owner, gaim_account_get_username(acct)))
+      continue;
 
     /* the group's actual name may be different from the gaim group's
        name. Find whichever is there */
@@ -914,8 +919,10 @@ static void session_started(struct mwGaimPluginData *pd) {
 
     if(! GAIM_BLIST_NODE_IS_GROUP(l)) continue;
 
+    /* if the group is ownerless, or has an owner and we're not it,
+       skip it */
     owner = gaim_blist_node_get_string(l, GROUP_KEY_OWNER);
-    if(!owner || strcmp(gaim_account_get_username(acct), owner))
+    if(!owner || strcmp(owner, gaim_account_get_username(acct)))
       continue;
 
     gt = gaim_blist_node_get_int(l, GROUP_KEY_TYPE);
@@ -2762,7 +2769,6 @@ static void mw_prpl_add_buddy(GaimConnection *gc,
 
   req = mwServiceResolve_resolve(srvc, query, flags, add_buddy_resolved,
 				 buddy, NULL);
-
   g_list_free(query);
 
   if(req == SEARCH_ERROR) {

@@ -40,6 +40,7 @@ USA. */
 #include <meanwhile/srvc_aware.h>
 #include <meanwhile/srvc_conf.h>
 #include <meanwhile/srvc_im.h>
+#include <meanwhile/srvc_store.h>
 
 
 /* considering that there's no display of this information for prpls,
@@ -165,12 +166,14 @@ USA. */
 struct mw_plugin_data {
   struct mwSession *session;
 
-  struct mwServiceIM *srvc_im;
-
   struct mwServiceAware *srvc_aware;
   struct mwAwareList *aware_list;
 
   struct mwServiceConf *srvc_conf;
+
+  struct mwServiceIM *srvc_im;
+
+  struct mwServiceStorage *srvc_store;
 
   GHashTable *convo_map;
 };
@@ -234,13 +237,14 @@ static void mw_read_callback(gpointer data, gint source,
   struct mw_handler *h = SESSION_HANDLER(session);
   
   if(cond & GAIM_INPUT_READ) {
-
     char buf[READ_BUFFER_SIZE];
-    gsize len = READ_BUFFER_SIZE;
+    int len = READ_BUFFER_SIZE;
+
+    /* note, don't use gsize. len might be -1 */
 
     len = os_read(h->sock_fd, buf, len);
     if(len > 0) {
-      gaim_debug_info(G_LOG_DOMAIN, "read %u bytes\n", len);
+      gaim_debug_info(G_LOG_DOMAIN, "read %i bytes\n", len);
       mwSession_recv(session, buf, (unsigned int) len);
       return;
     }
@@ -329,6 +333,31 @@ static void on_login(struct mwSession *s, struct mwMsgLogin *msg) {
 }
 
 
+static void storage_cb(guint result, struct mwStorageUnit *item,
+		       gpointer srvc) {
+
+  char *tmp = mwStorageUnit_asString(item);
+
+  g_message(" storage_cb, key = 0x%08x, result = 0x%08x, length = 0x%08x",
+	    item->key, result, item->data.len);
+
+  g_message("\n----- begin blist -----\n"
+	    "%s"
+	    "------ end blist ------", tmp);
+
+  /* no need to free the storage unit, that will happen automatically
+     after this callback */
+  g_free(tmp);
+  mwService_stop(MW_SERVICE(srvc));
+}
+
+
+static void storage_test(struct mwServiceStorage *srvc) {
+  struct mwStorageUnit *unit = mwStorageUnit_new(mwStore_AWARE_LIST);
+  mwServiceStorage_load(srvc, unit, storage_cb, NULL);
+}
+
+
 static void on_loginAck(struct mwSession *s, struct mwMsgLoginAck *msg) {
   GaimConnection *gc = SESSION_TO_GC(s);
   struct mw_plugin_data *pd = (struct mw_plugin_data *) gc->proto_data;
@@ -342,6 +371,9 @@ static void on_loginAck(struct mwSession *s, struct mwMsgLoginAck *msg) {
   mwService_start(MW_SERVICE(pd->srvc_aware));
   mwService_start(MW_SERVICE(pd->srvc_conf));
   mwService_start(MW_SERVICE(pd->srvc_im));
+
+  mwService_start(MW_SERVICE(pd->srvc_store));
+  storage_test(pd->srvc_store);  
 }
 
 
@@ -596,6 +628,7 @@ static void mw_login(GaimAccount *acct) {
   struct mwAwareList *aware_list;
   struct mwServiceIM *srvc_im;
   struct mwServiceConf *srvc_conf;
+  struct mwServiceStorage *srvc_store;
   
   const char *host;
   unsigned int port;
@@ -621,7 +654,7 @@ static void mw_login(GaimAccount *acct) {
 
   /* aware service and call-backs */
   pd->srvc_aware = srvc_aware = mwServiceAware_new(session);
-  mwSession_putService(session, (struct mwService *) srvc_aware);
+  mwSession_putService(session, MW_SERVICE(srvc_aware));
 
   pd->aware_list = aware_list = mwAwareList_new(srvc_aware);
   mwAwareList_setOnAware(aware_list, got_aware, gc);
@@ -631,7 +664,7 @@ static void mw_login(GaimAccount *acct) {
   srvc_im->got_error = got_error;
   srvc_im->got_text = got_text;
   srvc_im->got_typing = got_typing;
-  mwSession_putService(session, (struct mwService *) srvc_im);
+  mwSession_putService(session, MW_SERVICE(srvc_im));
 
   /* conference service and call-backs */
   pd->srvc_conf = srvc_conf = mwServiceConf_new(session);
@@ -642,9 +675,13 @@ static void mw_login(GaimAccount *acct) {
   srvc_conf->got_part = got_part;
   srvc_conf->got_text = got_conf_text;
   srvc_conf->got_typing = got_conf_typing;
-  mwSession_putService(session, (struct mwService *) srvc_conf);
+  mwSession_putService(session, MW_SERVICE(srvc_conf));
 
   pd->convo_map = g_hash_table_new(NULL, NULL);
+
+  /* storage service */
+  pd->srvc_store = srvc_store = mwServiceStorage_new(session);
+  mwSession_putService(session, MW_SERVICE(srvc_store));
 
   /* server:port */
   host = gaim_account_get_string(acct, "server", PLUGIN_DEFAULT_HOST);

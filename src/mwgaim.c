@@ -47,6 +47,7 @@
 #include <mw_session.h>
 #include <mw_srvc_aware.h>
 #include <mw_srvc_conf.h>
+#include <mw_srvc_ft.h>
 #include <mw_srvc_im.h>
 #include <mw_srvc_resolve.h>
 #include <mw_srvc_store.h>
@@ -188,6 +189,7 @@ struct mwGaimPluginData {
   struct mwServiceAware *srvc_aware;
   struct mwServiceConference *srvc_conf;
   struct mwServiceDirectory *srvc_dir;
+  struct mwServiceFileTransfer *srvc_ft;
   struct mwServiceIm *srvc_im;
   struct mwServiceResolve *srvc_resolve;
   struct mwServiceStorage *srvc_store;
@@ -1416,6 +1418,8 @@ static struct mwServiceConference *mw_srvc_conf_new(struct mwSession *s) {
 
 
 #if 0
+
+
 static void mw_dir_book_list(struct mwServiceDirectory *srvc, GList *books) {
   ;
 }
@@ -1449,7 +1453,71 @@ static struct mwServiceDirectory *mw_srvc_dir_new(struct mwSession *s) {
   srvc = mwServiceDirectory_new(s, &mw_directory_handler);
   return srvc;
 }
+
+
 #endif
+
+
+static void mw_ft_offered(struct mwFileTransfer *ft) {
+  /*
+    - create a gaim ft object
+    - offer it
+  */
+}
+
+
+static void mw_ft_opened(struct mwFileTransfer *ft) {
+  /*
+    - get gaim ft from client data in ft
+    - set the state to active
+  */
+}
+
+
+static void mw_ft_closed(struct mwFileTransfer *ft, guint32 code) {
+  /*
+    - get gaim ft from client data in ft
+    - indicate rejection/cancelation/completion
+  */
+}
+
+
+static void mw_ft_recv(struct mwFileTransfer *ft,
+		       struct mwOpaque *data, gboolean done) {
+  /*
+    - get gaim ft from client data in ft
+    - update transfered percentage
+    - if done, destroy the ft, disassociate from gaim ft
+  */
+}
+
+
+static void mw_ft_clear(struct mwServiceFileTransfer *srvc) {
+  ;
+}
+
+
+static struct mwFileTransferHandler mw_ft_handler = {
+  .ft_offered = mw_ft_offered,
+  .ft_opened = mw_ft_opened,
+  .ft_closed = mw_ft_closed,
+  .ft_recv = mw_ft_recv,
+  .clear = mw_ft_clear,
+};
+
+
+static struct mwServiceFileTransfer *mw_srvc_ft_new(struct mwSession *s) {
+  struct mwServiceFileTransfer *srvc;
+  GHashTable *ft_map;
+
+  ft_map = g_hash_table_new(g_direct_hash, g_direct_equal);
+
+  srvc = mwServiceFileTransfer_new(s, &mw_ft_handler);
+  mwService_setClientData(MW_SERVICE(srvc), ft_map,
+			  (GDestroyNotify) g_hash_table_destroy);
+
+  return srvc;
+}
 
 
 static void convo_data_free(struct convo_data *cd) {
@@ -2011,7 +2079,8 @@ static struct mwGaimPluginData *mwGaimPluginData_new(GaimConnection *gc) {
   pd->session = mwSession_new(&mw_session_handler);
   pd->srvc_aware = mw_srvc_aware_new(pd->session);
   pd->srvc_conf = mw_srvc_conf_new(pd->session);
-  pd->srvc_dir = NULL; /* mw_srvc_dir_new(pd->session); */
+  /* pd->srvc_dir = mw_srvc_dir_new(pd->session); */
+  pd->srvc_ft = mw_srvc_ft_new(pd->session);
   pd->srvc_im = mw_srvc_im_new(pd->session);
   pd->srvc_resolve = mw_srvc_resolve_new(pd->session);
   pd->srvc_store = mw_srvc_store_new(pd->session);
@@ -2020,6 +2089,7 @@ static struct mwGaimPluginData *mwGaimPluginData_new(GaimConnection *gc) {
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_aware));
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_conf));
   /* mwSession_addService(pd->session, MW_SERVICE(pd->srvc_dir)); */
+  mwSession_addService(pd->session, MW_SERVICE(pd->srvc_ft));
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_im));
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_resolve));
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_store));

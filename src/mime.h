@@ -55,6 +55,12 @@ typedef struct _GaimMimePart GaimMimePart;
 GaimMimeDocument *gaim_mime_document_new();
 
 
+/** Frees memory used in a MIME document and all of its parts and fields
+    @param doc   the MIME document to free
+ */
+void gaim_mime_document_free(GaimMimeDocument *doc);
+
+
 /** Parse a MIME document from a NUL-terminated string
     @param buf  the NULL-terminated string containing the MIME-encoded data
     @returns MIME document
@@ -107,10 +113,10 @@ void gaim_mime_document_set_field(GaimMimeDocument *doc,
 const GList *gaim_mime_document_get_parts(GaimMimeDocument *doc);
 
 
-/** Frees memory used in a MIME document and all of its parts and fields
-    @param doc   the MIME document to free
+/** Create and insert a new part into a MIME document
+    @param doc   the new part's parent MIME document
  */
-void gaim_mime_document_free(GaimMimeDocument *doc);
+GaimMimePart *gaim_mime_part_new(GaimMimeDocument *doc);
 
 
 /** The list of fields in the header of a document part

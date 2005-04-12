@@ -179,6 +179,19 @@ static void fields_load(struct mime_fields *mf,
 }
 
 
+static void field_write(const char *key, const char *val, GString *str) {
+  g_string_append_printf(str, "%s: %s\r\n", key, val);
+}
+
+
+static void fields_write(struct mime_fields *mf, GString *str) {
+  g_assert(mf != NULL);
+
+  g_hash_table_foreach(mf->map, (GHFunc) field_write, str);
+  g_string_append(str, "\r\n");
+}
+
+
 static void fields_destroy(struct mime_fields *mf) {
   g_assert(mf != NULL);
 
@@ -218,6 +231,12 @@ static void part_load(GaimMimePart *part,
 }
 
 
+static void part_write(GaimMimePart *part, GString *str) {
+  fields_write(&part->fields, str);
+  g_string_append_printf(str, "%s\r\n\r\n", part->data->str);
+}
+
+
 static void part_free(GaimMimePart *part) {
 
   fields_destroy(&part->fields);
@@ -226,6 +245,12 @@ static void part_free(GaimMimePart *part) {
   part->data = NULL;
 
   g_free(part);
+}
+
+
+GaimMimePart *gaim_mime_part_new(GaimMimeDocument *doc) {
+  g_return_val_if_fail(doc != NULL, NULL);
+  return part_new(doc);
 }
 
 
@@ -353,6 +378,38 @@ GaimMimeDocument *gaim_mime_document_parsen(const char *buf, gsize len) {
 GaimMimeDocument *gaim_mime_document_parse(const char *buf) {
   g_return_val_if_fail(buf != NULL, NULL);
   return gaim_mime_document_parsen(buf, strlen(buf));
+}
+
+
+void gaim_mime_document_write(GaimMimeDocument *doc, GString *str) {
+  const char *bd = NULL;
+
+  g_return_if_fail(doc != NULL);
+  g_return_if_fail(str != NULL);
+
+  {
+    const char *ct = fields_get(&doc->fields, "content-type");
+    if(ct && g_str_has_prefix(ct, "multipart")) {
+      char *b = strrchr(ct, '=');
+      if(b++) bd = b;
+    }
+  }
+
+  fields_write(&doc->fields, str);
+
+  if(bd) {
+    GList *l;
+
+    for(l = doc->parts; l; l = l->next) {
+      g_string_append_printf(str, "--%s\r\n", bd);
+
+      part_write(l->data, str);
+
+      if(! l->next) {
+	g_string_append_printf(str, "--%s--\r\n", bd);
+      }
+    }
+  }
 }
 
 

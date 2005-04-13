@@ -38,8 +38,6 @@
 #include <glib/ghash.h>
 #include <glib/glist.h>
 
-#include <stdio.h>
-
 #include <mw_cipher.h>
 #include <mw_common.h>
 #include <mw_error.h>
@@ -125,6 +123,7 @@
 #define MW_KEY_AWAY_MSG    "away_msg"
 #define MW_KEY_BUSY_MSG    "busy_msg"
 #define MW_KEY_MSG_PROMPT  "msg_prompt"
+#define MW_KEY_INVITE      "conf_invite"
 
 
 /** the amount of data the plugin will attempt to read from a socket
@@ -1041,26 +1040,41 @@ static void mw_session_admin(struct mwSession *session,
 }
 
 
+/** called from read_cb, attempts to read available data from sock and
+    pass it to the session, passing back the return code from the read
+    call for handling in read_cb */
+static int read_recv(struct mwSession *session, int sock) {
+  char buf[READ_BUFFER_SIZE];
+  int len;
+
+  len = read(sock, buf, READ_BUFFER_SIZE);
+  if(len > 0) mwSession_recv(session, buf, len);
+
+  return len;
+}
+
+
+/** callback triggered from gaim_input_add, watches the socked for
+    available data to be processed by the session */
 static void read_cb(gpointer data, gint source,
 		    GaimInputCondition cond) {
 
   struct mwGaimPluginData *pd = data;
+  int ret = 0, err = 0;
 
   g_return_if_fail(pd != NULL);
 
   if(cond & GAIM_INPUT_READ) {
-    char buf[READ_BUFFER_SIZE];
-    int len = READ_BUFFER_SIZE;
-
-    len = read(pd->socket, buf, len);
-    if(len > 0) {
-      mwSession_recv(pd->session, buf, len);
-      return;
-    }
+    ret = read_recv(pd->session, pd->socket);
   }
 
-  /* fall-through indicates error */
-  DEBUG_INFO("error in read callback\n");
+  /* normal operation ends here */
+  if(ret > 0) return;
+
+  err = errno;
+
+  /* read problem occured if we're here, so we'll need to take care of
+     it and clean up internal state */
 
   if(pd->socket) {
     close(pd->socket);
@@ -1072,7 +1086,17 @@ static void read_cb(gpointer data, gint source,
     pd->gc->inpa = 0;
   }
 
-  gaim_connection_destroy(pd->gc);
+  if(! ret) {
+    DEBUG_INFO("connection dropped\n");
+    gaim_connection_error(pd->gc, "Connection lost");
+
+  } else if(ret < 0) {
+    char *errstr = strerror(err);
+    DEBUG_INFO("error in read callback: %s\n", NSTR(errstr));
+    g_free(errstr);
+
+    gaim_connection_error(pd->gc, "Error reading from socket");
+  }
 }
 
 
@@ -2269,7 +2293,17 @@ static GList *mw_prpl_chat_info(GaimConnection *gc) {
 
 static GHashTable *mw_prpl_chat_info_defaults(GaimConnection *gc,
 					      const char *name) {
-  return NULL;
+  GHashTable *table;
+
+  g_return_val_if_fail(gc != NULL, NULL);
+  
+  DEBUG_INFO("mw_prpl_chat_info_defaults for %s\n", NSTR(name));
+
+  table = g_hash_table_new(g_str_hash, g_str_equal);
+  g_hash_table_insert(table, CHAT_KEY_NAME, name);
+  g_hash_table_insert(table, CHAT_KEY_INVITE, "");
+
+  return table;
 }
 
 
@@ -2372,8 +2406,10 @@ static void mw_prpl_close(GaimConnection *gc) {
 }
 
 
-static int mw_prpl_send_im(GaimConnection *gc, const char *name,
-			   const char *message, GaimConvImFlags flags) {
+static int mw_prpl_send_im(GaimConnection *gc,
+			   const char *name,
+			   const char *message,
+			   GaimConvImFlags flags) {
 
   struct mwGaimPluginData *pd;
   struct mwIdBlock who = { (char *) name, NULL };
@@ -2823,7 +2859,8 @@ static void add_buddy_resolved(struct mwServiceResolve *srvc,
 
 
 static void mw_prpl_add_buddy(GaimConnection *gc,
-			      GaimBuddy *buddy, GaimGroup *group) {
+			      GaimBuddy *buddy,
+			      GaimGroup *group) {
 
   struct mwGaimPluginData *pd;
   struct mwServiceResolve *srvc;
@@ -2849,7 +2886,8 @@ static void mw_prpl_add_buddy(GaimConnection *gc,
 
 
 static void mw_prpl_add_buddies(GaimConnection *gc,
-				GList *buddies, GList *groups) {
+				GList *buddies,
+				GList *groups) {
 
   /** @todo make this use a single call to each mwAwareList */
 
@@ -2994,8 +3032,11 @@ static char *mw_prpl_get_chat_name(GHashTable *components) {
 }
 
 
-static void mw_prpl_chat_invite(GaimConnection *gc, int id,
-				const char *invitation, const char *who) {
+static void mw_prpl_chat_invite(GaimConnection *gc,
+				int id,
+				const char *invitation,
+				const char *who) {
+
   struct mwGaimPluginData *pd;
   struct mwConference *conf;
   struct mwIdBlock idb = { (char *) who, NULL };
@@ -3011,7 +3052,9 @@ static void mw_prpl_chat_invite(GaimConnection *gc, int id,
 }
 
 
-static void mw_prpl_chat_leave(GaimConnection *gc, int id) {
+static void mw_prpl_chat_leave(GaimConnection *gc,
+			       int id) {
+
   struct mwGaimPluginData *pd;
   struct mwConference *conf;
 
@@ -3026,15 +3069,18 @@ static void mw_prpl_chat_leave(GaimConnection *gc, int id) {
 }
 
 
-static void mw_prpl_chat_whisper(GaimConnection *gc, int id,
-				 const char *who, const char *message) {
+static void mw_prpl_chat_whisper(GaimConnection *gc,
+				 int id,
+				 const char *who,
+				 const char *message) {
 
   mw_prpl_send_im(gc, who, message, 0);
 }
 
 
-static int mw_prpl_chat_send(GaimConnection *gc, int id,
-			      const char *message) {
+static int mw_prpl_chat_send(GaimConnection *gc,
+			     int id,
+			     const char *message) {
 
   struct mwGaimPluginData *pd;
   struct mwConference *conf;
@@ -3063,7 +3109,8 @@ static void mw_prpl_keepalive(GaimConnection *gc) {
 
 
 static void mw_prpl_alias_buddy(GaimConnection *gc,
-				const char *who, const char *alias) {
+				const char *who,
+				const char *alias) {
 
   struct mwGaimPluginData *pd = gc->proto_data;
   g_return_if_fail(pd != NULL);
@@ -3104,8 +3151,10 @@ static void mw_prpl_group_buddy(GaimConnection *gc,
 }
 
 
-static void mw_prpl_rename_group(GaimConnection *gc, const char *old,
-				 GaimGroup *group, GList *buddies) {
+static void mw_prpl_rename_group(GaimConnection *gc,
+				 const char *old,
+				 GaimGroup *group,
+				 GList *buddies) {
 
   struct mwGaimPluginData *pd = gc->proto_data;
   g_return_if_fail(pd != NULL);
@@ -3791,7 +3840,6 @@ static GaimPluginInfo mw_plugin_info = {
 
 static void mw_log_handler(const gchar *domain, GLogLevelFlags flags,
 			   const gchar *msg, gpointer data) {
-#if DEBUG
   char *nl;
 
   if(! msg) return;
@@ -3811,10 +3859,6 @@ static void mw_log_handler(const gchar *domain, GLogLevelFlags flags,
   }
 
   g_free(nl);
-  
-#else
-  ; /* nothing at all. nice and quiet */
-#endif
 }
 
 
@@ -3823,7 +3867,7 @@ static void mw_plugin_init(GaimPlugin *plugin) {
   GaimAccountOption *opt;
   GList *l = NULL;
 
-  GLogLevelFlags logf =
+  GLogLevelFlags logflags =
     G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION;
 
   /* set up account ID as user:server */
@@ -3849,11 +3893,11 @@ static void mw_plugin_init(GaimPlugin *plugin) {
   /* forward all our g_log messages to gaim. Generally all the logging
      calls are using gaim_log directly, but the g_return macros will
      get caught here */
-  log_handler[0] = g_log_set_handler(G_LOG_DOMAIN, logf,
+  log_handler[0] = g_log_set_handler(G_LOG_DOMAIN, logflags,
 				     mw_log_handler, NULL);
   
   /* redirect meanwhile's logging to gaim's */
-  log_handler[1] = g_log_set_handler("meanwhile", logf,
+  log_handler[1] = g_log_set_handler("meanwhile", logflags,
 				     mw_log_handler, NULL);
 }
 

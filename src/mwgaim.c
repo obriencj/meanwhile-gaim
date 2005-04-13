@@ -126,11 +126,6 @@
 #define MW_KEY_INVITE      "conf_invite"
 
 
-/** the amount of data the plugin will attempt to read from a socket
-    in a single call */
-#define READ_BUFFER_SIZE  1024
-
-
 /** number of seconds from the first blist change before a save to the
     storage service occurs. */
 #define BLIST_SAVE_SECONDS  15
@@ -1044,10 +1039,10 @@ static void mw_session_admin(struct mwSession *session,
     pass it to the session, passing back the return code from the read
     call for handling in read_cb */
 static int read_recv(struct mwSession *session, int sock) {
-  char buf[READ_BUFFER_SIZE];
+  char buf[BUF_LEN];
   int len;
 
-  len = read(sock, buf, READ_BUFFER_SIZE);
+  len = read(sock, buf, BUF_LEN);
   if(len > 0) mwSession_recv(session, buf, len);
 
   return len;
@@ -3478,7 +3473,7 @@ static void st_import_action_cb(GaimConnection *gc, char *filename) {
   struct mwSametimeList *l;
 
   FILE *file;
-  char buf[READ_BUFFER_SIZE];
+  char buf[BUF_LEN];
   size_t len;
 
   GString *str;
@@ -3487,7 +3482,7 @@ static void st_import_action_cb(GaimConnection *gc, char *filename) {
   g_return_if_fail(file != NULL);
 
   str = g_string_new(NULL);
-  while( (len = fread(buf, 1, READ_BUFFER_SIZE, file)) ) {
+  while( (len = fread(buf, 1, BUF_LEN, file)) ) {
     g_string_append_len(str, buf, len);
   }
 

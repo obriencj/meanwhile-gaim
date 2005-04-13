@@ -2153,12 +2153,12 @@ static void mwGaimPluginData_free(struct mwGaimPluginData *pd) {
 
 static const char *mw_prpl_list_icon(GaimAccount *a, GaimBuddy *b) {
   /* my little green dude is a chopped up version of the aim running
-     guy.  First, cut of the head and store someplace safe. Then, take
-     the left-half side of the body and throw it away. Make a copy of
-     the remaining body, and flip it horizontally. Now attach the two
-     pieces into an X shape, and drop the head back on the top, being
-     careful to center it. Then, just change the color saturation to
-     bring the red down a bit, and voila! */
+     guy.  First, cut off the head and store someplace safe. Then,
+     take the left-half side of the body and throw it away. Make a
+     copy of the remaining body, and flip it horizontally. Now attach
+     the two pieces into an X shape, and drop the head back on the
+     top, being careful to center it. Then, just change the color
+     saturation to bring the red down a bit, and voila! */
 
   /* then, throw all of that away and use sodipodi to make a new
      icon. You know, LIKE A REAL MAN. */
@@ -3390,6 +3390,9 @@ static void status_msg_action_cb(GaimConnection *gc,
   mwServiceStorage_save(srvc, unit, NULL, NULL, NULL);
 
 #if 0
+  /** @todo not yet used. It should be possible to prompt the user for
+      a message (ala the Sametime Connect client) when changing to one
+      of the default states, and that preference is here */
   f = gaim_request_fields_get_field(fields, "prompt");
   prompt = gaim_request_field_bool_get_value(f);
   gaim_account_set_bool(acct, MW_KEY_MSG_PROMPT, prompt);
@@ -3451,6 +3454,9 @@ static void status_msg_action(GaimPluginAction *act) {
   gaim_request_field_group_add_field(g, f);
 
 #if 0
+  /** @todo not yet used. It should be possible to prompt the user for
+      a message (ala the Sametime Connect client) when changing to one
+      of the default states, and that preference is here */
   prompt = gaim_account_get_bool(acct, MW_KEY_MSG_PROMPT, FALSE);
   f = gaim_request_field_bool_new("prompt",
 				  ("Prompt for message when changing"

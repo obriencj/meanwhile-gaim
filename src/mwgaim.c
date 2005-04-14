@@ -166,12 +166,13 @@
 #define DEBUG_WARN(a...)   gaim_debug_warning(G_LOG_DOMAIN, a)
 
 
+/** ensure non-null strings */
 #ifndef NSTR
 # define NSTR(str) ((str)? (str): "(null)")
 #endif
 
 
-/** hander IDs from g_log_set_handler in mw_plugin_init */
+/** handler IDs from g_log_set_handler in mw_plugin_init */
 static guint log_handler[2] = { 0, 0 };
 
 
@@ -873,7 +874,6 @@ static void conversation_created_cb(GaimConversation *g_conv,
 static void session_started(struct mwGaimPluginData *pd) {
   GaimConnection *gc;
   GaimAccount *acct;
-  struct mwServiceStorage *srvc;
   struct mwStorageUnit *unit;
   GaimBuddyList *blist;
   GaimBlistNode *l;
@@ -887,19 +887,18 @@ static void session_started(struct mwGaimPluginData *pd) {
   acct = gaim_connection_get_account(gc);
 
   /* grab the buddy list from the server */
-  srvc = pd->srvc_store;
   unit = mwStorageUnit_new(mwStore_AWARE_LIST);
-  mwServiceStorage_load(srvc, unit, fetch_blist_cb, pd, NULL); 
+  mwServiceStorage_load(pd->srvc_store, unit, fetch_blist_cb, pd, NULL); 
   
   /* fetch the away/busy/active messages from the server */
   unit = mwStorageUnit_new(mwStore_AWAY_MESSAGES);
-  mwServiceStorage_load(srvc, unit, fetch_msg_cb, pd, NULL);
+  mwServiceStorage_load(pd->srvc_store, unit, fetch_msg_cb, pd, NULL);
 
   unit = mwStorageUnit_new(mwStore_BUSY_MESSAGES);
-  mwServiceStorage_load(srvc, unit, fetch_msg_cb, pd, NULL);
+  mwServiceStorage_load(pd->srvc_store, unit, fetch_msg_cb, pd, NULL);
 
   unit = mwStorageUnit_new(mwStore_ACTIVE_MESSAGES);
-  mwServiceStorage_load(srvc, unit, fetch_msg_cb, pd, NULL);
+  mwServiceStorage_load(pd->srvc_store, unit, fetch_msg_cb, pd, NULL);
 
   /* start watching conversations */
   gaim_signal_connect(gaim_conversations_get_handle(),
@@ -925,6 +924,15 @@ static void session_started(struct mwGaimPluginData *pd) {
     if(gt == mwSametimeGroup_DYNAMIC)
       group_add(pd, group);
   }
+
+  /* set the aware attributes */
+  mwServiceAware_setAttributeBoolean(pd->srvc_aware,
+				     mwAttribute_AV_PREFS_SET, TRUE);
+  mwServiceAware_deleteAttribute(pd->srvc_aware, mwAttribute_MICROPHONE);
+  mwServiceAware_deleteAttribute(pd->srvc_aware, mwAttribute_SPEAKERS);
+  mwServiceAware_deleteAttribute(pd->srvc_aware, mwAttribute_VIDEO_CAMERA);
+  mwServiceAware_setAttributeBoolean(pd->srvc_aware,
+				     mwAttribute_FILE_TRANSFER, TRUE);
 }
 
 
@@ -1482,6 +1490,15 @@ static void mw_ft_offered(struct mwFileTransfer *ft) {
     - create a gaim ft object
     - offer it
   */
+
+  DEBUG_INFO("file transfer %p offered\n", ft);
+  DEBUG_INFO(" from: %s\n", mwFileTransfer_getUser(ft)->user);
+  DEBUG_INFO(" file: %s\n", mwFileTransfer_getFileName(ft));
+  DEBUG_INFO(" size: %u\n", mwFileTransfer_getFileSize(ft));
+  DEBUG_INFO(" text: %s\n", mwFileTransfer_getMessage(ft));
+
+  mwFileTransfer_reject(ft);
+  mwFileTransfer_free(ft);
 }
 
 

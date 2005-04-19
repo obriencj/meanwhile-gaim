@@ -1,9 +1,16 @@
 
 version 1.2.1 (cvs)
-	
+
 	- building against meanwhile 0.4.1
 
-	- support for Notes Address Book groups
+	- fix #1185763 gaim-meanwhile 1.2.0 not showing Notesbuddy
+	messages
+	
+	- fix #1168421 crash when opening specific contacts
+
+	- differentiate between read-callback disconnect codes
+	
+	- support for adding, loading, saving Notes Address Book groups
 	
 	- quiet down error messages when the other end of a conversation
 	logs off. Only display when there are still unsent messages in the

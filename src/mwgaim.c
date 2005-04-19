@@ -868,22 +868,16 @@ static void conversation_created_cb(GaimConversation *g_conv,
 }
 
 
-/** called from mw_session_stateChange when the session's state is
-    mwSession_STARTED. Any finalizing of start-up stuff should go
-    here */
-static void session_started(struct mwGaimPluginData *pd) {
+/** Last thing to happen from a started session */
+static void services_starting(struct mwGaimPluginData *pd) {
+
   GaimConnection *gc;
   GaimAccount *acct;
   struct mwStorageUnit *unit;
   GaimBuddyList *blist;
   GaimBlistNode *l;
-  
-  /* finish logging in */
-  gc = pd->gc;
-  gaim_connection_set_state(gc, GAIM_CONNECTED);
-  serv_finish_login(gc);
-  serv_set_away(gc, MW_STATE_ACTIVE, NULL);
 
+  gc = pd->gc;
   acct = gaim_connection_get_account(gc);
 
   /* grab the buddy list from the server */
@@ -900,7 +894,7 @@ static void session_started(struct mwGaimPluginData *pd) {
   unit = mwStorageUnit_new(mwStore_ACTIVE_MESSAGES);
   mwServiceStorage_load(pd->srvc_store, unit, fetch_msg_cb, pd, NULL);
 
-  /* start watching conversations */
+  /* start watching for new conversations */
   gaim_signal_connect(gaim_conversations_get_handle(),
 		      "conversation-created", gc,
 		      GAIM_CALLBACK(conversation_created_cb), pd);
@@ -933,6 +927,32 @@ static void session_started(struct mwGaimPluginData *pd) {
   mwServiceAware_deleteAttribute(pd->srvc_aware, mwAttribute_VIDEO_CAMERA);
   mwServiceAware_setAttributeBoolean(pd->srvc_aware,
 				     mwAttribute_FILE_TRANSFER, TRUE);
+
+  /* watch some aware attributes */
+  mwServiceAware_watchAttributes(pd->srvc_aware,
+				 mwAttribute_AV_PREFS_SET,
+				 mwAttribute_MICROPHONE,
+				 mwAttribute_SPEAKERS,
+				 mwAttribute_VIDEO_CAMERA,
+				 mwAttribute_FILE_TRANSFER,
+				 NULL);
+}
+
+
+/** called from mw_session_stateChange when the session's state is
+    mwSession_STARTED. Any finalizing of start-up stuff should go
+    here */
+static void session_started(struct mwGaimPluginData *pd) {
+  GaimConnection *gc;
+  
+  /* finish logging in */
+  gc = pd->gc;
+  gaim_connection_set_state(gc, GAIM_CONNECTED);
+  serv_finish_login(gc);
+  serv_set_away(gc, MW_STATE_ACTIVE, NULL);
+
+  /* use our services to do neat things, bla bla */
+  services_starting(pd);
 }
 
 
@@ -1845,12 +1865,15 @@ static void im_recv_text(struct mwConversation *conv,
 			 const char *msg) {
 
   struct mwIdBlock *idb;
-  char *esc;
+  char *txt, *esc;
 
   idb = mwConversation_getTarget(conv);
-  esc = gaim_escape_html(msg);
+  txt = gaim_utf8_try_convert(msg);
+  esc = gaim_escape_html(txt);
 
   serv_got_im(pd->gc, idb->user, esc, 0, time(NULL));
+
+  g_free(txt);
   g_free(esc);
 }
 
@@ -1872,9 +1895,14 @@ static void im_recv_html(struct mwConversation *conv,
 			 const char *msg) {
 
   struct mwIdBlock *idb;
-  idb = mwConversation_getTarget(conv);
+  char *txt;
 
-  serv_got_im(pd->gc, idb->user, msg, 0, time(NULL));
+  idb = mwConversation_getTarget(conv);
+  txt = gaim_utf8_try_convert(msg);
+  
+  serv_got_im(pd->gc, idb->user, txt, 0, time(NULL));
+
+  g_free(txt);
 }
 
 
@@ -1968,8 +1996,13 @@ static void im_recv_mime(struct mwConversation *conv,
       images = g_list_append(images, GINT_TO_POINTER(img));
       
     } else if(g_str_has_prefix(type, "text")) {
+
       /* concatenate all the text parts together */
-      g_string_append(str, gaim_mime_part_get_data(part));
+      char *txt;
+
+      txt = gaim_utf8_try_convert(gaim_mime_part_get_data(part));
+      g_string_append(str, txt);
+      g_free(txt);
     }
   }
 

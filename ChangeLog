@@ -6,6 +6,8 @@ version 1.2.1 (cvs)
 	- fix #1185763 gaim-meanwhile 1.2.0 not showing Notesbuddy
 	messages
 
+	- added context menu item for NAB groups
+	
 	- differentiate between read-callback disconnect codes
 	
 	- support for adding, loading, saving Notes Address Book groups

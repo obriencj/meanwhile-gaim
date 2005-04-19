@@ -5,8 +5,6 @@ version 1.2.1 (cvs)
 
 	- fix #1185763 gaim-meanwhile 1.2.0 not showing Notesbuddy
 	messages
-	
-	- fix #1168421 crash when opening specific contacts
 
 	- differentiate between read-callback disconnect codes
 	

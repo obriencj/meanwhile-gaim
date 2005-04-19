@@ -868,6 +868,63 @@ static void conversation_created_cb(GaimConversation *g_conv,
 }
 
 
+static void blist_menu_nab(GaimBlistNode *node, gpointer data) {
+  struct mwGaimPluginData *pd = data;
+  GaimConnection *gc;
+
+  GaimGroup *group = (GaimGroup *) node;
+
+  GString *str;
+  char *tmp;
+
+  g_return_if_fail(pd != NULL);
+
+  gc = pd->gc;
+  g_return_if_fail(gc != NULL);
+
+  g_return_if_fail(GAIM_BLIST_NODE_IS_GROUP(node));
+
+  str = g_string_new(NULL);
+
+  tmp = (char *) gaim_blist_node_get_string(node, GROUP_KEY_NAME);
+
+  g_string_append_printf(str, "<b>Group Title:</b> %s<br>", group->name);
+  g_string_append_printf(str, "<b>Notes Group ID:</b> %s<br>", tmp);
+
+  tmp = g_strdup_printf("Info for Group %s", group->name);
+
+  gaim_notify_formatted(gc, tmp, "Notes Address Book Information",
+			NULL, str->str, NULL, NULL);
+
+  g_free(tmp);
+  g_string_free(str, TRUE);
+}
+
+
+static void blist_node_menu_cb(GaimBlistNode *node,
+			       GList **menu, struct mwGaimPluginData *pd) {
+  GaimBlistNodeAction *act;
+
+  if(GAIM_BLIST_NODE_IS_GROUP(node)) { 
+    const char *owner;
+    GaimAccount *acct;
+    
+    owner = gaim_blist_node_get_string(node, GROUP_KEY_OWNER);
+    if(! owner) return;
+
+    acct = gaim_accounts_find(owner, PLUGIN_ID);
+    if(! acct) return;
+    if(! gaim_account_is_connected(acct)) return;
+
+    act = gaim_blist_node_action_new("Get Notes Address Book Info",
+				     blist_menu_nab, pd);
+
+    *menu = g_list_append(*menu, NULL);
+    *menu = g_list_append(*menu, act);
+  }
+}
+
+
 /** Last thing to happen from a started session */
 static void services_starting(struct mwGaimPluginData *pd) {
 
@@ -898,6 +955,11 @@ static void services_starting(struct mwGaimPluginData *pd) {
   gaim_signal_connect(gaim_conversations_get_handle(),
 		      "conversation-created", gc,
 		      GAIM_CALLBACK(conversation_created_cb), pd);
+
+  /* watch for extended menu items */
+  gaim_signal_connect(gaim_blist_get_handle(),
+		      "blist-node-extended-menu", gc,
+		      GAIM_CALLBACK(blist_node_menu_cb), pd);
 
   /* find all the NAB groups and subscribe to them */
   blist = gaim_get_blist();
@@ -2053,9 +2115,10 @@ static void im_recv_mime(struct mwConversation *conv,
 
   g_string_free(str, TRUE);
   
-  /* clean up the images */
+  /* clean up the cid table */
   g_hash_table_destroy(img_by_cid);
 
+  /* dereference all the imgages */
   while(images) {
     gaim_imgstore_unref(GPOINTER_TO_INT(images->data));
     images = g_list_delete_link(images, images);
@@ -2310,16 +2373,14 @@ static GList *mw_prpl_away_states(GaimConnection *gc) {
 
 
 static GList *mw_prpl_blist_node_menu(GaimBlistNode *node) {
+  GList *l = NULL;
+
   /** @todo blist menu options */
 
-  /* Buddy:
-     Invite to Conference
-     
-     Group:
-     Invite Group to Conference
-  */
+  /** note: this never gets called for a GaimGroup, have to use the
+      blist-node-extended-menu signal for that */
 
-  return NULL;
+  return l;
 }
 
 

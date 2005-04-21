@@ -918,6 +918,7 @@ static void blist_node_menu_cb(GaimBlistNode *node,
     acct = gaim_accounts_find(owner, PLUGIN_ID);
     if(! acct) return;
     if(! gaim_account_is_connected(acct)) return;
+    if(acct != gaim_connection_get_account(pd->gc)) return;
 
     act = gaim_blist_node_action_new("Get Notes Address Book Info",
 				     blist_menu_nab, pd);

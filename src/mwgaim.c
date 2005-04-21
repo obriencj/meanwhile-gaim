@@ -21,12 +21,14 @@
   USA.
 */
 
+#include <internal.h>
+
 #include <gaim.h>
 #include <accountopt.h>
 #include <conversation.h>
 #include <debug.h>
+#include <ft.h>
 #include <imgstore.h>
-#include <internal.h>
 #include <notify.h>
 #include <plugin.h>
 #include <prpl.h>
@@ -102,6 +104,7 @@
 
 /* enum mwSametimeUserType */
 #define BUDDY_KEY_TYPE    "meanwhile.type"
+
 
 /* key for the real group name for a meanwhile group */
 #define GROUP_KEY_NAME    "meanwhile.group"
@@ -984,13 +987,14 @@ static void services_starting(struct mwGaimPluginData *pd) {
   /* set the aware attributes */
   mwServiceAware_setAttributeBoolean(pd->srvc_aware,
 				     mwAttribute_AV_PREFS_SET, TRUE);
-  mwServiceAware_deleteAttribute(pd->srvc_aware, mwAttribute_MICROPHONE);
-  mwServiceAware_deleteAttribute(pd->srvc_aware, mwAttribute_SPEAKERS);
-  mwServiceAware_deleteAttribute(pd->srvc_aware, mwAttribute_VIDEO_CAMERA);
+  mwServiceAware_unsetAttribute(pd->srvc_aware, mwAttribute_MICROPHONE);
+  mwServiceAware_unsetAttribute(pd->srvc_aware, mwAttribute_SPEAKERS);
+  mwServiceAware_unsetAttribute(pd->srvc_aware, mwAttribute_VIDEO_CAMERA);
   mwServiceAware_setAttributeBoolean(pd->srvc_aware,
 				     mwAttribute_FILE_TRANSFER, TRUE);
 
   /* watch some aware attributes */
+  /*
   mwServiceAware_watchAttributes(pd->srvc_aware,
 				 mwAttribute_AV_PREFS_SET,
 				 mwAttribute_MICROPHONE,
@@ -998,6 +1002,7 @@ static void services_starting(struct mwGaimPluginData *pd) {
 				 mwAttribute_VIDEO_CAMERA,
 				 mwAttribute_FILE_TRANSFER,
 				 NULL);
+  */
 }
 
 
@@ -1597,6 +1602,14 @@ static void mw_ft_closed(struct mwFileTransfer *ft, guint32 code) {
     - get gaim ft from client data in ft
     - indicate rejection/cancelation/completion
   */
+
+  GaimXfer *xfer;
+
+  xfer = mwFileTransfer_getClientData(ft);
+  if(xfer) gaim_xfer_cancel_remote(xfer);
+  mwFileTransfer_removeClientData(ft);
+
+  mwFileTransfer_free(ft);
 }
 
 
@@ -3341,7 +3354,55 @@ static gboolean mw_prpl_can_receive_file(GaimConnection *gc,
       that the target user has the appropriate attribute according to
       the aware service */
 
-  return FALSE;
+  return TRUE;
+}
+
+
+static void ft_init(GaimXfer *xfer) {
+  GaimAccount *acct;
+  GaimConnection *gc;
+
+  struct mwGaimPluginData *pd;
+  struct mwServiceFileTransfer *srvc;
+  struct mwFileTransfer *ft;
+
+  const char *filename;
+  gsize filesize;
+  FILE *fp;
+
+  struct mwIdBlock idb = { NULL, NULL };
+
+  DEBUG_INFO("ft_init\n");
+
+  acct = gaim_xfer_get_account(xfer);
+  gc = gaim_account_get_connection(acct);
+  pd = gc->proto_data;
+  srvc = pd->srvc_ft;
+
+  filename = gaim_xfer_get_local_filename(xfer);
+
+  fp = g_fopen(filename, "rb");
+  if(! fp) {
+    char *msg = g_strdup_printf("Error reading %s: \n%s\n",
+				filename, strerror(errno));
+
+    gaim_xfer_error(gaim_xfer_get_type(xfer), xfer->who, msg);
+    g_free(msg);
+
+    return;
+  }
+
+  fclose(fp);
+  filesize = gaim_xfer_get_size(xfer);
+
+  idb.user = xfer->who;
+
+  ft = mwFileTransfer_new(srvc, &idb, NULL, filename, filesize);
+  gaim_xfer_ref(xfer);
+  mwFileTransfer_setClientData(ft, xfer, (GDestroyNotify) gaim_xfer_unref);
+  xfer->data = ft;
+
+  mwFileTransfer_offer(ft);
 }
 
 
@@ -3350,7 +3411,25 @@ static void mw_prpl_send_file(GaimConnection *gc,
 
   /** @todo depends on the meanwhile implementation of the file
       transfer service */
-  ;
+
+  GaimAccount *acct;
+  GaimXfer *xfer;
+
+  DEBUG_INFO("mw_prpl_send_file\n");
+
+  acct = gaim_connection_get_account(gc);
+
+  xfer = gaim_xfer_new(acct, GAIM_XFER_SEND, who);
+  gaim_xfer_set_init_fnc(xfer, ft_init);
+
+  if(file) {
+    DEBUG_INFO("file != NULL\n");
+    gaim_xfer_request_accepted(xfer, file);
+
+  } else {
+    DEBUG_INFO("file == NULL\n");
+    gaim_xfer_request(xfer);
+  }
 }
 
 

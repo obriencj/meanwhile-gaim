@@ -1572,19 +1572,80 @@ static struct mwServiceDirectory *mw_srvc_dir_new(struct mwSession *s) {
 #endif
 
 
+static void ft_incoming_cancel(GaimXfer *xfer) {
+  /* incoming transfer rejected or canceled in-progress */
+  struct mwFileTransfer *ft = xfer->data;
+  if(ft) mwFileTransfer_reject(ft);
+}
+
+
+static void ft_incoming_init(GaimXfer *xfer) {
+  /* incoming transfer accepted */
+  
+  /* accept the mwFileTransfer
+     open/create the local FILE "wb"
+     stick the FILE's fp in xfer->dest_fp
+  */
+
+  struct mwFileTransfer *ft;
+  FILE *fp;
+
+  ft = xfer->data;
+
+  fp = g_fopen(xfer->local_filename, "wb");
+  if(! fp) {
+    mwFileTransfer_cancel(ft);
+    return;
+  }
+
+  xfer->dest_fp = fp;
+  mwFileTransfer_accept(ft);
+}
+
+
 static void mw_ft_offered(struct mwFileTransfer *ft) {
   /*
     - create a gaim ft object
     - offer it
   */
 
+  struct mwServiceFileTransfer *srvc;
+  struct mwSession *session;
+  struct mwGaimPluginData *pd;
+  GaimConnection *gc;
+  GaimAccount *acct;
+  const char *who;
+  GaimXfer *xfer;
+
+  /* @todo add some safety checks */
+  srvc = mwFileTransfer_getService(ft);
+  session = mwService_getSession(MW_SERVICE(srvc));
+  pd = mwSession_getClientData(session);
+  gc = pd->gc;
+  acct = gaim_connection_get_account(gc);
+
+  who = mwFileTransfer_getUser(ft)->user;
+
   DEBUG_INFO("file transfer %p offered\n", ft);
-  DEBUG_INFO(" from: %s\n", mwFileTransfer_getUser(ft)->user);
+  DEBUG_INFO(" from: %s\n", who);
   DEBUG_INFO(" file: %s\n", mwFileTransfer_getFileName(ft));
   DEBUG_INFO(" size: %u\n", mwFileTransfer_getFileSize(ft));
   DEBUG_INFO(" text: %s\n", mwFileTransfer_getMessage(ft));
 
-  mwFileTransfer_reject(ft);
+  xfer = gaim_xfer_new(acct, GAIM_XFER_RECEIVE, who);
+
+  gaim_xfer_ref(xfer);
+  mwFileTransfer_setClientData(ft, xfer, (GDestroyNotify) gaim_xfer_unref);
+  xfer->data = ft;
+
+  gaim_xfer_set_init_fnc(xfer, ft_incoming_init);
+  gaim_xfer_set_cancel_recv_fnc(xfer, ft_incoming_cancel);
+
+  gaim_xfer_set_filename(xfer, mwFileTransfer_getFileName(ft));
+  gaim_xfer_set_size(xfer, mwFileTransfer_getFileSize(ft));
+  gaim_xfer_set_message(xfer, mwFileTransfer_getMessage(ft));
+
+  gaim_xfer_request(xfer);
 }
 
 
@@ -1597,9 +1658,12 @@ static void mw_ft_opened(struct mwFileTransfer *ft) {
   GaimXfer *xfer;
 
   xfer = mwFileTransfer_getClientData(ft);
-  if(xfer) gaim_xfer_cancel_local(xfer);
+  if(xfer) gaim_xfer_update_progress(xfer);
 
+  /* 
+  if(xfer) gaim_xfer_cancel_local(xfer);
   mwFileTransfer_cancel(ft);
+  */
 }
 
 
@@ -1612,13 +1676,25 @@ static void mw_ft_closed(struct mwFileTransfer *ft, guint32 code) {
 
   GaimXfer *xfer;
 
+  DEBUG_INFO("mw_ft_closed 0x%x\n", code);
+
   xfer = mwFileTransfer_getClientData(ft);
+
   if(xfer) {
-    if(code) {
-      gaim_xfer_cancel_remote(xfer);
-    } else {
+    gaim_xfer_ref(xfer);
+    mwFileTransfer_removeClientData(ft);
+
+    if(mwFileTransfer_isDone(ft)) {
       gaim_xfer_end(xfer);
+
+    } else if(mwFileTransfer_isState(ft, mwFileTransfer_CANCEL_LOCAL)) {
+      ; /* gaim_xfer_cancel_local(xfer); */
+
+    } else if(mwFileTransfer_isState(ft, mwFileTransfer_CANCEL_REMOTE)) {
+      gaim_xfer_cancel_remote(xfer);
     }
+
+    gaim_xfer_unref(xfer);
   }
 
   mwFileTransfer_free(ft);
@@ -1632,6 +1708,26 @@ static void mw_ft_recv(struct mwFileTransfer *ft,
     - update transfered percentage
     - if done, destroy the ft, disassociate from gaim ft
   */
+
+  GaimXfer *xfer;
+  FILE *fp;
+
+  DEBUG_INFO("mw_ft_recv\n");
+
+  xfer = mwFileTransfer_getClientData(ft);
+  if(! xfer) return;
+
+  fp = xfer->dest_fp;
+  if(! fp) return;
+
+  fwrite(data->data, 1, data->len, fp);
+
+  xfer->bytes_sent += data->len;
+  xfer->bytes_remaining -= data->len;
+  
+  gaim_xfer_update_progress(xfer);
+
+  if(done) gaim_xfer_set_completed(xfer, TRUE);
 }
 
 
@@ -3370,7 +3466,7 @@ static gboolean mw_prpl_can_receive_file(GaimConnection *gc,
 }
 
 
-static void ft_init(GaimXfer *xfer) {
+static void ft_outgoing_init(GaimXfer *xfer) {
   GaimAccount *acct;
   GaimConnection *gc;
 
@@ -3410,6 +3506,7 @@ static void ft_init(GaimXfer *xfer) {
   idb.user = xfer->who;
 
   ft = mwFileTransfer_new(srvc, &idb, NULL, filename, filesize);
+
   gaim_xfer_ref(xfer);
   mwFileTransfer_setClientData(ft, xfer, (GDestroyNotify) gaim_xfer_unref);
   xfer->data = ft;
@@ -3432,7 +3529,7 @@ static void mw_prpl_send_file(GaimConnection *gc,
   acct = gaim_connection_get_account(gc);
 
   xfer = gaim_xfer_new(acct, GAIM_XFER_SEND, who);
-  gaim_xfer_set_init_fnc(xfer, ft_init);
+  gaim_xfer_set_init_fnc(xfer, ft_outgoing_init);
 
   if(file) {
     DEBUG_INFO("file != NULL\n");

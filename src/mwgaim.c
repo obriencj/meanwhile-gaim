@@ -1585,7 +1585,6 @@ static void mw_ft_offered(struct mwFileTransfer *ft) {
   DEBUG_INFO(" text: %s\n", mwFileTransfer_getMessage(ft));
 
   mwFileTransfer_reject(ft);
-  mwFileTransfer_free(ft);
 }
 
 
@@ -1594,6 +1593,13 @@ static void mw_ft_opened(struct mwFileTransfer *ft) {
     - get gaim ft from client data in ft
     - set the state to active
   */
+
+  GaimXfer *xfer;
+
+  xfer = mwFileTransfer_getClientData(ft);
+  if(xfer) gaim_xfer_cancel_local(xfer);
+
+  mwFileTransfer_cancel(ft);
 }
 
 
@@ -1601,13 +1607,19 @@ static void mw_ft_closed(struct mwFileTransfer *ft, guint32 code) {
   /*
     - get gaim ft from client data in ft
     - indicate rejection/cancelation/completion
+    - free the file transfer itself
   */
 
   GaimXfer *xfer;
 
   xfer = mwFileTransfer_getClientData(ft);
-  if(xfer) gaim_xfer_cancel_remote(xfer);
-  mwFileTransfer_removeClientData(ft);
+  if(xfer) {
+    if(code) {
+      gaim_xfer_cancel_remote(xfer);
+    } else {
+      gaim_xfer_end(xfer);
+    }
+  }
 
   mwFileTransfer_free(ft);
 }

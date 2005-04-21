@@ -3072,12 +3072,14 @@ static void add_buddy_resolved(struct mwServiceResolve *srvc,
     /* compose and display an error message */
     char *msgA, *msgB;
 
+    DEBUG_INFO("res->name = '%s'", res->name);
+
     msgA = "Unable to add user: user not found";
 
     msgB = ("The identifier '%s' did not match any users in your"
 	   " Sametime community. This entry has been removed from"
 	   " your buddy list.");
-    msgB = g_strdup_printf(msgB, res->name);
+    msgB = g_strdup_printf(msgB, NSTR(res->name));
 
     gaim_notify_error(gc, "Unable to add user", msgA, msgB);
 

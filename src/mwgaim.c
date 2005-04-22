@@ -2527,9 +2527,11 @@ static GHashTable *mw_prpl_chat_info_defaults(GaimConnection *gc,
   
   DEBUG_INFO("mw_prpl_chat_info_defaults for %s\n", NSTR(name));
 
-  table = g_hash_table_new(g_str_hash, g_str_equal);
-  g_hash_table_insert(table, CHAT_KEY_NAME, name);
-  g_hash_table_insert(table, CHAT_KEY_INVITE, "");
+  table = g_hash_table_new_full(g_str_hash, g_str_equal,
+				NULL, g_free);
+
+  g_hash_table_insert(table, CHAT_KEY_NAME, g_strdup(name));
+  g_hash_table_insert(table, CHAT_KEY_INVITE, NULL);
 
   return table;
 }

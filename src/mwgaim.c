@@ -3031,35 +3031,34 @@ static void add_buddy_resolved(struct mwServiceResolve *srvc,
   gc = gaim_account_get_connection(buddy->account);
   pd = gc->proto_data;
 
-  if(!code && results) {
+  if(results)
     res = results->data;
 
-    if(res->matches) {
-      if(g_list_length(res->matches) == 1) {
-	struct mwResolveMatch *match = res->matches->data;
-
-	DEBUG_INFO("searched for %s, got only %s\n",
-		   NSTR(res->name), NSTR(match->id));
-
-	/* only one? that might be the right one! */
-	if(strcmp(res->name, match->id)) {
-	  /* uh oh, the single result isn't identical to the search
-	     term, better safe then sorry, so let's make sure it's who
-	     the user meant to add */
-	  multi_resolved_query(res, buddy);
-
-	} else {
-	  /* same person, add 'em */
-	  add_resolved_done(match->id, match->name, buddy);
-	}
-
-      } else {
-	/* prompt user if more than one match was returned */
+  if(!code && res && res->matches) {
+    if(g_list_length(res->matches) == 1) {
+      struct mwResolveMatch *match = res->matches->data;
+      
+      DEBUG_INFO("searched for %s, got only %s\n",
+		 NSTR(res->name), NSTR(match->id));
+      
+      /* only one? that might be the right one! */
+      if(strcmp(res->name, match->id)) {
+	/* uh oh, the single result isn't identical to the search
+	   term, better safe then sorry, so let's make sure it's who
+	   the user meant to add */
 	multi_resolved_query(res, buddy);
+	
+      } else {
+	/* same person, add 'em */
+	add_resolved_done(match->id, match->name, buddy);
       }
-
-      return;
+      
+    } else {
+      /* prompt user if more than one match was returned */
+      multi_resolved_query(res, buddy);
     }
+    
+    return;
   }
 
   /* fall-through indicates that we couldn't find a matching user in

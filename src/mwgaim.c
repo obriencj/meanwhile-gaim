@@ -3021,7 +3021,7 @@ static void add_buddy_resolved(struct mwServiceResolve *srvc,
 			       guint32 id, guint32 code, GList *results,
 			       gpointer b) {
 
-  struct mwResolveResult *res;
+  struct mwResolveResult *res = NULL;
   GaimBuddy *buddy = b;
   GaimConnection *gc;
   struct mwGaimPluginData *pd;
@@ -3068,11 +3068,9 @@ static void add_buddy_resolved(struct mwServiceResolve *srvc,
   gaim_blist_remove_buddy(buddy);
   blist_schedule(pd);
 
-  if(res->name) {
+  if(res && res->name) {
     /* compose and display an error message */
     char *msgA, *msgB;
-
-    DEBUG_INFO("res->name = '%s'", res->name);
 
     msgA = "Unable to add user: user not found";
 

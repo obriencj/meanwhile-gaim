@@ -1682,20 +1682,26 @@ static void mw_ft_closed(struct mwFileTransfer *ft, guint32 code) {
   xfer = mwFileTransfer_getClientData(ft);
 
   if(xfer) {
-    gaim_xfer_ref(xfer);
-    mwFileTransfer_removeClientData(ft);
-
     if(mwFileTransfer_isDone(ft)) {
+      DEBUG_INFO(" gaim_xfer_end\n");
       gaim_xfer_end(xfer);
 
-    } else if(mwFileTransfer_isState(ft, mwFileTransfer_CANCEL_LOCAL)) {
-      ; /* gaim_xfer_cancel_local(xfer); */
+    } else if(mwFileTransfer_isCancelLocal(ft)) {
+      /* calling gaim_xfer_cancel_local is redundant, since that's
+	 probably what triggered this function to be called */
+      ;
 
-    } else if(mwFileTransfer_isState(ft, mwFileTransfer_CANCEL_REMOTE)) {
+    } else if(mwFileTransfer_isCancelRemote(ft)) {
+      DEBUG_INFO(" gaim_xfer_cancel_remote\n");
+
+      /* steal the reference for the xfer */
+      mwFileTransfer_setClientData(ft, NULL, NULL);
       gaim_xfer_cancel_remote(xfer);
-    }
 
-    gaim_xfer_unref(xfer);
+      /* drop the stolen reference */
+      gaim_xfer_unref(xfer);
+      return;
+    }
   }
 
   mwFileTransfer_free(ft);
@@ -1703,7 +1709,7 @@ static void mw_ft_closed(struct mwFileTransfer *ft, guint32 code) {
 
 
 static void mw_ft_recv(struct mwFileTransfer *ft,
-		       struct mwOpaque *data, gboolean done) {
+		       struct mwOpaque *data) {
   /*
     - get gaim ft from client data in ft
     - update transfered percentage
@@ -1713,13 +1719,11 @@ static void mw_ft_recv(struct mwFileTransfer *ft,
   GaimXfer *xfer;
   FILE *fp;
 
-  DEBUG_INFO("mw_ft_recv\n");
-
   xfer = mwFileTransfer_getClientData(ft);
-  if(! xfer) return;
+  g_return_if_fail(xfer != NULL);
 
   fp = xfer->dest_fp;
-  if(! fp) return;
+  g_return_if_fail(fp != NULL);
 
   fwrite(data->data, 1, data->len, fp);
 
@@ -1728,7 +1732,14 @@ static void mw_ft_recv(struct mwFileTransfer *ft,
   
   gaim_xfer_update_progress(xfer);
 
-  if(done) gaim_xfer_set_completed(xfer, TRUE);
+  if(mwFileTransfer_isDone(ft))
+    gaim_xfer_set_completed(xfer, TRUE);
+}
+
+
+static void mw_ft_ack(struct mwFileTransfer *ft) {
+  /* @todo schedule an idle to send the next file chunk */
+  ;
 }
 
 
@@ -1742,6 +1753,7 @@ static struct mwFileTransferHandler mw_ft_handler = {
   .ft_opened = mw_ft_opened,
   .ft_closed = mw_ft_closed,
   .ft_recv = mw_ft_recv,
+  .ft_ack = mw_ft_ack,
   .clear = mw_ft_clear,
 };
 
@@ -2762,7 +2774,7 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
   /* @todo emit a signal to allow a plugin to override the display of
      this notification, so that it can create its own */
 
-  gaim_notify_formatted(gc, tmp, _("Buddy Information"), NULL,
+  gaim_notify_userinfo(gc, tmp, _("Buddy Information"), NULL, NULL,
 			str->str, NULL, NULL);
 
   g_free((char *) tmp);

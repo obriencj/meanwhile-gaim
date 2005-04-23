@@ -2708,8 +2708,10 @@ static int mw_prpl_send_typing(GaimConnection *gc, const char *name,
   if(mwConversation_isOpen(conv))
     return ! mwConversation_send(conv, mwImSend_TYPING, t);
 
-  /* don't bother opening a conversation just to send the typing
-     notification. */
+  convo_queue(conv, mwImSend_TYPING, t);
+
+  if(! mwConversation_isPending(conv))
+    mwConversation_open(conv);
 
   return 1;
 }
@@ -2785,7 +2787,6 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
 static void mw_prpl_set_away(GaimConnection *gc,
 			     const char *state,
 			     const char *message) {
-
   GaimAccount *acct;
   struct mwSession *session;
   struct mwUserStatus stat;
@@ -2887,7 +2888,6 @@ static void mw_prpl_set_idle(GaimConnection *gc, int time) {
 
 static void add_resolved_done(const char *id, const char *name,
 			      GaimBuddy *buddy) {
-
   GaimAccount *acct;
   GaimConnection *gc;
   struct mwGaimPluginData *pd;
@@ -2935,7 +2935,6 @@ static void multi_resolved_cleanup(GaimRequestFields *fields) {
 
 static void multi_resolved_cancel(GaimBuddy *buddy,
 				  GaimRequestFields *fields) {
-
   GaimConnection *gc;
   struct mwGaimPluginData *pd;
 
@@ -2951,7 +2950,6 @@ static void multi_resolved_cancel(GaimBuddy *buddy,
 
 static void multi_resolved_cb(GaimBuddy *buddy,
 			      GaimRequestFields *fields) {
-
   GaimRequestField *f;
   const GList *l;
 
@@ -2975,7 +2973,6 @@ static void multi_resolved_cb(GaimBuddy *buddy,
 
 static void multi_resolved_query(struct mwResolveResult *result,
 				 GaimBuddy *buddy) {
-
   GaimRequestFields *fields;
   GaimRequestFieldGroup *g;
   GaimRequestField *f;
@@ -3126,6 +3123,15 @@ static void mw_prpl_add_buddy(GaimConnection *gc,
 }
 
 
+static void foreach_add_buddies(GaimGroup *group, GList *buddies,
+				struct mwGaimPluginData *pd) {
+
+  struct mwAwareList *list = list_ensure(pd, group);
+  mwAwareList_addAware(list, buddies);
+  g_list_free(buddies);
+}
+
+
 static void mw_prpl_add_buddies(GaimConnection *gc,
 				GList *buddies,
 				GList *groups) {
@@ -3133,29 +3139,50 @@ static void mw_prpl_add_buddies(GaimConnection *gc,
   /** @todo make this use a single call to each mwAwareList */
 
   struct mwGaimPluginData *pd;
-  pd = gc->proto_data;
+  GHashTable *group_sets;
+  struct mwAwareIdBlock *idbs, *idb;
 
   DEBUG_INFO("mw_prpl_add_buddies\n");
 
-  /* we don't bother performing the resolve check, because this
-     function is used to populate the list automatically, and for
-     moving groups around */
+  pd = gc->proto_data;
 
-  while(buddies) {
+  /* map GaimGroup:GList of mwAwareIdBlock */
+  group_sets = g_hash_table_new(g_direct_hash, g_direct_equal);
+
+  /* bunch of mwAwareIdBlock allocated at once, free'd at once */
+  idb = idbs = g_new(struct mwAwareIdBlock, g_list_length(buddies));
+
+  /* first pass collects mwAwareIdBlock lists for each group */
+  for(; buddies; buddies = buddies->next) {
     GaimBuddy *b = buddies->data;
+    GaimGroup *g;
     const char *fn;
+    GList *l;
 
     /* nab the saved server alias and stick it on the buddy */
     fn = gaim_blist_node_get_string((GaimBlistNode *) b, BUDDY_KEY_NAME);
     gaim_blist_server_alias_buddy(b, fn);
 
-    buddy_add(pd, b);
+    /* convert GaimBuddy into a mwAwareIdBlock */
+    idb->type = mwAware_USER;
+    idb->user = (char *) b->name;
+    idb->community = NULL;
 
-    buddies = buddies->next;
-    groups = groups->next;
+    /* put idb into the list associated with the buddy's group */
+    g = gaim_find_buddys_group(b);
+    l = g_hash_table_lookup(group_sets, g);
+    l = g_list_prepend(l, idb++);
+    g_hash_table_insert(group_sets, g, l);
   }
 
+  /* each group's buddies get added in one shot, and schedule the blist
+     for saving */
+  g_hash_table_foreach(group_sets, (GHFunc) foreach_add_buddies, pd);
   blist_schedule(pd);
+
+  /* cleanup */
+  g_hash_table_destroy(group_sets);
+  g_free(idbs);
 }
 
 
@@ -3494,7 +3521,7 @@ static void ft_outgoing_init(GaimXfer *xfer) {
 
   struct mwIdBlock idb = { NULL, NULL };
 
-  DEBUG_INFO("ft_init\n");
+  DEBUG_INFO("ft_outgoing_init\n");
 
   acct = gaim_xfer_get_account(xfer);
   gc = gaim_account_get_connection(acct);

@@ -2473,7 +2473,7 @@ static const char *status_text(GaimBuddy *b) {
 static gboolean user_supports(struct mwServiceAware *srvc,
 			      const char *who, guint32 feature) {
 
-  struct mwAwareAttribute *attr;
+  const struct mwAwareAttribute *attr;
   struct mwAwareIdBlock idb = { mwAware_USER, (char *) who, NULL };
 
   attr = mwServiceAware_getAttribute(srvc, &idb, feature);
@@ -2523,7 +2523,7 @@ static char *mw_prpl_tooltip_text(GaimBuddy *b) {
     if(*feat) {
       tmp = g_strjoinv(", ", feat);
       g_string_append_printf(str, "\n<b>Supports</b>: %s", tmp);
-      g_free(tmp);
+      g_free((char *) tmp);
     }
   }
 

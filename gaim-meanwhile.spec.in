@@ -2,6 +2,7 @@ Summary: Meanwhile Gaim Plugin
 
 Name: @PACKAGE@
 Obsoletes: meanwhile-gaim
+Conflicts: gaim-meanwhile-static
 
 Epoch: 0
 Version: @VERSION@
@@ -50,6 +51,9 @@ Lotus Sametime Community Client library plugin for Gaim
 
 
 %changelog
+* Tue Apr 26 2005  <siege@preoccupied.net>
+- Added static package and the appropriate Conflicts entries
+
 * Tue Nov 09 2004  <siege@preoccupied.net>
 - Replaced GAIM_VER,_CAP with GAIM_MIN,_MAX
 - Added MEANWHILE_MIN,_MAX macros
@@ -73,4 +77,21 @@ Lotus Sametime Community Client library plugin for Gaim
 * Tue Apr 13 2004  <siege@preoccupied.net> 
 - Initial rpm build.
 
+
+
+%package static
+Conflicts: gaim-meanwhile
+Obsoletes: meanwhile-gaim
+Requires: gaim >= 1:@GAIM_MIN@, gaim < 1:@GAIM_MAX@
+BuildRequires: pkgconfig, libtool, glib2-devel, gaim-devel, meanwhile-devel
+
+
+%description static
+Lotus Sametime Community Client library plugin for Gaim.
+This package statically includes the required Meanwhile library.
+
+
+%build static
+%configure --enable-static
+%{__make} %{?_smp_flags}
 

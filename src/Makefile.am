@@ -21,8 +21,13 @@ libmwgaim_la_LDFLAGS = \
 	-module -avoid-version -no-undefined
 
 libmwgaim_la_LIBADD = \
-	$(GLIB_LIBS) \
-	$(GAIM_LIBS) $(MEANWHILE_LIBS)
+	$(GLIB_LIBS) $(GAIM_LIBS)
+
+if MEANWHILE_STATIC
+libmwgaim_la_LIBADD += $(MEANWHILE_LIBA)
+else
+libmwgaim_la_LIBADD += $(MEANWHILE_LIBS)
+endif
 
 AM_CPPFLAGS = \
 	-DG_LOG_DOMAIN=\"@PACKAGE@\" \

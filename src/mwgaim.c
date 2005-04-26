@@ -412,7 +412,7 @@ static void mw_aware_list_on_attrib(struct mwAwareList *list,
 				    struct mwAwareIdBlock *id,
 				    struct mwAwareAttribute *attrib) {
 
-  ; /** @todo handle user and group attributes */
+  DEBUG_INFO("mw_aware_list_on_attrib\n");
 }
 
 
@@ -443,6 +443,14 @@ list_ensure(struct mwGaimPluginData *pd, GaimGroup *group) {
     list = mwAwareList_new(pd->srvc_aware, &mw_aware_list_handler);
     mwAwareList_setClientData(list, pd->gc, NULL);
     
+    mwAwareList_watchAttributes(list,
+				mwAttribute_AV_PREFS_SET,
+				mwAttribute_MICROPHONE,
+				mwAttribute_SPEAKERS,
+				mwAttribute_VIDEO_CAMERA,
+				mwAttribute_FILE_TRANSFER,
+				NULL);
+
     g_hash_table_replace(pd->group_list_map, group, list);
     g_hash_table_insert(pd->group_list_map, list, group);
   }
@@ -996,13 +1004,6 @@ static void services_starting(struct mwGaimPluginData *pd) {
 
   /* watch some aware attributes */
   /*
-  mwServiceAware_watchAttributes(pd->srvc_aware,
-				 mwAttribute_AV_PREFS_SET,
-				 mwAttribute_MICROPHONE,
-				 mwAttribute_SPEAKERS,
-				 mwAttribute_VIDEO_CAMERA,
-				 mwAttribute_FILE_TRANSFER,
-				 NULL);
   */
 }
 
@@ -2469,6 +2470,17 @@ static const char *status_text(GaimBuddy *b) {
 }
 
 
+static gboolean user_supports(struct mwServiceAware *srvc,
+			      const char *who, guint32 feature) {
+
+  struct mwAwareAttribute *attr;
+  struct mwAwareIdBlock idb = { mwAware_USER, (char *) who, NULL };
+
+  attr = mwServiceAware_getAttribute(srvc, &idb, feature);
+  return (attr != NULL) && mwAwareAttribute_asBoolean(attr);
+}
+
+
 static char *mw_prpl_tooltip_text(GaimBuddy *b) {
   GaimConnection *gc;
   struct mwGaimPluginData *pd;
@@ -2487,6 +2499,33 @@ static char *mw_prpl_tooltip_text(GaimBuddy *b) {
 
   tmp = mwServiceAware_getText(pd->srvc_aware, &idb);
   if(tmp) g_string_append_printf(str, "\n<b>Message</b>: %s", tmp);
+
+  {
+    struct mwServiceAware *srvc = pd->srvc_aware;
+    char *feat[] = {NULL, NULL, NULL, NULL, NULL};
+    char **f = feat;
+
+    if(user_supports(srvc, b->name, mwAttribute_AV_PREFS_SET)) {
+      gboolean mic, speak, video;
+
+      mic = user_supports(srvc, b->name, mwAttribute_MICROPHONE);
+      speak = user_supports(srvc, b->name, mwAttribute_SPEAKERS);
+      video = user_supports(srvc, b->name, mwAttribute_VIDEO_CAMERA);
+
+      if(mic) *f++ = "Microphone";
+      if(speak) *f++ = "Speakers";
+      if(video) *f++ = "Video Camera";
+    }
+
+    if(user_supports(srvc, b->name, mwAttribute_FILE_TRANSFER))
+      *f++ = "File Transfer";
+
+    if(*feat) {
+      tmp = g_strjoinv(", ", feat);
+      g_string_append_printf(str, "\n<b>Supports</b>: %s", tmp);
+      g_free(tmp);
+    }
+  }
 
   tmp = str->str;
   g_string_free(str, FALSE);
@@ -3126,7 +3165,9 @@ static void mw_prpl_add_buddy(GaimConnection *gc,
 static void foreach_add_buddies(GaimGroup *group, GList *buddies,
 				struct mwGaimPluginData *pd) {
 
-  struct mwAwareList *list = list_ensure(pd, group);
+  struct mwAwareList *list;
+
+  list = list_ensure(pd, group);
   mwAwareList_addAware(list, buddies);
   g_list_free(buddies);
 }
@@ -3141,8 +3182,6 @@ static void mw_prpl_add_buddies(GaimConnection *gc,
   struct mwGaimPluginData *pd;
   GHashTable *group_sets;
   struct mwAwareIdBlock *idbs, *idb;
-
-  DEBUG_INFO("mw_prpl_add_buddies\n");
 
   pd = gc->proto_data;
 
@@ -3503,7 +3542,18 @@ static gboolean mw_prpl_can_receive_file(GaimConnection *gc,
       that the target user has the appropriate attribute according to
       the aware service */
 
-  return TRUE;
+  struct mwGaimPluginData *pd;
+  struct mwServiceAware *srvc;
+
+  g_return_val_if_fail(gc != NULL, FALSE);
+
+  pd = gc->proto_data;
+  g_return_val_if_fail(pd != NULL, FALSE);
+
+  srvc = pd->srvc_aware;
+  g_return_val_if_fail(srvc != NULL, FALSE);
+  
+  return user_supports(srvc, who, mwAttribute_FILE_TRANSFER);
 }
 
 

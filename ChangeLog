@@ -3,6 +3,10 @@ version 1.2.1 (cvs)
 
 	- building against meanwhile 0.4.1
 
+	- removed username split for Server. Server has been moved back to
+	an account setting. This should put logging back the way it was
+	pre-1.2.0
+	
 	- support for receiving files over the File Transfer service
 	
 	- added "Supports" section to tooltip text for buddies, displaying
@@ -44,6 +48,8 @@ version 1.2.0 (2005-03-18)
 
 	- building against gaim 1.2.0
 
+	- move Server option to username split
+	
 	- associate known client type identifier with buddies and display
 	in tooltip information
 

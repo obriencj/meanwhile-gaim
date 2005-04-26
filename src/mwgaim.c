@@ -22,8 +22,8 @@
 */
 
 #include <internal.h>
-
 #include <gaim.h>
+
 #include <accountopt.h>
 #include <conversation.h>
 #include <debug.h>
@@ -995,17 +995,16 @@ static void services_starting(struct mwGaimPluginData *pd) {
   }
 
   /* set the aware attributes */
+  /* indicate we understand what AV prefs are, but don't support any */
   mwServiceAware_setAttributeBoolean(pd->srvc_aware,
 				     mwAttribute_AV_PREFS_SET, TRUE);
   mwServiceAware_unsetAttribute(pd->srvc_aware, mwAttribute_MICROPHONE);
   mwServiceAware_unsetAttribute(pd->srvc_aware, mwAttribute_SPEAKERS);
   mwServiceAware_unsetAttribute(pd->srvc_aware, mwAttribute_VIDEO_CAMERA);
+
+  /* ... but we can do file transfers! */
   mwServiceAware_setAttributeBoolean(pd->srvc_aware,
 				     mwAttribute_FILE_TRANSFER, TRUE);
-
-  /* watch some aware attributes */
-  /*
-  */
 }
 
 
@@ -1013,15 +1012,12 @@ static void services_starting(struct mwGaimPluginData *pd) {
     mwSession_STARTED. Any finalizing of start-up stuff should go
     here */
 static void session_started(struct mwGaimPluginData *pd) {
-  GaimConnection *gc;
-  
-  /* finish logging in */
-  gc = pd->gc;
-  gaim_connection_set_state(gc, GAIM_CONNECTED);
-  serv_finish_login(gc);
-  serv_set_away(gc, MW_STATE_ACTIVE, NULL);
 
-  /* use our services to do neat things, bla bla */
+  /* announce our status */
+  /* in later versions of Gaim, this may need to be removed */
+  serv_set_away(pd->gc, MW_STATE_ACTIVE, NULL);
+
+  /* use our services to do neat things */
   services_starting(pd);
 }
 
@@ -1069,6 +1065,9 @@ static void mw_session_stateChange(struct mwSession *session,
   case mwSession_STARTED:
     msg = _("Connected to Sametime Community Server");
     gaim_connection_update_progress(gc, msg, 8, MW_CONNECT_STEPS);
+    gaim_connection_set_state(gc, GAIM_CONNECTED);
+    serv_finish_login(gc);
+
     session_started(pd);
     break;
 
@@ -2592,6 +2591,47 @@ static GHashTable *mw_prpl_chat_info_defaults(GaimConnection *gc,
 }
 
 
+static void mw_prpl_login(GaimAccount *acct);
+
+
+static void prompt_host_cancel_cb(GaimConnection *gc) {
+  gaim_connection_error(gc, "No Sametime Community Server specified");
+}
+
+
+static void prompt_host_ok_cb(GaimConnection *gc, const char *host) {
+  if(host && *host) {
+    GaimAccount *acct = gaim_connection_get_account(gc);
+    gaim_account_set_string(acct, MW_KEY_HOST, host);
+    mw_prpl_login(acct);
+
+  } else {
+    prompt_host_cancel_cb(gc);
+  }
+}
+
+
+static void prompt_host(GaimConnection *gc) {
+  GaimAccount *acct;
+  char *msg;
+  
+  acct = gaim_connection_get_account(gc);
+  msg = ("No host or IP address has been configured for the"
+	 " Meanwhile account %s. Please enter one below to"
+	 " continue logging in.");
+  msg = g_strdup_printf(msg, NSTR(gaim_account_get_username(acct)));
+  
+  gaim_request_input(gc, "Meanwhile Connection Setup",
+		     "No Sametime Community Server Specified", msg,
+		     MW_PLUGIN_DEFAULT_HOST, FALSE, FALSE, NULL,
+		     "Connect", G_CALLBACK(prompt_host_ok_cb),
+		     "Cancel", G_CALLBACK(prompt_host_cancel_cb),
+		     gc);
+
+  g_free(msg);
+}
+
+
 static void mw_prpl_login(GaimAccount *account) {
   GaimConnection *gc;
   struct mwGaimPluginData *pd;
@@ -2609,9 +2649,22 @@ static void mw_prpl_login(GaimAccount *account) {
   pass = (char *) gaim_account_get_password(account);
 
 #if 1
-  /* the new way to obtain the host string from an account split. I'm
-     not sure if I like this better than making server an account
-     option or not. We shall see */
+  host = strrchr(user, ':');
+  if(host) {
+    /* annoying user split from 1.2.0, need to undo it */
+    *host++ = '\0';
+    gaim_account_set_string(account, MW_KEY_HOST, host);
+    gaim_account_set_username(account, user);
+    
+  } else {
+    host = gaim_account_get_string(account, MW_KEY_HOST,
+				   MW_PLUGIN_DEFAULT_HOST);
+  }
+
+#else
+  /* the 1.2.0 way to obtain the host string from an account split.  I
+     didn't like this, it didn't solve a problem, but it created a
+     few. The above code undoes it. */
   host = strrchr(user, ':');
   if(host) *host++ = '\0';
 
@@ -2634,11 +2687,12 @@ static void mw_prpl_login(GaimAccount *account) {
   /* de-uglify */
   if(! gaim_account_get_alias(account))
     gaim_account_set_alias(account, user);
-
-#else
-  /* the old way to obtain the host string */
-  host = gaim_account_get_string(account, "server", MW_PLUGIN_DEFAULT_HOST);
 #endif
+
+  if(! host || ! *host) {
+    prompt_host(gc);
+    return;
+  }
 
   port = gaim_account_get_int(account, MW_KEY_PORT, MW_PLUGIN_DEFAULT_PORT);
 
@@ -4260,24 +4314,22 @@ static void mw_log_handler(const gchar *domain, GLogLevelFlags flags,
 
 
 static void mw_plugin_init(GaimPlugin *plugin) {
-  GaimAccountUserSplit *split;
   GaimAccountOption *opt;
   GList *l = NULL;
 
   GLogLevelFlags logflags =
     G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION;
 
-  /* set up account ID as user:server */
-  split = gaim_account_user_split_new(_("Server"),
-				      MW_PLUGIN_DEFAULT_HOST, ':');
-  l = g_list_append(l, split);
-  mw_prpl_info.user_splits = l;
-  l = NULL;
+  /* host to connect to */
+  opt = gaim_account_option_string_new("Server", MW_KEY_HOST,
+				       MW_PLUGIN_DEFAULT_HOST);
+  l = g_list_append(l, opt);
 
-  /* hide the port in options though, since it's very rare to change */
+  /* port to connect to */
   opt = gaim_account_option_int_new("Port", MW_KEY_PORT,
 				    MW_PLUGIN_DEFAULT_PORT);
   l = g_list_append(l, opt);
+
   mw_prpl_info.protocol_options = l;
   l = NULL;
 

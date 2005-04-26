@@ -3,6 +3,11 @@ version 1.2.1 (cvs)
 
 	- building against meanwhile 0.4.1
 
+	- support for receiving files over the File Transfer service
+	
+	- added "Supports" section to tooltip text for buddies, displaying
+	A/V and File Transfer capabilities
+	
 	- fix #1185763 gaim-meanwhile 1.2.0 not showing Notesbuddy
 	messages
 

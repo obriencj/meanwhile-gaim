@@ -390,18 +390,19 @@ static void mw_aware_list_on_aware(struct mwAwareList *list,
     acct = gaim_connection_get_account(gc);
     group = g_hash_table_lookup(pd->group_list_map, list);
     buddy = gaim_find_buddy_in_group(acct, id, group);
+    bnode = (GaimBlistNode *) buddy;
 
     if(! buddy) {
       buddy = gaim_buddy_new(acct, id, NULL);
       gaim_blist_add_buddy(buddy, NULL, group, NULL);
-    }
 
-    bnode = (GaimBlistNode *) buddy;
+      bnode = (GaimBlistNode *) buddy;
+      bnode->flags |= GAIM_BLIST_NODE_FLAG_NO_SAVE;
+    }
 
     gaim_blist_server_alias_buddy(buddy, name);
     gaim_blist_node_set_string(bnode, BUDDY_KEY_NAME, name);
     gaim_blist_node_set_int(bnode, BUDDY_KEY_TYPE, type);
-    bnode->flags |= GAIM_BLIST_NODE_FLAG_NO_SAVE;
   }
   
   serv_got_update(gc, id, aware->online, 0, 0, idle, stat);
@@ -2481,6 +2482,30 @@ static gboolean user_supports(struct mwServiceAware *srvc,
 }
 
 
+char *user_supports_text(struct mwServiceAware *srvc, const char *who) {
+    char *feat[] = {NULL, NULL, NULL, NULL, NULL};
+    char **f = feat;
+
+    if(user_supports(srvc, who, mwAttribute_AV_PREFS_SET)) {
+      gboolean mic, speak, video;
+
+      mic = user_supports(srvc, who, mwAttribute_MICROPHONE);
+      speak = user_supports(srvc, who, mwAttribute_SPEAKERS);
+      video = user_supports(srvc, who, mwAttribute_VIDEO_CAMERA);
+
+      if(mic) *f++ = "Microphone";
+      if(speak) *f++ = "Speakers";
+      if(video) *f++ = "Video Camera";
+    }
+
+    if(user_supports(srvc, who, mwAttribute_FILE_TRANSFER))
+      *f++ = "File Transfer";
+
+    return (*feat)? g_strjoinv(", ", feat): NULL;
+    /* jenni loves siege */
+}
+
+
 static char *mw_prpl_tooltip_text(GaimBuddy *b) {
   GaimConnection *gc;
   struct mwGaimPluginData *pd;
@@ -2500,31 +2525,10 @@ static char *mw_prpl_tooltip_text(GaimBuddy *b) {
   tmp = mwServiceAware_getText(pd->srvc_aware, &idb);
   if(tmp) g_string_append_printf(str, "\n<b>Message</b>: %s", tmp);
 
-  {
-    struct mwServiceAware *srvc = pd->srvc_aware;
-    char *feat[] = {NULL, NULL, NULL, NULL, NULL};
-    char **f = feat;
-
-    if(user_supports(srvc, b->name, mwAttribute_AV_PREFS_SET)) {
-      gboolean mic, speak, video;
-
-      mic = user_supports(srvc, b->name, mwAttribute_MICROPHONE);
-      speak = user_supports(srvc, b->name, mwAttribute_SPEAKERS);
-      video = user_supports(srvc, b->name, mwAttribute_VIDEO_CAMERA);
-
-      if(mic) *f++ = "Microphone";
-      if(speak) *f++ = "Speakers";
-      if(video) *f++ = "Video Camera";
-    }
-
-    if(user_supports(srvc, b->name, mwAttribute_FILE_TRANSFER))
-      *f++ = "File Transfer";
-
-    if(*feat) {
-      tmp = g_strjoinv(", ", feat);
-      g_string_append_printf(str, "\n<b>Supports</b>: %s", tmp);
-      g_free((char *) tmp);
-    }
+  tmp = user_supports_text(pd->srvc_aware, b->name);
+  if(tmp) {
+    g_string_append_printf(str, "\n<b>Supports</b>: %s", tmp);
+    g_free((char *) tmp);
   }
 
   tmp = str->str;
@@ -2801,6 +2805,12 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
     }
   }
 
+  tmp = user_supports_text(pd->srvc_aware, who);
+  if(tmp) {
+    g_string_append_printf(str, "<b>Supports:</b> %s<br>", tmp);
+    g_free((char *) tmp);
+  }
+
   tmp = status_text(b);
   g_string_append_printf(str, "<b>Status:</b> %s", tmp);
 
@@ -2808,17 +2818,13 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
 
   tmp = mwServiceAware_getText(pd->srvc_aware, &idb);
   g_string_append(str, tmp);
-  
-  tmp = (b->server_alias)? b->server_alias: b->name;
-  tmp = g_strdup_printf("Info for %s", tmp);
 
   /* @todo emit a signal to allow a plugin to override the display of
      this notification, so that it can create its own */
 
-  gaim_notify_userinfo(gc, tmp, _("Buddy Information"), NULL, NULL,
-			str->str, NULL, NULL);
+  gaim_notify_userinfo(gc, NULL, "Buddy Information",
+		       "Meanwhile User Status", NULL, str->str, NULL, NULL);
 
-  g_free((char *) tmp);
   g_string_free(str, TRUE);
 }
 

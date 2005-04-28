@@ -913,6 +913,9 @@ static void blist_menu_nab(GaimBlistNode *node, gpointer data) {
 }
 
 
+/** The normal blist menu prpl function doesn't get called for groups,
+    so we use the blist-node-extended-menu signal to trigger this
+    handler */
 static void blist_node_menu_cb(GaimBlistNode *node,
 			       GList **menu, struct mwGaimPluginData *pd) {
   GaimBlistNodeAction *act;
@@ -969,7 +972,7 @@ static void services_starting(struct mwGaimPluginData *pd) {
 		      "conversation-created", gc,
 		      GAIM_CALLBACK(conversation_created_cb), pd);
 
-  /* watch for extended menu items */
+  /* watch for group extended menu items */
   gaim_signal_connect(gaim_blist_get_handle(),
 		      "blist-node-extended-menu", gc,
 		      GAIM_CALLBACK(blist_node_menu_cb), pd);
@@ -1090,7 +1093,7 @@ static void mw_session_stateChange(struct mwSession *session,
 
 
 static void mw_session_setPrivacyInfo(struct mwSession *session) {
-  /** @todo implement privacy */
+  /** @todo implement privacy one of these days */
   DEBUG_INFO("privacy information set from server\n");
 }
 
@@ -1179,15 +1182,16 @@ static void read_cb(gpointer data, gint source,
   }
 
   if(! ret) {
-    DEBUG_INFO("connection dropped\n");
-    gaim_connection_error(pd->gc, "Connection lost");
+    DEBUG_INFO("connection reset\n");
+    gaim_connection_error(pd->gc, "Connection reset");
 
   } else if(ret < 0) {
-    char *errstr = strerror(err);
-    DEBUG_INFO("error in read callback: %s\n", NSTR(errstr));
-    g_free(errstr);
+    char *msg = strerror(err);
+    DEBUG_INFO("error in read callback: %s\n", msg);
 
-    gaim_connection_error(pd->gc, "Error reading from socket");
+    msg = g_strdup_printf("Error reading from socket: %s", msg);
+    gaim_connection_error(pd->gc, msg);
+    g_free(msg);
   }
 }
 
@@ -2657,8 +2661,8 @@ static void mw_prpl_login(GaimAccount *account) {
     gaim_account_set_username(account, user);
     
   } else {
-    host = gaim_account_get_string(account, MW_KEY_HOST,
-				   MW_PLUGIN_DEFAULT_HOST);
+    host = (char *) gaim_account_get_string(account, MW_KEY_HOST,
+					    MW_PLUGIN_DEFAULT_HOST);
   }
 
 #else
@@ -3596,14 +3600,9 @@ static void mw_prpl_remove_group(GaimConnection *gc, GaimGroup *group) {
 
 static gboolean mw_prpl_can_receive_file(GaimConnection *gc,
 					 const char *who) {
-
-  /** @todo when meanwhile implements the file transfer service, we'll
-      need to check that the service was able to successfuly start and
-      that the target user has the appropriate attribute according to
-      the aware service */
-
   struct mwGaimPluginData *pd;
   struct mwServiceAware *srvc;
+  GaimAccount *acct;
 
   g_return_val_if_fail(gc != NULL, FALSE);
 
@@ -3613,7 +3612,11 @@ static gboolean mw_prpl_can_receive_file(GaimConnection *gc,
   srvc = pd->srvc_aware;
   g_return_val_if_fail(srvc != NULL, FALSE);
   
-  return user_supports(srvc, who, mwAttribute_FILE_TRANSFER);
+  acct = gaim_connection_get_account(gc);
+  g_return_val_if_fail(acct != NULL, FALSE);
+
+  return gaim_find_buddy(acct, who) &&
+    user_supports(srvc, who, mwAttribute_FILE_TRANSFER);
 }
 
 

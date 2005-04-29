@@ -2860,10 +2860,17 @@ static int mw_prpl_send_typing(GaimConnection *gc, const char *name,
   if(mwConversation_isOpen(conv))
     return ! mwConversation_send(conv, mwImSend_TYPING, t);
 
-  convo_queue(conv, mwImSend_TYPING, t);
+  if(typing) {
+    /* let's only open a channel for typing, not for not-typing.
+       Otherwise two users in psychic mode will continually open
+       conversations to each other, never able to get rid of them, as
+       when the other person closes, it psychicaly opens again */
 
-  if(! mwConversation_isPending(conv))
-    mwConversation_open(conv);
+    convo_queue(conv, mwImSend_TYPING, t);
+
+    if(! mwConversation_isPending(conv))
+      mwConversation_open(conv);
+  }
 
   return 1;
 }

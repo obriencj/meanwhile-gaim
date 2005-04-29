@@ -1777,11 +1777,16 @@ static void mw_ft_recv(struct mwFileTransfer *ft,
   fp = xfer->dest_fp;
   g_return_if_fail(fp != NULL);
 
+  /* we must collect and save our precious data */
   fwrite(data->data, 1, data->len, fp);
 
+  /* update the progress */
   xfer->bytes_sent += data->len;
   xfer->bytes_remaining -= data->len;
   gaim_xfer_update_progress(xfer);
+
+  /* let the other side know we got it, and to send some more */
+  mwFileTransfer_ack(ft);
 }
 
 

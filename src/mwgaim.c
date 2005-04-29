@@ -1644,6 +1644,7 @@ static void mw_ft_offered(struct mwFileTransfer *ft) {
 
   gaim_xfer_set_init_fnc(xfer, ft_incoming_init);
   gaim_xfer_set_cancel_recv_fnc(xfer, ft_incoming_cancel);
+  gaim_xfer_set_request_denied_fnc(xfer, ft_incoming_cancel);
 
   gaim_xfer_set_filename(xfer, mwFileTransfer_getFileName(ft));
   gaim_xfer_set_size(xfer, mwFileTransfer_getFileSize(ft));
@@ -1728,13 +1729,9 @@ static void mw_ft_closed(struct mwFileTransfer *ft, guint32 code) {
 
   GaimXfer *xfer;
 
-  DEBUG_INFO("mw_ft_closed 0x%x\n", code);
-
   xfer = mwFileTransfer_getClientData(ft);
   if(xfer) {
     if(mwFileTransfer_isDone(ft)) {
-      DEBUG_INFO(" gaim_xfer_end\n");
-
       gaim_xfer_set_completed(xfer, TRUE);
       gaim_xfer_end(xfer);
 
@@ -1744,8 +1741,6 @@ static void mw_ft_closed(struct mwFileTransfer *ft, guint32 code) {
       ;
 
     } else if(mwFileTransfer_isCancelRemote(ft)) {
-      DEBUG_INFO(" gaim_xfer_cancel_remote\n");
-
       /* steal the reference for the xfer */
       mwFileTransfer_setClientData(ft, NULL, NULL);
       gaim_xfer_cancel_remote(xfer);
@@ -1799,12 +1794,8 @@ static void mw_ft_ack(struct mwFileTransfer *ft) {
 
   gaim_xfer_update_progress(xfer);
 
-  if(mwFileTransfer_isOpen(ft)) {
+  if(mwFileTransfer_isOpen(ft))
     xfer->watcher = g_idle_add((GSourceFunc)ft_idle_cb, ft);
-
-  } else if(mwFileTransfer_isDone(ft)) {
-    mwFileTransfer_close(ft, mwFileTransfer_SUCCESS);
-  }
 }
 
 
@@ -2186,8 +2177,6 @@ static char *make_cid(const char *cid) {
   n = strlen(cid) - 2;
   c = g_strndup(cid+1, n);
   d = g_strdup_printf("cid:%s", c);
-
-  DEBUG_INFO("made a cid \"%s\"\n", d);
 
   g_free(c);
   return d;
@@ -3717,6 +3706,11 @@ static void ft_outgoing_init(GaimXfer *xfer) {
   }
   fclose(fp);
 
+  {
+    char *tmp = strrchr(filename, G_DIR_SEPARATOR);
+    if(tmp++) filename = tmp;
+  }
+  
   ft = mwFileTransfer_new(srvc, &idb, NULL, filename, filesize);
 
   gaim_xfer_ref(xfer);

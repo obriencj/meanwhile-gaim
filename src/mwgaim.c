@@ -385,8 +385,6 @@ static void mw_aware_list_on_aware(struct mwAwareList *list,
     GaimBuddy *buddy;
     GaimBlistNode *bnode;
 
-    enum mwSametimeUserType type = mwSametimeUser_NORMAL;
-
     acct = gaim_connection_get_account(gc);
     group = g_hash_table_lookup(pd->group_list_map, list);
     buddy = gaim_find_buddy_in_group(acct, id, group);
@@ -402,7 +400,7 @@ static void mw_aware_list_on_aware(struct mwAwareList *list,
 
     gaim_blist_server_alias_buddy(buddy, name);
     gaim_blist_node_set_string(bnode, BUDDY_KEY_NAME, name);
-    gaim_blist_node_set_int(bnode, BUDDY_KEY_TYPE, type);
+    gaim_blist_node_set_int(bnode, BUDDY_KEY_TYPE, mwSametimeUser_NORMAL);
   }
   
   serv_got_update(gc, id, aware->online, 0, 0, idle, stat);
@@ -413,7 +411,7 @@ static void mw_aware_list_on_attrib(struct mwAwareList *list,
 				    struct mwAwareIdBlock *id,
 				    struct mwAwareAttribute *attrib) {
 
-  DEBUG_INFO("mw_aware_list_on_attrib\n");
+  ; /* nothing. We'll get attribute data as we need it */
 }
 
 
@@ -1655,6 +1653,47 @@ static void mw_ft_offered(struct mwFileTransfer *ft) {
 }
 
 
+static void ft_send(struct mwFileTransfer *ft, FILE *fp) {
+  char buf[BUF_LONG];
+  struct mwOpaque o = { .data = buf, .len = BUF_LONG };
+  guint32 rem;
+  GaimXfer *xfer;
+
+  xfer = mwFileTransfer_getClientData(ft);
+
+  rem = mwFileTransfer_getRemaining(ft);
+  if(rem < BUF_LONG) o.len = rem;
+  
+  if(fread(buf, (size_t) o.len, 1, fp)) {
+
+    /* calculate progress first. update is displayed upon ack */
+    xfer->bytes_sent += o.len;
+    xfer->bytes_remaining -= o.len;
+
+    /* ... send data second */
+    mwFileTransfer_send(ft, &o);
+
+  } else {
+    int err = errno;
+    DEBUG_WARN("problem reading from file %s: %s",
+	       NSTR(mwFileTransfer_getFileName(ft)), strerror(err));
+
+    mwFileTransfer_cancel(ft);
+  }
+}
+
+
+static gboolean ft_idle_cb(struct mwFileTransfer *ft) {
+  GaimXfer *xfer = mwFileTransfer_getClientData(ft);
+  g_return_val_if_fail(xfer != NULL, FALSE);
+  
+  xfer->watcher = 0;
+  ft_send(ft, xfer->dest_fp);
+
+  return FALSE;
+}
+
+
 static void mw_ft_opened(struct mwFileTransfer *ft) {
   /*
     - get gaim ft from client data in ft
@@ -1664,12 +1703,19 @@ static void mw_ft_opened(struct mwFileTransfer *ft) {
   GaimXfer *xfer;
 
   xfer = mwFileTransfer_getClientData(ft);
-  if(xfer) gaim_xfer_update_progress(xfer);
 
-  /* 
-  if(xfer) gaim_xfer_cancel_local(xfer);
-  mwFileTransfer_cancel(ft);
-  */
+  if(! xfer) {
+    mwFileTransfer_cancel(ft);
+    mwFileTransfer_free(ft);
+    g_return_if_reached();
+  }
+
+  gaim_xfer_update_progress(xfer);
+
+  if(gaim_xfer_get_type(xfer) == GAIM_XFER_SEND) {
+    xfer->watcher = g_idle_add((GSourceFunc)ft_idle_cb, ft);
+    xfer->dest_fp = g_fopen(xfer->local_filename, "rb");
+  }  
 }
 
 
@@ -1685,10 +1731,11 @@ static void mw_ft_closed(struct mwFileTransfer *ft, guint32 code) {
   DEBUG_INFO("mw_ft_closed 0x%x\n", code);
 
   xfer = mwFileTransfer_getClientData(ft);
-
   if(xfer) {
     if(mwFileTransfer_isDone(ft)) {
       DEBUG_INFO(" gaim_xfer_end\n");
+
+      gaim_xfer_set_completed(xfer, TRUE);
       gaim_xfer_end(xfer);
 
     } else if(mwFileTransfer_isCancelLocal(ft)) {
@@ -1734,17 +1781,21 @@ static void mw_ft_recv(struct mwFileTransfer *ft,
 
   xfer->bytes_sent += data->len;
   xfer->bytes_remaining -= data->len;
-  
   gaim_xfer_update_progress(xfer);
-
-  if(mwFileTransfer_isDone(ft))
-    gaim_xfer_set_completed(xfer, TRUE);
 }
 
 
 static void mw_ft_ack(struct mwFileTransfer *ft) {
-  /* @todo schedule an idle to send the next file chunk */
-  ;
+  GaimXfer *xfer;
+
+  xfer = mwFileTransfer_getClientData(ft);
+  g_return_if_fail(xfer != NULL);
+  g_return_if_fail(xfer->watcher == 0);
+
+  gaim_xfer_update_progress(xfer);
+
+  if(mwFileTransfer_isOpen(ft))
+    xfer->watcher = g_idle_add((GSourceFunc)ft_idle_cb, ft);
 }
 
 
@@ -2694,6 +2745,8 @@ static void mw_prpl_login(GaimAccount *account) {
 #endif
 
   if(! host || ! *host) {
+    /* somehow, we don't have a host to connect to. Well, we need one
+       to actually continue, so let's ask the user directly. */
     prompt_host(gc);
     return;
   }
@@ -2880,7 +2933,7 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
   /* @todo emit a signal to allow a plugin to override the display of
      this notification, so that it can create its own */
 
-  gaim_notify_userinfo(gc, NULL, "Buddy Information",
+  gaim_notify_userinfo(gc, who, "Buddy Information",
 		       "Meanwhile User Status", NULL, str->str, NULL, NULL);
 
   g_string_free(str, TRUE);
@@ -2949,7 +3002,7 @@ static void mw_prpl_set_away(GaimConnection *gc,
 
   if(message) {
     /* all the possible non-NULL values of message up to this point
-     are const, so we don't need to free them */
+       are const, so we don't need to free them */
     message = gaim_markup_strip_html(message);
   }
 
@@ -3126,7 +3179,6 @@ static void multi_resolved_query(struct mwResolveResult *result,
 		      "Add User", G_CALLBACK(multi_resolved_cb),
 		      "Cancel", G_CALLBACK(multi_resolved_cancel),
 		      buddy);
-
   g_free(msgB);
 }
 
@@ -3642,22 +3694,19 @@ static void ft_outgoing_init(GaimXfer *xfer) {
   srvc = pd->srvc_ft;
 
   filename = gaim_xfer_get_local_filename(xfer);
+  filesize = gaim_xfer_get_size(xfer);
+  idb.user = xfer->who;
 
+  /* test that we can actually send the file */
   fp = g_fopen(filename, "rb");
   if(! fp) {
     char *msg = g_strdup_printf("Error reading %s: \n%s\n",
 				filename, strerror(errno));
-
     gaim_xfer_error(gaim_xfer_get_type(xfer), xfer->who, msg);
     g_free(msg);
-
     return;
   }
-
   fclose(fp);
-  filesize = gaim_xfer_get_size(xfer);
-
-  idb.user = xfer->who;
 
   ft = mwFileTransfer_new(srvc, &idb, NULL, filename, filesize);
 
@@ -3666,6 +3715,12 @@ static void ft_outgoing_init(GaimXfer *xfer) {
   xfer->data = ft;
 
   mwFileTransfer_offer(ft);
+}
+
+
+static void ft_outgoing_cancel(GaimXfer *xfer) {
+  struct mwFileTransfer *ft = xfer->data;
+  if(ft) mwFileTransfer_cancel(ft);
 }
 
 
@@ -3684,6 +3739,7 @@ static void mw_prpl_send_file(GaimConnection *gc,
 
   xfer = gaim_xfer_new(acct, GAIM_XFER_SEND, who);
   gaim_xfer_set_init_fnc(xfer, ft_outgoing_init);
+  gaim_xfer_set_cancel_send_fnc(xfer, ft_outgoing_cancel);
 
   if(file) {
     DEBUG_INFO("file != NULL\n");

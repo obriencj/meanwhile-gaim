@@ -6,7 +6,8 @@ version 1.2.1 (cvs)
 	- removed username split for Server, moving it back to an account
 	setting. This should fix log location the way it was pre-1.2.0
 	
-	- support for receiving files over the File Transfer service
+	- support for sending/receiving files over the File Transfer
+	service
 	
 	- added "Supports" section to tooltip text for buddies, displaying
 	A/V and File Transfer capabilities

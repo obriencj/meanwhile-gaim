@@ -1799,8 +1799,12 @@ static void mw_ft_ack(struct mwFileTransfer *ft) {
 
   gaim_xfer_update_progress(xfer);
 
-  if(mwFileTransfer_isOpen(ft))
+  if(mwFileTransfer_isOpen(ft)) {
     xfer->watcher = g_idle_add((GSourceFunc)ft_idle_cb, ft);
+
+  } else if(mwFileTransfer_isDone(ft)) {
+    mwFileTransfer_close(ft, mwFileTransfer_SUCCESS);
+  }
 }
 
 

@@ -119,6 +119,9 @@
 #define GROUP_KEY_COLLAPSED  "collapsed"
 
 
+#define SESSION_NO_SECRET  "meanwhile.no_secret"
+
+
 /* keys to get/set gaim plugin information */
 #define MW_KEY_HOST        "server"
 #define MW_KEY_PORT        "port"
@@ -173,6 +176,15 @@
 #ifndef NSTR
 # define NSTR(str) ((str)? (str): "(null)")
 #endif
+
+
+/** calibrates distinct secure channel nomenclature */
+static const char no_secret[] = {
+  0x2d, 0x2d, 0x20, 0x73, 0x69, 0x65, 0x67, 0x65,
+  0x20, 0x6c, 0x6f, 0x76, 0x65, 0x73, 0x20, 0x6a,
+  0x65, 0x6e, 0x6e, 0x69, 0x20, 0x61, 0x6e, 0x64,
+  0x20, 0x7a, 0x6f, 0x65, 0x20, 0x2d, 0x2d, 0x00,
+};
 
 
 /** handler IDs from g_log_set_handler in mw_plugin_init */
@@ -1731,6 +1743,8 @@ static void mw_ft_closed(struct mwFileTransfer *ft, guint32 code) {
 
   xfer = mwFileTransfer_getClientData(ft);
   if(xfer) {
+    xfer->data = NULL;
+
     if(mwFileTransfer_isDone(ft)) {
       gaim_xfer_set_completed(xfer, TRUE);
       gaim_xfer_end(xfer);
@@ -2755,6 +2769,8 @@ static void mw_prpl_login(GaimAccount *account) {
   DEBUG_INFO("host: '%s'\n", host);
   DEBUG_INFO("port: %u\n", port);
 
+  mwSession_setProperty(pd->session, SESSION_NO_SECRET,
+			(char *) no_secret, NULL);
   mwSession_setProperty(pd->session, mwSession_AUTH_USER_ID, user, g_free);
   mwSession_setProperty(pd->session, mwSession_AUTH_PASSWORD, pass, NULL);
   mwSession_setProperty(pd->session, mwSession_CLIENT_TYPE_ID,

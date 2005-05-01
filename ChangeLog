@@ -1,10 +1,12 @@
 
-version 1.2.1 (2005-04-29)
+version 1.2.1 (2005-05-01)
 
 	- building against meanwhile 0.4.1
 
 	- removed username split for Server, moving it back to an account
 	setting. This should fix log location the way it was pre-1.2.0
+
+	- support for sending NotesBuddy-style images
 	
 	- support for sending/receiving files over the File Transfer
 	service

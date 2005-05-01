@@ -76,6 +76,10 @@ GaimMimeDocument *gaim_mime_document_parse(const char *buf);
 GaimMimeDocument *gaim_mime_document_parsen(const char *buf, gsize len);
 
 
+/** Write (append) a MIME document onto a GString */
+void gaim_mime_document_write(GaimMimeDocument *doc, GString *str);
+
+
 /** The list of fields in the header of a document
     @param doc  the MIME document
     @returns    list of strings indicating the fields (but not the values of
@@ -161,6 +165,9 @@ const char *gaim_mime_part_get_data(GaimMimePart *part);
     @returns     length of the data in the document part
 */
 gsize gaim_mime_part_get_length(GaimMimePart *part);
+
+
+void gaim_mime_part_set_data(GaimMimePart *part, const char *data);
 
 
 #endif

@@ -21,6 +21,8 @@
   USA.
 */
 
+#include <stdlib.h>
+
 #include <internal.h>
 #include <gaim.h>
 
@@ -2006,13 +2008,11 @@ static void convo_features(struct mwConversation *conv) {
       feat &= ~GAIM_CONNECTION_HTML;
     }
 
-#if 0
     if(mwConversation_supports(conv, mwImSend_MIME)) {
       feat &= ~GAIM_CONNECTION_NO_IMAGES;
     } else {
       feat |= GAIM_CONNECTION_NO_IMAGES;
     }
-#endif
 
     DEBUG_INFO("conversation features set to 0x%04x\n", feat);
     gaim_conversation_set_features(gconv, feat);
@@ -2307,7 +2307,6 @@ static void im_recv_mime(struct mwConversation *conv,
       }
 
       g_datalist_clear(&attribs);
-
       tmp = end + 1;
     }
   }
@@ -2816,6 +2815,150 @@ static void mw_prpl_close(GaimConnection *gc) {
 }
 
 
+static char *im_mime_content_id() {
+  const char *c = "%03x@%05xmeanwhile";
+  srand(time(0) ^ rand());
+  return g_strdup_printf(c, rand() & 0xfff, rand() & 0xfffff);
+}
+
+
+static char *im_mime_content_type() {
+  const char *c = "multipart/related; boundary=related_MW%03x_%04x";
+  srand(time(0) ^ rand());
+  return g_strdup_printf(c, rand() & 0xfff, rand() & 0xffff);
+}
+
+
+static const char *im_mime_img_content_type(GaimStoredImage *img) {
+  const char *fn = gaim_imgstore_get_filename(img);
+
+  fn = strrchr(fn, '.');
+  if(! fn) {
+    return "image";
+
+  } else if(! strcmp(".png", fn)) {
+    return "image/png";
+
+  } else if(! strcmp(".jpg", fn)) {
+    return "image/jpeg";
+
+  } else if(! strcmp(".jpeg", fn)) {
+    return "image/jpeg";
+
+  } else if(! strcmp(".gif", fn)) {
+    return "image/gif";
+
+  } else {
+    return "image";
+  }
+}
+
+
+static char *im_mime_img_content_disp(GaimStoredImage *img) {
+  const char *fn = gaim_imgstore_get_filename(img);
+  return g_strdup_printf("attachment; filename=\"%s\"", fn);
+}
+
+
+static char *im_mime_convert(const char *message) {
+  GString *str;
+  GaimMimeDocument *doc;
+  GaimMimePart *part;
+
+  GData *attr;
+  char *tmp, *start, *end;
+
+  str = g_string_new(NULL);
+
+  doc = gaim_mime_document_new();
+
+  gaim_mime_document_set_field(doc, "Mime-Version", "1.0");
+  gaim_mime_document_set_field(doc, "Content-Disposition", "inline");
+
+  tmp = im_mime_content_type();
+  gaim_mime_document_set_field(doc, "Content-Type", tmp);
+  g_free(tmp);
+
+  tmp = (char *) message;
+  while(*tmp && gaim_markup_find_tag("img", tmp, (const char **) &start,
+				     (const char **) &end, &attr)) {
+    char *id;
+    GaimStoredImage *img = NULL;
+    
+    gsize len = (start - tmp);
+
+    /* append the in-between-tags text */
+    if(len) g_string_append_len(str, tmp, len);
+
+    /* find the imgstore data by the id tag */
+    id = g_datalist_get_data(&attr, "id");
+    if(id && *id)
+      img = gaim_imgstore_get(atoi(id));
+
+    if(img) {
+      char *cid;
+      gpointer data;
+      size_t size;
+
+      part = gaim_mime_part_new(doc);
+
+      data = im_mime_img_content_disp(img);
+      gaim_mime_part_set_field(part, "Content-Disposition", data);
+      g_free(data);
+
+      cid = im_mime_content_id();
+      data = g_strdup_printf("<%s>", cid);
+      gaim_mime_part_set_field(part, "Content-ID", data);
+      g_free(data);
+
+      gaim_mime_part_set_field(part, "Content-transfer-encoding", "base64");
+      gaim_mime_part_set_field(part, "Content-Type",
+			       im_mime_img_content_type(img));
+
+
+      /* obtain and base64 encode the image data, and put it in the
+	 mime part */
+      data = gaim_imgstore_get_data(img);
+      size = gaim_imgstore_get_size(img);
+      data = gaim_base64_encode(data, (gsize) size);
+      gaim_mime_part_set_data(part, data);
+      g_free(data);
+
+      /* append the modified tag */
+      g_string_append_printf(str, "<img src=\"cid:%s\">", cid);
+      g_free(cid);
+      
+    } else {
+      /* append the literal image tag, since we couldn't find a
+	 relative imgstore object */
+      gsize len = (end - start) + 1;
+      g_string_append_len(str, start, len);
+    }
+
+    g_datalist_clear(&attr);
+    tmp = end + 1;
+  }
+
+  /* append left-overs */
+  g_string_append(str, tmp);
+
+  part = gaim_mime_part_new(doc);
+  gaim_mime_part_set_field(part, "Content-Type", "text/html");
+  gaim_mime_part_set_field(part, "Content-Disposition", "inline");
+  gaim_mime_part_set_field(part, "Content-Transfer-Encoding", "8bit");
+
+  gaim_mime_part_set_data(part, str->str);
+  g_string_free(str, TRUE);
+
+  str = g_string_new(NULL);
+  gaim_mime_document_write(doc, str);
+  tmp = str->str;
+  g_string_free(str, FALSE);
+
+  return tmp;
+}
+
+
 static int mw_prpl_send_im(GaimConnection *gc,
 			   const char *name,
 			   const char *message,
@@ -2832,18 +2975,41 @@ static int mw_prpl_send_im(GaimConnection *gc,
 
   conv = mwServiceIm_getConversation(pd->srvc_im, &who);
 
+  /* this detection of features to determine how to send the message
+     (plain, html, or mime) is flawed because the other end of the
+     conversation could close their channel at any time, rendering any
+     existing formatting in an outgoing message innapropriate. The end
+     result is that it may be possible that the other side of the
+     conversation will receive a plaintext message with html contents,
+     which is bad. I'm not sure how to fix this correctly. */
+
+  /* @todo support chunking messages over a certain size into multiple
+     smaller messages */
+
+  if(strstr(message, "<img ") || strstr(message, "<IMG "))
+    flags |= GAIM_CONV_IM_IMAGES;
+
   if(mwConversation_isOpen(conv)) {
+    char *msg = NULL;
     int ret;
 
-    if(mwConversation_supports(conv, mwImSend_HTML)) {
-      char *msg = gaim_strdup_withhtml(message);
+    if((flags & GAIM_CONV_IM_IMAGES) &&
+       mwConversation_supports(conv, mwImSend_MIME)) {
+
+      msg = im_mime_convert(message);
+      ret = mwConversation_send(conv, mwImSend_MIME, msg);
+      
+    } else if(mwConversation_supports(conv, mwImSend_HTML)) {
+
+      /* need to do this to get the \n to <br> conversion */
+      msg = gaim_strdup_withhtml(message);
       ret = mwConversation_send(conv, mwImSend_HTML, msg);
-      g_free(msg);
 
     } else {
       ret = mwConversation_send(conv, mwImSend_PLAIN, message);
     }
     
+    g_free(msg);
     return !ret;
   }
 

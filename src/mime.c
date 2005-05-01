@@ -211,6 +211,8 @@ static GaimMimePart *part_new(GaimMimeDocument *doc) {
   part->doc = doc;
   part->data = g_string_new(NULL);
 
+  doc->parts = g_list_append(doc->parts, part);
+
   return part;
 }
 
@@ -291,6 +293,13 @@ gsize gaim_mime_part_get_length(GaimMimePart *part) {
 }
 
 
+void gaim_mime_part_set_data(GaimMimePart *part, const char *data) {
+  g_return_if_fail(part != NULL);
+  g_string_free(part->data, TRUE);
+  part->data = g_string_new(data);
+}
+
+
 GaimMimeDocument *gaim_mime_document_new() {
   GaimMimeDocument *doc;
 
@@ -337,7 +346,6 @@ static void doc_parts_load(GaimMimeDocument *doc,
       if(sl) {
 	GaimMimePart *part = part_new(doc);
 	part_load(part, b, sl);
-	doc->parts = g_list_append(doc->parts, part);
       }
     }
 

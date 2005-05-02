@@ -807,7 +807,7 @@ static void fetch_msg_cb(struct mwServiceStorage *srvc,
   struct mwGaimPluginData *pd = data;
   struct mwSession *session;
   GaimAccount *acct;
-  char *msg;
+  char *msg, *m;
 
   g_return_if_fail(result == ERR_SUCCESS);
 
@@ -817,33 +817,36 @@ static void fetch_msg_cb(struct mwServiceStorage *srvc,
   session = pd->session;
   g_return_if_fail(session != NULL);
 
-  msg = mwStorageUnit_asString(item);
+  m = msg = mwStorageUnit_asString(item);
 
   /* only load the first (non-empty) line of the collection of
      status messages */
-  if(msg && *msg) {
-    while(*msg && isspace(*msg)) msg++;
-    if(*msg) {
-      char *tail = strchr(msg, '\r');
-      if(! tail) tail = strchr(msg, '\n');
+  if(m && *m) {
+    while(*m && isspace(*m)) m++;
+    if(*m) {
+      char *tail;
+
+      tail = strchr(m, '\r');
+      if(tail) *tail = '\0';
+      tail = strchr(m, '\n');
       if(tail) *tail = '\0';
     }
   }
 
   switch(mwStorageUnit_getKey(item)) {
   case mwStore_AWAY_MESSAGES:
-    DEBUG_INFO("setting away messages to \"%s\"\n", NSTR(msg));
-    gaim_account_set_string(acct, MW_KEY_AWAY_MSG, msg);
+    DEBUG_INFO("setting away message to \"%s\"\n", NSTR(m));
+    gaim_account_set_string(acct, MW_KEY_AWAY_MSG, m);
     break;
 
   case mwStore_BUSY_MESSAGES:
-    DEBUG_INFO("setting busy messages to \"%s\"\n", NSTR(msg));
-    gaim_account_set_string(acct, MW_KEY_BUSY_MSG, msg);
+    DEBUG_INFO("setting busy message to \"%s\"\n", NSTR(m));
+    gaim_account_set_string(acct, MW_KEY_BUSY_MSG, m);
     break;
 
   case mwStore_ACTIVE_MESSAGES:
-    DEBUG_INFO("setting active messages to \"%s\"\n", NSTR(msg));
-    gaim_account_set_string(acct, MW_KEY_ACTIVE_MSG, msg);
+    DEBUG_INFO("setting active message to \"%s\"\n", NSTR(m));
+    gaim_account_set_string(acct, MW_KEY_ACTIVE_MSG, m);
     break;
 
   default:
@@ -3085,9 +3088,6 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
     g_string_append_printf(str, "<b>Full Name:</b> %s<br>",
 			   b->server_alias);
   }
-
-  /* @todo append capabilities string (file transfer, microphone,
-     video, etc) */
 
   type = gaim_blist_node_get_int((GaimBlistNode *) b, BUDDY_KEY_CLIENT);
   if(type) {

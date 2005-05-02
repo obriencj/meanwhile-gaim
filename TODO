@@ -9,10 +9,6 @@ Conditional compilation
  - buddy search feature and dialogue
    --enable-search
 
-File Transfer
- - sending files
-
 Conversations
- - sending MIME w/ images
  - fragment large messages (maybe)
 

@@ -805,14 +805,20 @@ static void fetch_msg_cb(struct mwServiceStorage *srvc,
 			 gpointer data) {
 
   struct mwGaimPluginData *pd = data;
-  struct mwSession *session;
+  GaimConnection *gc;
   GaimAccount *acct;
+  struct mwSession *session;
   char *msg, *m;
 
   g_return_if_fail(result == ERR_SUCCESS);
 
-  g_return_if_fail(pd->gc != NULL);
-  acct = gaim_connection_get_account(pd->gc);
+  g_return_if_fail(pd != NULL);
+
+  gc = pd->gc;
+  g_return_if_fail(gc != NULL);
+
+  acct = gaim_connection_get_account(gc);
+  g_return_if_fail(acct != NULL);
 
   session = pd->session;
   g_return_if_fail(session != NULL);
@@ -854,10 +860,19 @@ static void fetch_msg_cb(struct mwServiceStorage *srvc,
     g_return_if_reached();
   }
 
-  /** @todo maybe we should set the session status here so that the
-      messages will get picked up. */
-
   g_free(msg);
+  msg = NULL;
+
+  if(!gc->away_state || !strcmp(gc->away_state, MW_STATE_ACTIVE)) {
+    msg = MW_STATE_ACTIVE;
+  } else if(gc->away_state && !strcmp(gc->away_state, MW_STATE_AWAY)) {
+    msg = MW_STATE_AWAY;
+  } else if(gc->away_state && !strcmp(gc->away_state, MW_STATE_BUSY)) {
+    msg = MW_STATE_BUSY;
+  }
+
+  if(msg)
+    serv_set_away(gc, msg, NULL);
 }
 
 
@@ -1552,47 +1567,6 @@ static struct mwServiceConference *mw_srvc_conf_new(struct mwSession *s) {
 }
 
 
-#if 0
-
-
-static void mw_dir_book_list(struct mwServiceDirectory *srvc, GList *books) {
-  ;
-}
-
-
-static void mw_dir_opened(struct mwDirectory *dir) {
-  ;
-}
-
-
-static void mw_dir_closed(struct mwDirectory *dir) {
-  ;
-}
-
-
-static void mw_dir_clear(struct mwServiceDirectory *srvc) {
-  ;
-}
-
-
-static struct mwDirectoryHandler mw_directory_handler = {
-  .on_book_list = mw_dir_book_list,
-  .dir_opened = mw_dir_opened,
-  .dir_closed = mw_dir_closed,
-  .clear = mw_dir_clear,
-};
-
-
-static struct mwServiceDirectory *mw_srvc_dir_new(struct mwSession *s) {
-  struct mwServiceDirectory *srvc;
-  srvc = mwServiceDirectory_new(s, &mw_directory_handler);
-  return srvc;
-}
-
-
-#endif
-
-
 static void ft_incoming_cancel(GaimXfer *xfer) {
   /* incoming transfer rejected or canceled in-progress */
   struct mwFileTransfer *ft = xfer->data;
@@ -1648,10 +1622,10 @@ static void mw_ft_offered(struct mwFileTransfer *ft) {
   who = mwFileTransfer_getUser(ft)->user;
 
   DEBUG_INFO("file transfer %p offered\n", ft);
-  DEBUG_INFO(" from: %s\n", who);
-  DEBUG_INFO(" file: %s\n", mwFileTransfer_getFileName(ft));
+  DEBUG_INFO(" from: %s\n", NSTR(who));
+  DEBUG_INFO(" file: %s\n", NSTR(mwFileTransfer_getFileName(ft)));
   DEBUG_INFO(" size: %u\n", mwFileTransfer_getFileSize(ft));
-  DEBUG_INFO(" text: %s\n", mwFileTransfer_getMessage(ft));
+  DEBUG_INFO(" text: %s\n", NSTR(mwFileTransfer_getMessage(ft)));
 
   xfer = gaim_xfer_new(acct, GAIM_XFER_RECEIVE, who);
 

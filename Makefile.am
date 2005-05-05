@@ -2,7 +2,7 @@
 PRIVATE_PLUGIN = $(HOME)/.gaim/plugins
 PRIVATE_PIXMAP = $(HOME)/.gaim/pixmaps/status/default
 
-EXTRA_DIST = gaim-meanwhile.spec
+EXTRA_DIST = gaim-meanwhile.spec theme_song
 
 SUBDIRS = src pixmaps dist
 

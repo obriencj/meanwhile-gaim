@@ -1126,7 +1126,40 @@ static void mw_session_stateChange(struct mwSession *session,
 
 static void mw_session_setPrivacyInfo(struct mwSession *session) {
   /** @todo implement privacy one of these days */
+
+  struct mwGaimPluginData *pd;
+  GaimConnection *gc;
+  GaimAccount *acct;
+  struct mwPrivacyInfo *privacy;
+  GSList *l, **ll;
+  guint count;
+
   DEBUG_INFO("privacy information set from server\n");
+
+  g_return_if_fail(session != NULL);
+
+  pd = mwSession_getClientData(session);
+  g_return_if_fail(pd != NULL);
+
+  gc = pd->gc;
+  g_return_if_fail(gc != NULL);
+
+  acct = gaim_connection_get_account(gc);
+  g_return_if_fail(acct != NULL);
+
+  privacy = mwSession_getPrivacyInfo(session);
+  count = privacy->count;
+
+  ll = (privacy->deny)? &acct->deny: &acct->permit;
+  for(l = *ll; l; l = l->next) g_free(l->data);
+  g_slist_free(*ll);
+  l = *ll = NULL;
+
+  while(count--) {
+    struct mwUserItem *u = privacy->users + count;
+    l = g_slist_prepend(l, g_strdup(u->id));
+  }
+  *ll = l;
 }
 
 
@@ -3589,7 +3622,7 @@ static void mw_prpl_set_permit_deny(GaimConnection *gc) {
     g_return_if_reached();
   }
 
-  mwSession_setPrivacyList(session, &privacy);
+  mwSession_setPrivacyInfo(session, &privacy);
   g_free(privacy.users);
 }
 

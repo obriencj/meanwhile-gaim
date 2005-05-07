@@ -3568,12 +3568,18 @@ static void privacy_fill(struct mwPrivacyInfo *priv,
   struct mwUserItem *u;
   guint count;
 
+  DEBUG_INFO("privacy_fill\n");
+
   count = g_slist_length(members);
+  DEBUG_INFO("  %u (%i) members\n", count, (int) count);
+
+  priv->count = count;
   priv->users = g_new0(struct mwUserItem, count);
 
-  for(; count--; members = members->next) {
+  while(count--) {
     u = priv->users + count;
     u->id = members->data;
+    members = members->next;
   }
 }
 
@@ -3584,7 +3590,6 @@ static void mw_prpl_set_permit_deny(GaimConnection *gc) {
   struct mwSession *session;
 
   struct mwPrivacyInfo privacy = {
-    .reserved = 0x00,
     .deny = FALSE,
     .count = 0,
     .users = NULL,
@@ -3603,18 +3608,22 @@ static void mw_prpl_set_permit_deny(GaimConnection *gc) {
 
   switch(acct->perm_deny) {
   case GAIM_PRIVACY_DENY_USERS:
+    DEBUG_INFO("GAIM_PRIVACY_DENY_USERS\n");
     privacy_fill(&privacy, acct->deny);
     /* fall-through */
 
   case GAIM_PRIVACY_ALLOW_ALL:
+    DEBUG_INFO("GAIM_PRIVACY_ALLOW_ALL\n");
     privacy.deny = TRUE;
     break;
 
   case GAIM_PRIVACY_ALLOW_USERS:
+    DEBUG_INFO("GAIM_PRIVACY_ALLOW_USERS\n");
     privacy_fill(&privacy, acct->permit);
     /* fall-through */
 
   case GAIM_PRIVACY_DENY_ALL:
+    DEBUG_INFO("GAIM_PRIVACY_DENY_ALL\n");
     privacy.deny = FALSE;
     break;
     

@@ -1,4 +1,11 @@
 
+version 1.2.3 (cvs)
+	
+	- building against meanwhile 0.4.2
+	
+	- added support for privacy (allow all, allow list, deny all, deny
+	list, allow buddy list) from RFE #1054813
+	
 version 1.2.2 (2005-05-02)
 
 	- fix #1193994 startup crash, whitespace status messages

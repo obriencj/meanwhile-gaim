@@ -26,6 +26,7 @@
 #include <internal.h>
 #include <gaim.h>
 
+#include <account.h>
 #include <accountopt.h>
 #include <conversation.h>
 #include <debug.h>
@@ -33,6 +34,7 @@
 #include <imgstore.h>
 #include <notify.h>
 #include <plugin.h>
+#include <privacy.h>
 #include <prpl.h>
 #include <request.h>
 #include <util.h>
@@ -2562,7 +2564,7 @@ static char *mw_prpl_tooltip_text(GaimBuddy *b) {
   str = g_string_new(NULL);
 
   tmp = status_text(b);
-  g_string_append_printf(str, "\n<b>Status:</b> %s", tmp);
+  g_string_append_printf(str, "\n<b>Status</b>: %s", tmp);
 
   tmp = mwServiceAware_getText(pd->srvc_aware, &idb);
   if(tmp) g_string_append_printf(str, "\n<b>Message</b>: %s", tmp);
@@ -2594,7 +2596,12 @@ static GList *mw_prpl_away_states(GaimConnection *gc) {
 static GList *mw_prpl_blist_node_menu(GaimBlistNode *node) {
   GList *l = NULL;
 
-  /** @todo blist menu options */
+  /** @todo blist menu options
+      - NULL
+      - Invite to New Conference
+      - Invite to %s  (for each currently open conference on this acct)
+      - NULL
+  */
 
   /** note: this never gets called for a GaimGroup, have to use the
       blist-node-extended-menu signal for that */
@@ -3522,28 +3529,88 @@ static void mw_prpl_remove_buddy(GaimConnection *gc,
 }
 
 
-static void mw_prpl_add_permit(GaimConnection *gc, const char *name) {
-  ;
-}
+static void privacy_fill(struct mwPrivacyInfo *priv,
+			 GSList *members) {
+  
+  struct mwUserItem *u;
+  guint count;
 
+  count = g_slist_length(members);
+  priv->users = g_new0(struct mwUserItem, count);
 
-static void mw_prpl_add_deny(GaimConnection *gc, const char *name) {
-  ;
-}
-
-
-static void mw_prpl_rem_permit(GaimConnection *gc, const char *name) {
-  ;
-}
-
-
-static void mw_prpl_rem_deny(GaimConnection *gc, const char *name) {
-  ;
+  for(; count--; members = members->next) {
+    u = priv->users + count;
+    u->id = members->data;
+  }
 }
 
 
 static void mw_prpl_set_permit_deny(GaimConnection *gc) {
-  ;
+  GaimAccount *acct;
+  struct mwGaimPluginData *pd;
+  struct mwSession *session;
+
+  struct mwPrivacyInfo privacy = {
+    .reserved = 0x00,
+    .deny = FALSE,
+    .count = 0,
+    .users = NULL,
+  };
+
+  g_return_if_fail(gc != NULL);
+
+  acct = gaim_connection_get_account(gc);
+  g_return_if_fail(acct != NULL);
+
+  pd = gc->proto_data;
+  g_return_if_fail(pd != NULL);
+
+  session = pd->session;
+  g_return_if_fail(session != NULL);
+
+  switch(acct->perm_deny) {
+  case GAIM_PRIVACY_DENY_USERS:
+    privacy_fill(&privacy, acct->deny);
+    /* fall-through */
+
+  case GAIM_PRIVACY_ALLOW_ALL:
+    privacy.deny = TRUE;
+    break;
+
+  case GAIM_PRIVACY_ALLOW_USERS:
+    privacy_fill(&privacy, acct->permit);
+    /* fall-through */
+
+  case GAIM_PRIVACY_DENY_ALL:
+    privacy.deny = FALSE;
+    break;
+    
+  default:
+    g_return_if_reached();
+  }
+
+  mwSession_setPrivacyList(session, &privacy);
+  g_free(privacy.users);
+}
+
+
+static void mw_prpl_add_permit(GaimConnection *gc, const char *name) {
+  mw_prpl_set_permit_deny(gc);
+}
+
+
+static void mw_prpl_add_deny(GaimConnection *gc, const char *name) {
+  mw_prpl_set_permit_deny(gc);
+}
+
+
+static void mw_prpl_rem_permit(GaimConnection *gc, const char *name) {
+  mw_prpl_set_permit_deny(gc);
+}
+
+
+static void mw_prpl_rem_deny(GaimConnection *gc, const char *name) {
+  mw_prpl_set_permit_deny(gc);
 }
 
 

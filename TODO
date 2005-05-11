@@ -12,3 +12,9 @@ Conditional compilation
 Conversations
  - fragment large messages (maybe)
 
+Transfer-Encoding/Decoding
+ - support for base64, 7bit, quoted-printable
+
+Invitation
+ - buddy context menu for inviting to conferences
+

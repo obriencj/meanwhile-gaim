@@ -5,6 +5,10 @@ version 1.2.3 (cvs)
 	
 	- added support for privacy (allow all, allow list, deny all, deny
 	list, allow buddy list) from RFE #1054813
+
+	- fix #1194631 Windows file transfer crashes gaim
+	
+	- fix #1178603 crash on duplicate ldap entries (add buddy)
 	
 version 1.2.2 (2005-05-02)
 

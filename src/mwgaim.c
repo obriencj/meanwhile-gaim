@@ -1337,7 +1337,9 @@ static struct mwSessionHandler mw_session_handler = {
 static void mw_aware_on_attrib(struct mwServiceAware *srvc,
 			       struct mwAwareAttribute *attrib) {
 
-  ; /** @todo handle server attributes */
+  ; /** @todo handle server attributes.  There may be some stuff we
+	actually want to look for, but I'm not aware of anything right
+	now.*/
 }
 
 
@@ -1564,7 +1566,7 @@ static void mw_conf_text(struct mwConference *conf,
 static void mw_conf_typing(struct mwConference *conf,
 			   struct mwLoginInfo *who, gboolean typing) {
 
-  /* @todo maybe set the user icon based on typing state */
+  /* gaim really has no good way to expose this to the user. */
 
   const char *n = mwConference_getName(conf);
   const char *w = who->user_id;
@@ -1612,9 +1614,9 @@ static void ft_incoming_cancel(GaimXfer *xfer) {
 static void ft_incoming_init(GaimXfer *xfer) {
   /* incoming transfer accepted */
   
-  /* accept the mwFileTransfer
-     open/create the local FILE "wb"
-     stick the FILE's fp in xfer->dest_fp
+  /* - accept the mwFileTransfer
+     - open/create the local FILE "wb"
+     - stick the FILE's fp in xfer->dest_fp
   */
 
   struct mwFileTransfer *ft;
@@ -2188,7 +2190,9 @@ static void im_recv_subj(struct mwConversation *conv,
 			 struct mwGaimPluginData *pd,
 			 const char *subj) {
 
-  /** @todo implement IM subject receiving */
+  /** @todo somehow indicate receipt of a conversation subject. It
+      would also be nice if we added a /topic command for the
+      protocol */
   ;
 }
 
@@ -2198,10 +2202,12 @@ static char *make_cid(const char *cid) {
   gsize n;
   char *c, *d;
 
-  /** @todo make this safer */
+  g_return_val_if_fail(cid != NULL, NULL);
 
-  n = strlen(cid) - 2;
-  c = g_strndup(cid+1, n);
+  n = strlen(cid);
+  g_return_val_if_fail(n > 2, NULL);
+
+  c = g_strndup(cid+1, n-2);
   d = g_strdup_printf("cid:%s", c);
 
   g_free(c);
@@ -2424,7 +2430,6 @@ static struct mwGaimPluginData *mwGaimPluginData_new(GaimConnection *gc) {
   pd->session = mwSession_new(&mw_session_handler);
   pd->srvc_aware = mw_srvc_aware_new(pd->session);
   pd->srvc_conf = mw_srvc_conf_new(pd->session);
-  /* pd->srvc_dir = mw_srvc_dir_new(pd->session); */
   pd->srvc_ft = mw_srvc_ft_new(pd->session);
   pd->srvc_im = mw_srvc_im_new(pd->session);
   pd->srvc_resolve = mw_srvc_resolve_new(pd->session);
@@ -2433,7 +2438,6 @@ static struct mwGaimPluginData *mwGaimPluginData_new(GaimConnection *gc) {
 
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_aware));
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_conf));
-  /* mwSession_addService(pd->session, MW_SERVICE(pd->srvc_dir)); */
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_ft));
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_im));
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_resolve));
@@ -2455,14 +2459,12 @@ static void mwGaimPluginData_free(struct mwGaimPluginData *pd) {
 
   mwSession_removeService(pd->session, SERVICE_AWARE);
   mwSession_removeService(pd->session, SERVICE_CONFERENCE);
-  /* mwSession_removeService(pd->session, SERVICE_DIRECTORY); */
   mwSession_removeService(pd->session, SERVICE_IM);
   mwSession_removeService(pd->session, SERVICE_RESOLVE);
   mwSession_removeService(pd->session, SERVICE_STORAGE);
 
   mwService_free(MW_SERVICE(pd->srvc_aware));
   mwService_free(MW_SERVICE(pd->srvc_conf));
-  /* mwService_free(MW_SERVICE(pd->srvc_dir)); */
   mwService_free(MW_SERVICE(pd->srvc_im));
   mwService_free(MW_SERVICE(pd->srvc_resolve));
   mwService_free(MW_SERVICE(pd->srvc_store));
@@ -2626,18 +2628,79 @@ static GList *mw_prpl_away_states(GaimConnection *gc) {
 }
 
 
-static GList *mw_prpl_blist_node_menu(GaimBlistNode *node) {
-  GList *l = NULL;
+static void blist_menu_conf_create(GaimBuddy *buddy,
+				   struct mwGaimPluginData *pd) {
+  ; /* XXX todo */
+}
 
-  /** @todo blist menu options
-      - NULL
-      - Invite to New Conference
-      - Invite to %s  (for each currently open conference on this acct)
-      - NULL
+
+static void blist_menu_conf_list(GaimBuddy *buddy,
+				 struct mwGaimPluginData *pd,
+				 GList *confs) {
+  ; /* XXX todo */
+}
+
+
+static GList *conf_collect(struct mwGaimPluginData *pd) {
+  return NULL;
+}
+
+
+static void blist_menu_conf(GaimBlistNode *node, gpointer data) {
+  GaimBuddy *buddy = (GaimBuddy *) node;
+  GaimAccount *acct;
+  GaimConnection *gc;
+  struct mwGaimPluginData *pd;
+  GList *l;
+
+  g_return_if_fail(node != NULL);
+  g_return_if_fail(GAIM_BLIST_NODE_IS_BUDDY(node));
+
+  acct = buddy->account;
+  g_return_if_fail(acct != NULL);
+
+  gc = gaim_account_get_connection(acct);
+  g_return_if_fail(gc != NULL);
+
+  pd = gc->proto_data;
+  g_return_if_fail(pd != NULL);
+
+  /* @todo prompt for which conference to join
+
+    - get a list of all conferences on this session
+    - if none, prompt to create one, and invite buddy to it
+    - else, prompt to select a conference or create one
   */
 
+  l = conf_collect(pd);
+  if(l) {
+    blist_menu_conf_list(buddy, pd, l);
+    g_list_free(l);
+
+  } else {
+    blist_menu_conf_create(buddy, pd);
+  }
+}
+
+
+static GList *mw_prpl_blist_node_menu(GaimBlistNode *node) {
+  GList *l = NULL;
+  GaimBlistNodeAction *act;
+
+  if(! GAIM_BLIST_NODE_IS_BUDDY(node))
+    return l;
+
+  l = g_list_append(l, NULL);
+
+  act = gaim_blist_node_action_new("Invite to Conference...",
+				   blist_menu_conf, NULL);
+  l = g_list_append(l, act);
+  l = g_list_append(l, NULL);
+
   /** note: this never gets called for a GaimGroup, have to use the
-      blist-node-extended-menu signal for that */
+      blist-node-extended-menu signal for that. The function
+      blist_node_menu_cb is assigned to this signal in the function
+      services_starting */
 
   return l;
 }
@@ -3360,11 +3423,17 @@ static void multi_resolved_query(struct mwResolveResult *result,
   for(l = result->matches; l; l = l->next) {
     struct mwResolveMatch *match = l->data;
     struct resolved_id *res = g_new0(struct resolved_id, 1);
+    char *label;
 
     res->id = g_strdup(match->id);
     res->name = g_strdup(match->name);
 
-    gaim_request_field_list_add(f, res->name, res);
+    /* fixes bug 1178603 by making the selection label a combination
+       of the full name and the user id. Problems arrise when multiple
+       entries have identical labels */
+    label = g_strdup_printf("%s (%s)", NSTR(res->name), NSTR(res->id));
+    gaim_request_field_list_add(f, label, res);
+    g_free(label);
   }
 
   gaim_request_field_group_add_field(g, f);

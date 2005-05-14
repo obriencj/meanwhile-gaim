@@ -29,6 +29,9 @@
 #include <glib/glist.h>
 #include <glib/gstring.h>
 
+/* this should become "util.h" if we ever get this into gaim proper */
+#include <util.h>
+
 #include "mime.h"
 
 
@@ -270,6 +273,18 @@ const char *gaim_mime_part_get_field(GaimMimePart *part,
 }
 
 
+char *gaim_mime_part_get_field_decoded(GaimMimePart *part,
+				       const char *field) {
+
+  const char *f;
+
+  g_return_val_if_fail(part != NULL, NULL);
+
+  f = fields_get(&part->fields, field);
+  return gaim_mime_decode_field(f);
+}
+
+
 void gaim_mime_part_set_field(GaimMimePart *part,
 			      const char *field,
 			      const char *value) {
@@ -277,11 +292,50 @@ void gaim_mime_part_set_field(GaimMimePart *part,
   fields_set(&part->fields, field, value);
 }
 
+
 const char *gaim_mime_part_get_data(GaimMimePart *part) {
   g_return_val_if_fail(part != NULL, NULL);
   g_assert(part->data != NULL);
 
   return part->data->str;
+}
+
+
+void gaim_mime_part_get_data_decoded(GaimMimePart *part,
+				     char **data, gsize *len) {
+  const char *enc;
+
+  g_return_if_fail(part != NULL);
+  g_return_if_fail(data != NULL);
+  g_return_if_fail(len != NULL);
+
+  g_assert(part->data != NULL);
+
+  enc = gaim_mime_part_get_field(part, "content-transfer-encoding");
+
+  if(! enc) {
+    *data = g_strdup(part->data->str);
+    *len = part->data->len;
+
+  } else if(! g_ascii_strcasecmp(enc, "7bit")) {
+    *data = g_strdup(part->data->str);
+    *len = part->data->len;
+
+  } else if(! g_ascii_strcasecmp(enc, "base16")) {
+    *len = gaim_base16_decode(part->data->str, (unsigned char **) data);
+
+  } else if(! g_ascii_strcasecmp(enc, "base64")) {
+    gaim_base64_decode(part->data->str, data, len);
+
+  } else if(! g_ascii_strcasecmp(enc, "quoted-printable")) {
+    gaim_quotedp_decode(part->data->str, data, len);
+
+  } else {
+    gaim_debug_warning("mime", "gaim_mime_part_get_data_decoded:"
+		       " unknown encoding '%s'\n", enc);
+    *data = NULL;
+    *len = 0;
+  }
 }
 
 

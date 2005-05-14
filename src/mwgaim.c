@@ -202,7 +202,6 @@ struct mwGaimPluginData {
 
   struct mwServiceAware *srvc_aware;
   struct mwServiceConference *srvc_conf;
-  struct mwServiceDirectory *srvc_dir;
   struct mwServiceFileTransfer *srvc_ft;
   struct mwServiceIm *srvc_im;
   struct mwServiceResolve *srvc_resolve;
@@ -2261,8 +2260,7 @@ static void im_recv_mime(struct mwConversation *conv,
       int img;
 
       /* obtain and unencode the data */
-      dat = gaim_mime_part_get_data(part);
-      gaim_base64_decode(dat, &d_dat, &d_len);
+      gaim_mime_part_get_data_decoded(part, &d_dat, &d_len);
       
       /* look up the content id */
       cid = (char *) gaim_mime_part_get_field(part, "Content-ID");
@@ -2280,9 +2278,11 @@ static void im_recv_mime(struct mwConversation *conv,
     } else if(g_str_has_prefix(type, "text")) {
 
       /* concatenate all the text parts together */
-      char *txt;
+      char *data, *txt;
+      gsize len;
 
-      txt = gaim_utf8_try_convert(gaim_mime_part_get_data(part));
+      gaim_mime_part_get_data_decoded(part, &data, &len);
+      txt = gaim_utf8_try_convert(data);
       g_string_append(str, txt);
       g_free(txt);
     }
@@ -2628,9 +2628,28 @@ static GList *mw_prpl_away_states(GaimConnection *gc) {
 }
 
 
+#if 0
+static void conf_create_prompt_cancel() {
+  ;
+}
+
+
+static void conf_create_prompt_join() {
+  ;
+}
+
+
+static void conf_create_prompt(GaimBuddy *buddy) {
+  /* prompt via request API */
+  ; 
+}
+#endif
+
+
 static void blist_menu_conf_create(GaimBuddy *buddy,
 				   struct mwGaimPluginData *pd) {
-  ; /* XXX todo */
+  
+  ;
 }
 
 
@@ -2638,11 +2657,6 @@ static void blist_menu_conf_list(GaimBuddy *buddy,
 				 struct mwGaimPluginData *pd,
 				 GList *confs) {
   ; /* XXX todo */
-}
-
-
-static GList *conf_collect(struct mwGaimPluginData *pd) {
-  return NULL;
 }
 
 
@@ -2672,7 +2686,7 @@ static void blist_menu_conf(GaimBlistNode *node, gpointer data) {
     - else, prompt to select a conference or create one
   */
 
-  l = conf_collect(pd);
+  l = mwServiceConference_getConferences(pd->srvc_conf);
   if(l) {
     blist_menu_conf_list(buddy, pd, l);
     g_list_free(l);
@@ -2695,7 +2709,6 @@ static GList *mw_prpl_blist_node_menu(GaimBlistNode *node) {
   act = gaim_blist_node_action_new("Invite to Conference...",
 				   blist_menu_conf, NULL);
   l = g_list_append(l, act);
-  l = g_list_append(l, NULL);
 
   /** note: this never gets called for a GaimGroup, have to use the
       blist-node-extended-menu signal for that. The function

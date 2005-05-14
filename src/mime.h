@@ -81,6 +81,7 @@ void gaim_mime_document_write(GaimMimeDocument *doc, GString *str);
 
 
 /** The list of fields in the header of a document
+
     @param doc  the MIME document
     @returns    list of strings indicating the fields (but not the values of
                 the fields) in the header of doc
@@ -89,6 +90,7 @@ const GList *gaim_mime_document_get_fields(GaimMimeDocument *doc);
 
 
 /** Get the value of a specific field in the header of a document
+
     @param doc    the MIME document
     @param field  case-insensitive field name
     @returns      value associated with the indicated header field, or
@@ -100,6 +102,7 @@ const char *gaim_mime_document_get_field(GaimMimeDocument *doc,
 
 /** Set or replace the value of a specific field in the header of a
     document
+
     @param doc    the MIME document
     @param field  case-insensitive field name
     @param value  value to associate with the indicated header field,
@@ -111,6 +114,7 @@ void gaim_mime_document_set_field(GaimMimeDocument *doc,
 
 
 /** The list of parts in a multipart document
+
     @param doc   the MIME document
     @returns     list of GaimMimePart contained within doc
 */
@@ -118,12 +122,14 @@ const GList *gaim_mime_document_get_parts(GaimMimeDocument *doc);
 
 
 /** Create and insert a new part into a MIME document
+
     @param doc   the new part's parent MIME document
  */
 GaimMimePart *gaim_mime_part_new(GaimMimeDocument *doc);
 
 
 /** The list of fields in the header of a document part
+
     @param part  the MIME document part
     @returns  list of strings indicating the fields (but not the values
               of the fields) in the header of part
@@ -132,6 +138,7 @@ const GList *gaim_mime_part_get_fields(GaimMimePart *part);
 
 
 /** Get the value of a specific field in the header of a document part
+
     @param part   the MIME document part
     @param field  case-insensitive name of the header field
     @returns      value of the specified header field, or NULL if the
@@ -139,6 +146,12 @@ const GList *gaim_mime_part_get_fields(GaimMimePart *part);
 */
 const char *gaim_mime_part_get_field(GaimMimePart *part,
 				     const char *field);
+
+
+/** Get the decoded value of a specific field in the header of a
+    document part */
+char *gaim_mime_part_get_field_decoded(GaimMimePart *part,
+				       const char *field);
 
 
 /** Set or replace the value of a specific field in the header of a
@@ -160,7 +173,20 @@ void gaim_mime_part_set_field(GaimMimePart *part,
 const char *gaim_mime_part_get_data(GaimMimePart *part);
 
 
+/** Get the data portion of a MIME document part, after attempting to
+    decode it according to the content-transfer-encoding field. If the
+    specified encoding method is not supported, this function will
+    return NULL.
+
+    @param part the MIME documemt part
+    @param 
+*/
+void gaim_mime_part_get_data_decoded(GaimMimePart *part,
+				     char **data, gsize *len);
+
+
 /** Get the length of the data portion of a MIME document part
+
     @param part  the MIME document part
     @returns     length of the data in the document part
 */

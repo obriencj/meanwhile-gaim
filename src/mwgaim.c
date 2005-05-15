@@ -1502,7 +1502,7 @@ static void mw_conf_peer_joined(struct mwConference *conf,
 
   const char *n = mwConference_getName(conf);
 
-  DEBUG_INFO("%s joined conf %s\n", NSTR(peer->user_id), n);
+  DEBUG_INFO("%s joined conf %s\n", NSTR(peer->user_id), NSTR(n));
 
   srvc = mwConference_getService(conf);
   session = mwService_getSession(MW_SERVICE(srvc));
@@ -2628,35 +2628,168 @@ static GList *mw_prpl_away_states(GaimConnection *gc) {
 }
 
 
-#if 0
-static void conf_create_prompt_cancel() {
+static void conf_create_prompt_cancel(GaimBuddy *buddy,
+				      GaimRequestFields *fields) {
   ;
 }
 
 
-static void conf_create_prompt_join() {
-  ;
+static void conf_create_prompt_join(GaimBuddy *buddy,
+				    GaimRequestFields *fields) {
+  GaimAccount *acct;
+  GaimConnection *gc;
+  struct mwGaimPluginData *pd;
+  struct mwServiceConference *srvc;
+
+  GaimRequestField *f;
+
+  const char *topic, *invite;
+  struct mwConference *conf;
+  struct mwIdBlock idb = { NULL, NULL };
+
+  acct = buddy->account;
+  gc = gaim_account_get_connection(acct);
+  pd = gc->proto_data;
+  srvc = pd->srvc_conf;
+
+  f = gaim_request_fields_get_field(fields, CHAT_KEY_TOPIC);
+  topic = gaim_request_field_string_get_value(f);
+
+  f = gaim_request_fields_get_field(fields, CHAT_KEY_INVITE);
+  invite = gaim_request_field_string_get_value(f);
+
+  conf = mwConference_new(srvc, topic);
+  mwConference_open(conf);
+
+  idb.user = buddy->name;
+  mwConference_invite(conf, &idb, invite);
 }
 
 
-static void conf_create_prompt(GaimBuddy *buddy) {
-  /* prompt via request API */
-  ; 
-}
-#endif
+static void blist_menu_conf_create(GaimBuddy *buddy, const char *msg) {
 
+  GaimRequestFields *fields;
+  GaimRequestFieldGroup *g;
+  GaimRequestField *f;
 
-static void blist_menu_conf_create(GaimBuddy *buddy,
-				   struct mwGaimPluginData *pd) {
+  GaimAccount *acct;
+  GaimConnection *gc;
+
+  char *msgA, *msgB;
   
+  g_return_if_fail(buddy != NULL);
+
+  acct = buddy->account;
+  g_return_if_fail(acct != NULL);
+
+  gc = gaim_account_get_connection(acct);
+  g_return_if_fail(gc != NULL);
+  
+  fields = gaim_request_fields_new();
+
+  g = gaim_request_field_group_new(NULL);
+  gaim_request_fields_add_group(fields, g);
+  
+  f = gaim_request_field_string_new(CHAT_KEY_TOPIC, "Topic", NULL, FALSE);
+  gaim_request_field_group_add_field(g, f);
+
+  f = gaim_request_field_string_new(CHAT_KEY_INVITE, "Message", msg, FALSE);
+  gaim_request_field_group_add_field(g, f);
+  
+  msgA = ("Create conference with user");
+  msgB = ("Please enter a topic for the new conference, and an invitation"
+	  " message to be sent to %s");
+  msgB = g_strdup_printf(msgB, buddy->name);
+
+  gaim_request_fields(gc, "New Conference",
+		      msgA, msgB, fields,
+		      "Create", G_CALLBACK(conf_create_prompt_join),
+		      "Cancel", G_CALLBACK(conf_create_prompt_cancel),
+		      buddy);
+  g_free(msgB);
+}
+
+
+static void conf_select_prompt_cancel(GaimBuddy *buddy,
+				      GaimRequestFields *fields) {
   ;
+}
+
+
+static void conf_select_prompt_invite(GaimBuddy *buddy,
+				      GaimRequestFields *fields) {
+  GaimRequestField *f;
+  const GList *l;
+  const char *msg;
+  
+  f = gaim_request_fields_get_field(fields, CHAT_KEY_INVITE);
+  msg = gaim_request_field_string_get_value(f);
+
+  f = gaim_request_fields_get_field(fields, "conf");
+  l = gaim_request_field_list_get_selected(f);
+
+  if(l) {
+    gpointer d = gaim_request_field_list_get_data(f, l->data);
+    
+    if(GPOINTER_TO_INT(d) == 0x01) {
+      blist_menu_conf_create(buddy, msg);
+
+    } else {
+      struct mwIdBlock idb = { buddy->name, NULL };
+      mwConference_invite(d, &idb, msg);
+    }
+  }
 }
 
 
 static void blist_menu_conf_list(GaimBuddy *buddy,
-				 struct mwGaimPluginData *pd,
 				 GList *confs) {
-  ; /* XXX todo */
+  
+  GaimRequestFields *fields;
+  GaimRequestFieldGroup *g;
+  GaimRequestField *f;
+
+  GaimAccount *acct;
+  GaimConnection *gc;
+
+  char *msgA, *msgB;
+
+  acct = buddy->account;
+  g_return_if_fail(acct != NULL);
+
+  gc = gaim_account_get_connection(acct);
+  g_return_if_fail(gc != NULL);
+
+  fields = gaim_request_fields_new();
+  
+  g = gaim_request_field_group_new(NULL);
+  gaim_request_fields_add_group(fields, g);
+
+  f = gaim_request_field_list_new("conf", "Available Conferences");
+  gaim_request_field_list_set_multi_select(f, FALSE);
+  for(; confs; confs = confs->next) {
+    struct mwConference *c = confs->data;
+    gaim_request_field_list_add(f, mwConference_getTitle(c), c);
+  }
+  gaim_request_field_list_add(f, "Create New Conference...",
+			      GINT_TO_POINTER(0x01));
+  gaim_request_field_group_add_field(g, f);
+  
+  f = gaim_request_field_string_new(CHAT_KEY_INVITE, "Message", NULL, FALSE);
+  gaim_request_field_group_add_field(g, f);
+  
+  msgA = "Invite user to a conference";
+  msgB = ("Select a conference from the list below to send an invite to"
+	  " user %s. Select \"Create New Conference\" if you'd like to"
+	  " create a new conference to invite this user to.");
+  msgB = g_strdup_printf(msgB, buddy->name);
+
+  gaim_request_fields(gc, "Invite to Conference",
+		      msgA, msgB, fields,
+		      "Invite", G_CALLBACK(conf_select_prompt_invite),
+		      "Cancel", G_CALLBACK(conf_select_prompt_cancel),
+		      buddy);
+  g_free(msgB);
 }
 
 
@@ -2688,11 +2821,11 @@ static void blist_menu_conf(GaimBlistNode *node, gpointer data) {
 
   l = mwServiceConference_getConferences(pd->srvc_conf);
   if(l) {
-    blist_menu_conf_list(buddy, pd, l);
+    blist_menu_conf_list(buddy, l);
     g_list_free(l);
 
   } else {
-    blist_menu_conf_create(buddy, pd);
+    blist_menu_conf_create(buddy, NULL);
   }
 }
 
@@ -3416,10 +3549,12 @@ static void multi_resolved_query(struct mwResolveResult *result,
   GaimConnection *gc;
 
   g_return_if_fail(buddy != NULL);
-  acct = buddy->account;
 
+  acct = buddy->account;
   g_return_if_fail(acct != NULL);
+
   gc = gaim_account_get_connection(acct);
+  g_return_if_fail(gc != NULL);
 
   fields = gaim_request_fields_new();
 

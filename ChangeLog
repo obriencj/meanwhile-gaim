@@ -9,6 +9,8 @@ version 1.2.3 (cvs)
 	- fix #1194631 Windows file transfer crashes gaim
 	
 	- fix #1178603 crash on duplicate ldap entries (add buddy)
+
+	- added "Invite to Conference..." context menu
 	
 version 1.2.2 (2005-05-02)
 

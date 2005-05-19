@@ -64,12 +64,13 @@
 /* considering that there's no display of this information for prpls,
    I don't know why I even bother providing these. Oh valiant reader,
    I do it all for you. */
+/* scratch that, I just added it to the prpl options panel */
 #define PLUGIN_ID        "prpl-meanwhile"
 #define PLUGIN_NAME      "Meanwhile"
 #define PLUGIN_SUMMARY   "Meanwhile Protocol Plugin"
 #define PLUGIN_DESC      "Open implementation of a Lotus Sametime client"
 #define PLUGIN_AUTHOR    "Christopher (siege) O'Brien <siege@preoccupied.net>"
-#define PLUGIN_HOMEPAGE  "http://meanwhile.sf.net/"
+#define PLUGIN_HOMEPAGE  "http://meanwhile.sourceforge.net/"
 
 
 /* plugin preference names */
@@ -166,7 +167,7 @@
  ("Please note:\n" \
   "The 'load and save' option above is still mildly experimental. You" \
   " should back-up your buddy list with an official client before" \
-  " enabling this option. Loading takes effect at login.\n")
+  " enabling this option. Loading takes effect at login.")
 
 
 /* debugging output */
@@ -2134,7 +2135,13 @@ static void mw_conversation_closed(struct mwConversation *conv,
     convo_error(conv, reason);
   }
 
+#if 0
+  /* don't do this, to prevent the occasional weird sending of
+     formatted messages as plaintext when the other end closes the
+     conversation after we've begun composing the message */
   convo_nofeatures(conv);
+#endif
+
   mwConversation_removeClientData(conv);
 }
 
@@ -4309,6 +4316,7 @@ static GaimPluginPrefFrame *
 mw_plugin_get_plugin_pref_frame(GaimPlugin *plugin) {
   GaimPluginPrefFrame *frame;
   GaimPluginPref *pref;
+  char *msg;
   
   frame = gaim_plugin_pref_frame_new();
   
@@ -4345,6 +4353,19 @@ mw_plugin_get_plugin_pref_frame(GaimPlugin *plugin) {
   pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_PSYCHIC);
   gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_NONE);
   gaim_plugin_pref_set_label(pref, "Enable Psychic Mode");
+  gaim_plugin_pref_frame_add(frame, pref);
+
+  pref = gaim_plugin_pref_new_with_label("Credits");
+  gaim_plugin_pref_frame_add(frame, pref);
+
+  msg = ( PLUGIN_NAME " - " PLUGIN_DESC "\n"
+	  "Version " VERSION "\n"
+	  PLUGIN_AUTHOR "\n"
+	  PLUGIN_HOMEPAGE );
+
+  pref = gaim_plugin_pref_new();
+  gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_INFO);
+  gaim_plugin_pref_set_label(pref, msg);
   gaim_plugin_pref_frame_add(frame, pref);
 
   return frame;

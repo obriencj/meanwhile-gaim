@@ -2,6 +2,9 @@
 version 1.2.3 (cvs)
 	
 	- building against meanwhile 0.4.2
+
+	- rfe #1199253 Aliases clobber with Notes Address Book (added
+	resolve hook to end of buddy add from NAB groups)
 	
 	- rfe #1054813 privacy support (allow all, allow list, deny all,
 	deny list, allow buddy list)

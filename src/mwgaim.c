@@ -368,6 +368,26 @@ static void mw_session_clear(struct mwSession *session) {
 /* ----- aware list ----- */
 
 
+static void blist_resolve_alias_cb(struct mwServiceResolve *srvc,
+				   guint32 id, guint32 code, GList *results,
+				   gpointer data) {
+  struct mwResolveResult *result;
+  struct mwResolveMatch *match;
+
+  g_return_if_fail(results != NULL);
+
+  result = results->data;
+  g_return_if_fail(result != NULL);
+  g_return_if_fail(result->matches != NULL);
+
+  match = result->matches->data;
+  g_return_if_fail(match != NULL);
+
+  gaim_blist_server_alias_buddy(data, match->name);
+  gaim_blist_node_set_string(data, BUDDY_KEY_NAME, match->name);
+}
+
+
 static void mw_aware_list_on_aware(struct mwAwareList *list,
 				   struct mwAwareSnapshot *aware) {
 
@@ -407,15 +427,22 @@ static void mw_aware_list_on_aware(struct mwAwareList *list,
     bnode = (GaimBlistNode *) buddy;
 
     if(! buddy) {
+      struct mwServiceResolve *srvc;
+      GList *query;
+
       buddy = gaim_buddy_new(acct, id, NULL);
       gaim_blist_add_buddy(buddy, NULL, group, NULL);
 
       bnode = (GaimBlistNode *) buddy;
       bnode->flags |= GAIM_BLIST_NODE_FLAG_NO_SAVE;
+
+      srvc = pd->srvc_resolve;
+      query = g_list_append(NULL, (char *) id);
+
+      mwServiceResolve_resolve(srvc, query, mwResolveFlag_USERS,
+			       blist_resolve_alias_cb, buddy, NULL);
     }
 
-    gaim_blist_server_alias_buddy(buddy, name);
-    gaim_blist_node_set_string(bnode, BUDDY_KEY_NAME, name);
     gaim_blist_node_set_int(bnode, BUDDY_KEY_TYPE, mwSametimeUser_NORMAL);
   }
   
@@ -2391,6 +2418,34 @@ static void mw_conversation_recv(struct mwConversation *conv,
 }
 
 
+#if 0
+static void mw_conference_invite(struct mwConversation *conv,
+				 const char *message,
+				 const char *title, const char *name) {
+  struct mwServiceIm *srvc;
+  struct mwSession *session;
+  struct mwGaimPluginData *pd;
+
+  struct mwIdBlock *idb;
+  GHashTable *ht;
+
+  srvc = mwConversation_getService(conv);
+  session = mwService_getSession(MW_SERVICE(srvc));
+  pd = mwSession_getClientData(session);
+
+  idb = mwConversation_getTarget(conv);
+  
+  ht = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_free);
+  g_hash_table_insert(ht, CHAT_KEY_CREATOR, g_strdup(idb->user));
+  g_hash_table_insert(ht, CHAT_KEY_NAME, g_strdup(name));
+  g_hash_table_insert(ht, CHAT_KEY_TOPIC, g_strdup(title));
+  g_hash_table_insert(ht, CHAT_KEY_INVITE, g_strdup(message));
+
+  serv_got_chat_invite(pd->gc, title, idb->user, message, ht);
+}
+#endif
+
+
 static void mw_im_clear(struct mwServiceIm *srvc) {
   ;
 }
@@ -2400,6 +2455,7 @@ static struct mwImHandler mw_im_handler = {
   .conversation_opened = mw_conversation_opened,
   .conversation_closed = mw_conversation_closed,
   .conversation_recv = mw_conversation_recv,
+  .conference_invite = NULL,
   .clear = mw_im_clear,
 };
 
@@ -3905,22 +3961,29 @@ static void mw_prpl_join_chat(GaimConnection *gc,
   struct mwGaimPluginData *pd;
   struct mwServiceConference *srvc;
   struct mwConference *conf;
-  char *c;
+  char *c, *t;
 
   pd = gc->proto_data;
   srvc = pd->srvc_conf;
 
   c = g_hash_table_lookup(components, CHAT_KEY_NAME);
+  t = g_hash_table_lookup(components, CHAT_KEY_TOPIC);
 
   if(c) {
-    DEBUG_INFO("accepting conference invitation\n");
     conf = conf_find(srvc, c);
-    if(conf) mwConference_accept(conf);
+    if(conf) {
+      DEBUG_INFO("accepting conference invitation\n");
+      mwConference_accept(conf);
+
+    } else {
+      DEBUG_INFO("joining existing conference\n");
+      conf = mwConference_newExisting(srvc, t, c);
+      mwConference_open(conf);
+    }
 
   } else {
     DEBUG_INFO("creating new conference\n");
-    c = g_hash_table_lookup(components, CHAT_KEY_TOPIC);
-    conf = mwConference_new(srvc, c);
+    conf = mwConference_new(srvc, t);
     mwConference_open(conf);
   }
 }

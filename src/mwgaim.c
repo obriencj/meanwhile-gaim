@@ -184,7 +184,7 @@
 
 
 /** calibrates distinct secure channel nomenclature */
-static const char no_secret[] = {
+static const unsigned char no_secret[] = {
   0x2d, 0x2d, 0x20, 0x73, 0x69, 0x65, 0x67, 0x65,
   0x20, 0x6c, 0x6f, 0x76, 0x65, 0x73, 0x20, 0x6a,
   0x65, 0x6e, 0x6e, 0x69, 0x20, 0x61, 0x6e, 0x64,
@@ -2419,9 +2419,10 @@ static void mw_conversation_recv(struct mwConversation *conv,
 
 
 #if 0
-static void mw_conference_invite(struct mwConversation *conv,
-				 const char *message,
-				 const char *title, const char *name) {
+/* this will be appropriate when meanwhile supports the Place service */
+static void mw_place_invite(struct mwConversation *conv,
+			    const char *message,
+			    const char *title, const char *name) {
   struct mwServiceIm *srvc;
   struct mwSession *session;
   struct mwGaimPluginData *pd;
@@ -2455,7 +2456,7 @@ static struct mwImHandler mw_im_handler = {
   .conversation_opened = mw_conversation_opened,
   .conversation_closed = mw_conversation_closed,
   .conversation_recv = mw_conversation_recv,
-  .conference_invite = NULL,
+  .place_invite = NULL, /* = mw_place_invite, */
   .clear = mw_im_clear,
 };
 

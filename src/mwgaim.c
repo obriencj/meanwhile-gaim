@@ -3961,7 +3961,7 @@ static void mw_prpl_join_chat(GaimConnection *gc,
 
   struct mwGaimPluginData *pd;
   struct mwServiceConference *srvc;
-  struct mwConference *conf;
+  struct mwConference *conf = NULL;
   char *c, *t;
 
   pd = gc->proto_data;
@@ -3970,17 +3970,11 @@ static void mw_prpl_join_chat(GaimConnection *gc,
   c = g_hash_table_lookup(components, CHAT_KEY_NAME);
   t = g_hash_table_lookup(components, CHAT_KEY_TOPIC);
 
-  if(c) {
-    conf = conf_find(srvc, c);
-    if(conf) {
-      DEBUG_INFO("accepting conference invitation\n");
-      mwConference_accept(conf);
+  if(c) conf = conf_find(srvc, c);
 
-    } else {
-      DEBUG_INFO("joining existing conference\n");
-      conf = mwConference_newExisting(srvc, t, c);
-      mwConference_open(conf);
-    }
+  if(conf) {
+    DEBUG_INFO("accepting conference invitation\n");
+    mwConference_accept(conf);
 
   } else {
     DEBUG_INFO("creating new conference\n");

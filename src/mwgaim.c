@@ -3909,6 +3909,7 @@ static void mw_prpl_set_permit_deny(GaimConnection *gc) {
     break;
     
   default:
+    DEBUG_INFO("acct->perm_deny is 0x%x\n", acct->perm_deny);
     g_return_if_reached();
   }
 

@@ -78,6 +78,7 @@
 #define MW_PRPL_OPT_BLIST_ACTION  MW_PRPL_OPT_BASE "/blist_action"
 #define MW_PRPL_OPT_PSYCHIC       MW_PRPL_OPT_BASE "/psychic"
 #define MW_PRPL_OPT_FORCE_LOGIN   MW_PRPL_OPT_BASE "/force_login"
+#define MW_PRPL_OPT_SAVE_DYNAMIC  MW_PRPL_OPT_BASE "/save_dynamic"
 
 
 /* stages of connecting-ness */
@@ -143,13 +144,17 @@
 
 
 /** blist storage option, local only */
-#define BLIST_CHOICE_NONE  1
+#define BLIST_CHOICE_NONE    1
 
 /** blist storage option, load from server */
-#define BLIST_CHOICE_LOAD  2
+#define BLIST_CHOICE_LOAD    2
 
 /** blist storage option, load and save to server */
-#define BLIST_CHOICE_SAVE  3
+#define BLIST_CHOICE_SAVE    3
+
+/** blist storage option, server only */
+#define BLIST_CHOICE_SERVER  4
+
 
 /** the default blist storage option */
 #define BLIST_CHOICE_DEFAULT BLIST_CHOICE_SAVE
@@ -434,7 +439,11 @@ static void mw_aware_list_on_aware(struct mwAwareList *list,
       gaim_blist_add_buddy(buddy, NULL, group, NULL);
 
       bnode = (GaimBlistNode *) buddy;
-      bnode->flags |= GAIM_BLIST_NODE_FLAG_NO_SAVE;
+
+      /* mark buddy as transient if preferences do not indicate that
+	 we should save the buddy between gaim sessions */
+      if(! gaim_prefs_get_bool(MW_PRPL_OPT_SAVE_DYNAMIC))
+	bnode->flags |= GAIM_BLIST_NODE_FLAG_NO_SAVE;
 
       srvc = pd->srvc_resolve;
       query = g_list_append(NULL, (char *) id);
@@ -4389,10 +4398,19 @@ mw_plugin_get_plugin_pref_frame(GaimPlugin *plugin) {
   gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_CHOICE);
   gaim_plugin_pref_add_choice(pref, "Local Buddy List Only",
 			      GINT_TO_POINTER(BLIST_CHOICE_NONE));
-  gaim_plugin_pref_add_choice(pref, "Load List from Server",
+  gaim_plugin_pref_add_choice(pref, "Merge List from Server",
 			      GINT_TO_POINTER(BLIST_CHOICE_LOAD));
-  gaim_plugin_pref_add_choice(pref, "Load and Save List to Server",
+  gaim_plugin_pref_add_choice(pref, "Merge and Save List to Server",
 			      GINT_TO_POINTER(BLIST_CHOICE_SAVE));
+
+#if 0
+  /* possible ways to handle:
+     - mark all buddies as NO_SAVE
+     - load server list, delete all local buddies not in server list
+  */
+  gaim_plugin_pref_add_choice(pref, "Server Buddy List Only",
+			      GINT_TO_POINTER(BLIST_CHOISE_SERVER));
+#endif
 
   gaim_plugin_pref_frame_add(frame, pref);
 
@@ -4412,6 +4430,11 @@ mw_plugin_get_plugin_pref_frame(GaimPlugin *plugin) {
   pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_PSYCHIC);
   gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_NONE);
   gaim_plugin_pref_set_label(pref, "Enable Psychic Mode");
+  gaim_plugin_pref_frame_add(frame, pref);
+
+  pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_SAVE_DYNAMIC);
+  gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_NONE);
+  gaim_plugin_pref_set_label(pref, "Save NAB group members locally");
   gaim_plugin_pref_frame_add(frame, pref);
 
   pref = gaim_plugin_pref_new_with_label("Credits");
@@ -4969,6 +4992,7 @@ static void mw_plugin_init(GaimPlugin *plugin) {
   gaim_prefs_add_int(MW_PRPL_OPT_BLIST_ACTION, BLIST_CHOICE_DEFAULT);
   gaim_prefs_add_bool(MW_PRPL_OPT_PSYCHIC, FALSE);
   gaim_prefs_add_bool(MW_PRPL_OPT_FORCE_LOGIN, FALSE);
+  gaim_prefs_add_bool(MW_PRPL_OPT_SAVE_DYNAMIC, TRUE);
 
   /* forward all our g_log messages to gaim. Generally all the logging
      calls are using gaim_log directly, but the g_return macros will

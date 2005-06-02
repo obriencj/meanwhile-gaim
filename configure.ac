@@ -1,7 +1,7 @@
 
 
 # version of this package
-m4_define(gaim_meanwhile_version,	1.2.3)
+m4_define(gaim_meanwhile_version,	1.2.4cvs)
 
 # release of this package
 m4_define(gaim_meanwhile_release,	0)

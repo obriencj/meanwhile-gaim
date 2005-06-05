@@ -403,7 +403,6 @@ static void mw_aware_list_on_aware(struct mwAwareList *list,
   guint stat = aware->status.status;
 
   const char *id = aware->id.user;
-  const char *name = aware->alt_id;
 
   gc = mwAwareList_getClientData(list);
   pd = gc->proto_data;
@@ -2296,7 +2295,6 @@ static void im_recv_mime(struct mwConversation *conv,
     } else if(g_str_has_prefix(type, "image")) {
       /* put images into the image store */
 
-      const char *dat;
       char *d_dat;
       gsize d_len;
       char *cid;

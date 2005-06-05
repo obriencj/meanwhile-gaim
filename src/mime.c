@@ -30,6 +30,7 @@
 #include <glib/gstring.h>
 
 /* this should become "util.h" if we ever get this into gaim proper */
+#include <debug.h>
 #include <util.h>
 
 #include "mime.h"

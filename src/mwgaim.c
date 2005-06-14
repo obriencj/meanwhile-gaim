@@ -82,7 +82,7 @@
 
 
 /* stages of connecting-ness */
-#define MW_CONNECT_STEPS  9
+#define MW_CONNECT_STEPS  10
 
 
 /* stages of conciousness */
@@ -345,8 +345,12 @@ static int mw_session_io_write(struct mwSession *session,
   if(len > 0) {
     DEBUG_ERROR("write returned %i, %i bytes left unwritten\n", ret, len);
     gaim_connection_error(pd->gc, "Connection closed (writing)");
+
+#if 0
     close(pd->socket);
     pd->socket = 0;
+#endif
+
     return -1;
   }
 
@@ -356,11 +360,21 @@ static int mw_session_io_write(struct mwSession *session,
 
 static void mw_session_io_close(struct mwSession *session) {
   struct mwGaimPluginData *pd;
+  GaimConnection *gc;
 
   pd = mwSession_getClientData(session);
+  g_return_if_fail(pd != NULL);
+
+  gc = pd->gc;
+  
   if(pd->socket) {
     close(pd->socket);
     pd->socket = 0;
+  }
+    
+  if(gc->inpa) {
+    gaim_input_remove(gc->inpa);
+    gc->inpa = 0;
   }
 }
 
@@ -1127,14 +1141,18 @@ static void mw_session_stateChange(struct mwSession *session,
     gaim_connection_update_progress(gc, msg, 6, MW_CONNECT_STEPS);
     break;
 
+  case mwSession_LOGIN_CONT:
+    msg = _("Forcing Login");
+    gaim_connection_update_progress(gc, msg, 7, MW_CONNECT_STEPS);
+
   case mwSession_LOGIN_ACK:
     msg = _("Login Acknowledged");
-    gaim_connection_update_progress(gc, msg, 7, MW_CONNECT_STEPS);
+    gaim_connection_update_progress(gc, msg, 8, MW_CONNECT_STEPS);
     break;
 
   case mwSession_STARTED:
     msg = _("Connected to Sametime Community Server");
-    gaim_connection_update_progress(gc, msg, 8, MW_CONNECT_STEPS);
+    gaim_connection_update_progress(gc, msg, 9, MW_CONNECT_STEPS);
     gaim_connection_set_state(gc, GAIM_CONNECTED);
     serv_finish_login(gc);
 

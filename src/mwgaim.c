@@ -1178,8 +1178,6 @@ static void mw_session_stateChange(struct mwSession *session,
 
 
 static void mw_session_setPrivacyInfo(struct mwSession *session) {
-  /** @todo implement privacy one of these days */
-
   struct mwGaimPluginData *pd;
   GaimConnection *gc;
   GaimAccount *acct;
@@ -1305,6 +1303,7 @@ static void read_cb(gpointer data, gint source,
 
   } else if(ret < 0) {
     char *msg = strerror(err);
+
     DEBUG_INFO("error in read callback: %s\n", msg);
 
     msg = g_strdup_printf("Error reading from socket: %s", msg);
@@ -1610,7 +1609,7 @@ static void mw_conf_text(struct mwConference *conf,
   pd = mwSession_getClientData(session);
   gc = pd->gc;
 
-  esc = gaim_escape_html(text);
+  esc = g_markup_escape_text(text, -1);
   serv_got_chat_in(gc, CONF_TO_ID(conf), who->user_id, 0, esc, time(NULL));
   g_free(esc);
 }
@@ -2691,7 +2690,9 @@ static char *mw_prpl_tooltip_text(GaimBuddy *b) {
   g_string_append_printf(str, "\n<b>Status</b>: %s", tmp);
 
   tmp = mwServiceAware_getText(pd->srvc_aware, &idb);
+  if(tmp) g_markup_escape_text(tmp, -1);
   if(tmp) g_string_append_printf(str, "\n<b>Message</b>: %s", tmp);
+  g_free(tmp);
 
   tmp = user_supports_text(pd->srvc_aware, b->name);
   if(tmp) {

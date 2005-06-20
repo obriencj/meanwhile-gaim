@@ -2691,7 +2691,7 @@ static char *mw_prpl_tooltip_text(GaimBuddy *b) {
 
   tmp = mwServiceAware_getText(pd->srvc_aware, &idb);
   if(tmp) {
-    g_markup_escape_text(tmp, -1);
+    tmp = g_markup_escape_text(tmp, -1);
     g_string_append_printf(str, "\n<b>Message</b>: %s", tmp);
     g_free((char *) tmp);
   }

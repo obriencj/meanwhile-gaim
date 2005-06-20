@@ -5,6 +5,8 @@ version 1.2.4 (cvs)
 	option to not mark NAB group buddies as transient, so that they'll
 	save between Gaim sessions)
 
+	- fix tooltip rendering bug for status messages with tag-like text
+	
 version 1.2.3 (2005-05-27)
 	
 	- building against meanwhile 0.4.2

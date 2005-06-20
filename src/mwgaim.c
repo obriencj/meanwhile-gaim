@@ -2690,9 +2690,11 @@ static char *mw_prpl_tooltip_text(GaimBuddy *b) {
   g_string_append_printf(str, "\n<b>Status</b>: %s", tmp);
 
   tmp = mwServiceAware_getText(pd->srvc_aware, &idb);
-  if(tmp) g_markup_escape_text(tmp, -1);
-  if(tmp) g_string_append_printf(str, "\n<b>Message</b>: %s", tmp);
-  g_free(tmp);
+  if(tmp) {
+    g_markup_escape_text(tmp, -1);
+    g_string_append_printf(str, "\n<b>Message</b>: %s", tmp);
+    g_free((char *) tmp);
+  }
 
   tmp = user_supports_text(pd->srvc_aware, b->name);
   if(tmp) {

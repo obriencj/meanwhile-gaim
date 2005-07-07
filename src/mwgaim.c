@@ -168,14 +168,6 @@
 #define BLIST_CHOICE_IS_SAVE() BLIST_CHOICE_IS(BLIST_CHOICE_SAVE)
 
 
-/** warning text placed next to blist option */
-#define BLIST_WARNING \
- ("Please note:\n" \
-  "The 'load and save' option above is still mildly experimental. You" \
-  " should back-up your buddy list with an official client before" \
-  " enabling this option. Loading takes effect at login.")
-
-
 /* debugging output */
 #define DEBUG_ERROR(a...)  gaim_debug_error(G_LOG_DOMAIN, a)
 #define DEBUG_INFO(a...)   gaim_debug_info(G_LOG_DOMAIN, a)
@@ -579,6 +571,11 @@ static void blist_export(GaimConnection *gc, struct mwSametimeList *stlist) {
     mwSametimeGroup_setAlias(stg, grp->name);
     mwSametimeGroup_setOpen(stg, gopen);
 
+    /* don't attempt to put buddies in a dynamic group, it breaks
+       other clients */
+    if(gtype == mwSametimeGroup_DYNAMIC)
+      continue;
+
     for(cn = gn->child; cn; cn = cn->next) {
       if(! GAIM_BLIST_NODE_IS_CONTACT(cn)) continue;
 
@@ -735,6 +732,7 @@ static GaimBuddy *buddy_ensure(GaimConnection *gc, GaimGroup *group,
 }
 
 
+/** add aware watch for a dynamic group */
 static void group_add(struct mwGaimPluginData *pd,
 		      GaimGroup *group) {
 
@@ -762,13 +760,15 @@ static GaimGroup *group_ensure(GaimConnection *gc,
   GaimAccount *acct;
   GaimGroup *group;
   GaimBlistNode *gn;
-  const char *name = mwSametimeGroup_getName(stgroup);
-  const char *alias = mwSametimeGroup_getAlias(stgroup);
-  const char *owner;
-  enum mwSametimeGroupType type = mwSametimeGroup_getType(stgroup);
+  const char *name, *alias, *owner;
+  enum mwSametimeGroupType type;
 
   acct = gaim_connection_get_account(gc);
   owner = gaim_account_get_username(acct);
+
+  name = mwSametimeGroup_getName(stgroup);
+  alias = mwSametimeGroup_getAlias(stgroup);
+  type = mwSametimeGroup_getType(stgroup);
 
   group = gaim_find_group(alias);
   if(! group) {
@@ -923,8 +923,7 @@ static void fetch_msg_cb(struct mwServiceStorage *srvc,
     msg = MW_STATE_BUSY;
   }
 
-  if(msg)
-    serv_set_away(gc, msg, NULL);
+  if(msg) serv_set_away(gc, msg, NULL);
 }
 
 
@@ -4439,11 +4438,6 @@ mw_plugin_get_plugin_pref_frame(GaimPlugin *plugin) {
 			      GINT_TO_POINTER(BLIST_CHOISE_SERVER));
 #endif
 
-  gaim_plugin_pref_frame_add(frame, pref);
-
-  pref = gaim_plugin_pref_new();
-  gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_INFO);
-  gaim_plugin_pref_set_label(pref, BLIST_WARNING);
   gaim_plugin_pref_frame_add(frame, pref);
 
   pref = gaim_plugin_pref_new_with_label("General Options");

@@ -21,6 +21,8 @@
   USA.
 */
 
+/* this file becomes part of core as of Gaim 2.0.0 */
+
 #include <stdio.h>
 #include <string.h>
 
@@ -29,7 +31,6 @@
 #include <glib/glist.h>
 #include <glib/gstring.h>
 
-/* this should become "util.h" if we ever get this into gaim proper */
 #include <debug.h>
 #include <util.h>
 
@@ -319,6 +320,10 @@ void gaim_mime_part_get_data_decoded(GaimMimePart *part,
     *len = part->data->len;
 
   } else if(! g_ascii_strcasecmp(enc, "7bit")) {
+    *data = g_strdup(part->data->str);
+    *len = part->data->len;
+
+  } else if(! g_ascii_strcasecmp(enc, "8bit")) {
     *data = g_strdup(part->data->str);
     *len = part->data->len;
 

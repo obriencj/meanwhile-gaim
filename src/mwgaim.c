@@ -125,7 +125,8 @@
 #define GROUP_KEY_COLLAPSED  "collapsed"
 
 
-#define SESSION_NO_SECRET  "meanwhile.no_secret"
+/* verification replacement */
+#define mwSession_NO_SECRET  "meanwhile.no_secret"
 
 
 /* keys to get/set gaim plugin information */
@@ -1273,15 +1274,19 @@ static void read_cb(gpointer data, gint source,
   struct mwGaimPluginData *pd = data;
   int ret = 0, err = 0;
 
-  g_return_if_fail(pd != NULL);
+  /* How the heck can this happen? Fix submitted to Gaim so that it
+     won't happen anymore. */
+  if(! cond) return;
 
-  if(cond & GAIM_INPUT_READ) {
-    ret = read_recv(pd->session, pd->socket);
-  }
+  g_return_if_fail(pd != NULL);
+  g_return_if_fail(cond & GAIM_INPUT_READ);
+
+  ret = read_recv(pd->session, pd->socket);
 
   /* normal operation ends here */
   if(ret > 0) return;
 
+  /* fetch the global error value */
   err = errno;
 
   /* read problem occured if we're here, so we'll need to take care of
@@ -3086,7 +3091,7 @@ static void mw_prpl_login(GaimAccount *account) {
   DEBUG_INFO("host: '%s'\n", host);
   DEBUG_INFO("port: %u\n", port);
 
-  mwSession_setProperty(pd->session, SESSION_NO_SECRET,
+  mwSession_setProperty(pd->session, mwSession_NO_SECRET,
 			(char *) no_secret, NULL);
   mwSession_setProperty(pd->session, mwSession_AUTH_USER_ID, user, g_free);
   mwSession_setProperty(pd->session, mwSession_AUTH_PASSWORD, pass, NULL);
@@ -3133,6 +3138,7 @@ static void mw_prpl_close(GaimConnection *gc) {
 }
 
 
+/** generates a random-ish content id string */
 static char *im_mime_content_id() {
   const char *c = "%03x@%05xmeanwhile";
   srand(time(0) ^ rand());
@@ -3140,6 +3146,8 @@ static char *im_mime_content_id() {
 }
 
 
+/** generates a multipart/related content type with a random-ish
+    boundary value */
 static char *im_mime_content_type() {
   const char *c = "multipart/related; boundary=related_MW%03x_%04x";
   srand(time(0) ^ rand());

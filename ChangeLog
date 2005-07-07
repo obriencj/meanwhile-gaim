@@ -1,6 +1,11 @@
 
 version 1.2.4 (cvs)
-
+	
+	- fix problem parsing 8bit parts in MIME messages
+	
+	- fix #1120347 Win32 gaim-meanwhile disconnects (error in read
+	callback)
+	
 	- rfe #1199253 Aliases clobber with Notes Address Book (added
 	option to not mark NAB group buddies as transient, so that they'll
 	save between Gaim sessions)

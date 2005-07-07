@@ -2186,9 +2186,18 @@ static void mw_conversation_closed(struct mwConversation *conv,
 
   g_return_if_fail(conv != NULL);
 
+  /* if there's a error code and a non-typing message in the queue,
+     print an error message to the conversation */
   cd = mwConversation_getClientData(conv);
   if(reason && cd && cd->queue) {
-    convo_error(conv, reason);
+    GList *l;
+    for(l = cd->queue; l; l = l->next) {
+      struct convo_msg *m = l->data;
+      if(m->type != mwImSend_TYPING) {
+	convo_error(conv, reason);
+	break;
+      }
+    }
   }
 
 #if 0
@@ -3336,15 +3345,20 @@ static int mw_prpl_send_im(GaimConnection *gc,
     
     g_free(msg);
     return !ret;
+
+  } else {
+    char *msg;
+
+    /* queue up the message safely as plain text */
+    msg = gaim_markup_strip_html(message);
+    convo_queue(conv, mwImSend_PLAIN, msg);
+    g_free(msg);
+
+    if(! mwConversation_isPending(conv))
+      mwConversation_open(conv);
+
+    return 1;
   }
-
-  /* queue up the message */
-  convo_queue(conv, mwImSend_PLAIN, message);
-  
-  if(! mwConversation_isPending(conv))
-    mwConversation_open(conv);
-
-  return 1;
 }
 
 

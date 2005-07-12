@@ -1097,9 +1097,11 @@ static void services_starting(struct mwGaimPluginData *pd) {
     here */
 static void session_started(struct mwGaimPluginData *pd) {
 
+#if 0
   /* announce our status */
   /* in later versions of Gaim, this may need to be removed */
   serv_set_away(pd->gc, MW_STATE_ACTIVE, NULL);
+#endif
 
   /* use our services to do neat things */
   services_starting(pd);
@@ -1465,11 +1467,8 @@ static void mw_conf_invited(struct mwConference *conf,
 #define CHAT_TO_ID(chat)   (gaim_conv_chat_get_id(chat))
 #define ID_TO_CHAT(id)     (gaim_find_chat(id))
 
-#define CHAT_TO_CONF(pd, chat) \
-  (ID_TO_CONF((pd), CHAT_TO_ID(chat)))
-
-#define CONF_TO_CHAT(conf) \
-  (ID_TO_CHAT(CONF_TO_ID(conf)))
+#define CHAT_TO_CONF(pd, chat)  (ID_TO_CONF((pd), CHAT_TO_ID(chat)))
+#define CONF_TO_CHAT(conf)      (ID_TO_CHAT(CONF_TO_ID(conf)))
 
 
 static struct mwConference *

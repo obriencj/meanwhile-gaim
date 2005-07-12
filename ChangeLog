@@ -1,7 +1,9 @@
 
 version 1.2.4 (cvs)
-
+	
 	- fix problem parsing 8bit parts in MIME messages
+
+	- fix #1232922 status not applied on auto-reconnect
 	
 	- fix #1120347 Win32 gaim-meanwhile disconnects (error in read
 	callback)

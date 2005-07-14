@@ -862,7 +862,8 @@ static void fetch_msg_cb(struct mwServiceStorage *srvc,
   struct mwSession *session;
   char *msg, *m;
 
-  g_return_if_fail(result == ERR_SUCCESS);
+  /* it's no big deal if these entries don't exist on the server */
+  if(result != ERR_SUCCESS) return;
 
   g_return_if_fail(pd != NULL);
 
@@ -2049,12 +2050,9 @@ static void convo_nofeatures(struct mwConversation *conv) {
   if(! gconv) return;
 
   gc = gaim_conversation_get_gc(gconv);
+  if(! gc) return;
 
-  /* If the account is disconnecting, then the conversation's closing
-     will call this, and gc will be NULL */
-  if(gc) {
-    gaim_conversation_set_features(gconv, gc->flags);
-  }
+  gaim_conversation_set_features(gconv, gc->flags);
 }
 
 
@@ -2916,8 +2914,7 @@ static void blist_menu_conf(GaimBlistNode *node, gpointer data) {
   pd = gc->proto_data;
   g_return_if_fail(pd != NULL);
 
-  /* @todo prompt for which conference to join
-
+  /*
     - get a list of all conferences on this session
     - if none, prompt to create one, and invite buddy to it
     - else, prompt to select a conference or create one
@@ -2974,8 +2971,6 @@ static GHashTable *mw_prpl_chat_info_defaults(GaimConnection *gc,
   GHashTable *table;
 
   g_return_val_if_fail(gc != NULL, NULL);
-  
-  DEBUG_INFO("mw_prpl_chat_info_defaults for %s\n", NSTR(name));
 
   table = g_hash_table_new_full(g_str_hash, g_str_equal,
 				NULL, g_free);
@@ -3044,7 +3039,6 @@ static void mw_prpl_login(GaimAccount *account) {
   user = g_strdup(gaim_account_get_username(account));
   pass = (char *) gaim_account_get_password(account);
 
-#if 1
   host = strrchr(user, ':');
   if(host) {
     /* annoying user split from 1.2.0, need to undo it */
@@ -3056,34 +3050,6 @@ static void mw_prpl_login(GaimAccount *account) {
     host = (char *) gaim_account_get_string(account, MW_KEY_HOST,
 					    MW_PLUGIN_DEFAULT_HOST);
   }
-
-#else
-  /* the 1.2.0 way to obtain the host string from an account split.  I
-     didn't like this, it didn't solve a problem, but it created a
-     few. The above code undoes it. */
-  host = strrchr(user, ':');
-  if(host) *host++ = '\0';
-
-  if(! host) {
-    const char *h;
-    char *t;
-
-    /* for those without the host string, let's see if they have host
-       specified in the account setting instead. */
-
-    h = gaim_account_get_string(account, MW_KEY_HOST, MW_PLUGIN_DEFAULT_HOST);
-    if(h) {
-      t = g_strdup_printf("%s:%s", user, h);
-      gaim_account_set_username(account, t);
-      g_free(t);
-      host = (char *) h;
-    }
-  }
-
-  /* de-uglify */
-  if(! gaim_account_get_alias(account))
-    gaim_account_set_alias(account, user);
-#endif
 
   if(! host || ! *host) {
     /* somehow, we don't have a host to connect to. Well, we need one
@@ -3315,9 +3281,6 @@ static int mw_prpl_send_im(GaimConnection *gc,
      result is that it may be possible that the other side of the
      conversation will receive a plaintext message with html contents,
      which is bad. I'm not sure how to fix this correctly. */
-
-  /* @todo support chunking messages over a certain size into multiple
-     smaller messages */
 
   if(strstr(message, "<img ") || strstr(message, "<IMG "))
     flags |= GAIM_CONV_IM_IMAGES;
@@ -3823,8 +3786,6 @@ static void mw_prpl_add_buddies(GaimConnection *gc,
 				GList *buddies,
 				GList *groups) {
 
-  /** @todo make this use a single call to each mwAwareList */
-
   struct mwGaimPluginData *pd;
   GHashTable *group_sets;
   struct mwAwareIdBlock *idbs, *idb;
@@ -3897,10 +3858,8 @@ static void privacy_fill(struct mwPrivacyInfo *priv,
   struct mwUserItem *u;
   guint count;
 
-  DEBUG_INFO("privacy_fill\n");
-
   count = g_slist_length(members);
-  DEBUG_INFO("  %u (%i) members\n", count, (int) count);
+  DEBUG_INFO("privacy_fill: %u members\n", count);
 
   priv->count = count;
   priv->users = g_new0(struct mwUserItem, count);
@@ -3939,7 +3898,8 @@ static void mw_prpl_set_permit_deny(GaimConnection *gc) {
   case GAIM_PRIVACY_DENY_USERS:
     DEBUG_INFO("GAIM_PRIVACY_DENY_USERS\n");
     privacy_fill(&privacy, acct->deny);
-    /* fall-through */
+    privacy.deny = TRUE;
+    break;
 
   case GAIM_PRIVACY_ALLOW_ALL:
     DEBUG_INFO("GAIM_PRIVACY_ALLOW_ALL\n");
@@ -3949,7 +3909,8 @@ static void mw_prpl_set_permit_deny(GaimConnection *gc) {
   case GAIM_PRIVACY_ALLOW_USERS:
     DEBUG_INFO("GAIM_PRIVACY_ALLOW_USERS\n");
     privacy_fill(&privacy, acct->permit);
-    /* fall-through */
+    privacy.deny = FALSE;
+    break;
 
   case GAIM_PRIVACY_DENY_ALL:
     DEBUG_INFO("GAIM_PRIVACY_DENY_ALL\n");
@@ -3958,7 +3919,7 @@ static void mw_prpl_set_permit_deny(GaimConnection *gc) {
     
   default:
     DEBUG_INFO("acct->perm_deny is 0x%x\n", acct->perm_deny);
-    g_return_if_reached();
+    return;
   }
 
   mwSession_setPrivacyInfo(session, &privacy);
@@ -4332,9 +4293,6 @@ static void ft_outgoing_cancel(GaimXfer *xfer) {
 
 static void mw_prpl_send_file(GaimConnection *gc,
 			      const char *who, const char *file) {
-
-  /** @todo depends on the meanwhile implementation of the file
-      transfer service */
 
   GaimAccount *acct;
   GaimXfer *xfer;

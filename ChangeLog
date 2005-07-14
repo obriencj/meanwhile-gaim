@@ -1,5 +1,8 @@
 
-version 1.2.4 (cvs)
+version 1.2.4 (2004-07-14)
+
+	- fix #1220550 gaim-meanwhile hangs when redirecting to Sametime
+	server
 	
 	- fix problem parsing 8bit parts in MIME messages
 

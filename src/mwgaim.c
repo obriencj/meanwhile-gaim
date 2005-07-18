@@ -2217,7 +2217,7 @@ static void im_recv_text(struct mwConversation *conv,
 
   idb = mwConversation_getTarget(conv);
   txt = gaim_utf8_try_convert(msg);
-  esc = gaim_escape_html(txt);
+  esc = g_markup_escape_text(txt, -1);
 
   serv_got_im(pd->gc, idb->user, esc, 0, time(NULL));
 
@@ -2594,8 +2594,8 @@ static const char *mw_prpl_list_icon(GaimAccount *a, GaimBuddy *b) {
 
 
 static void mw_prpl_list_emblems(GaimBuddy *b,
-				 char **se, char **sw,
-				 char **nw, char **ne) {
+				 const char **se, const char **sw,
+				 const char **nw, const char **ne) {
 
   /* we have to add the UC_UNAVAILABLE flag so that Gaim will recognie
      certain away states as indicating the buddy is unavailable */

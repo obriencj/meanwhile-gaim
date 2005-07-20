@@ -4796,7 +4796,8 @@ static void remote_group_multi(struct mwResolveResult *result,
 static void remote_group_resolved(struct mwServiceResolve *srvc,
 				  guint32 id, guint32 code, GList *results,
 				  gpointer b) {
-  struct mwResolveResult *res;
+
+  struct mwResolveResult *res = NULL;
   struct mwSession *session;
   struct mwGaimPluginData *pd;
   GaimConnection *gc;
@@ -4819,7 +4820,7 @@ static void remote_group_resolved(struct mwServiceResolve *srvc,
     }
   }
 
-  if(res->name) {
+  if(res && res->name) {
     char *msgA, *msgB;
 
     msgA = "Unable to add group: group not found";

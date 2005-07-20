@@ -2336,6 +2336,7 @@ static void im_recv_mime(struct mwConversation *conv,
 
       /* add image to the gaim image store */
       img = gaim_imgstore_add(d_dat, d_len, cid);
+      g_free(d_dat);
 
       /* map the cid to the image store identifier */
       g_hash_table_insert(img_by_cid, cid, GINT_TO_POINTER(img));
@@ -2350,7 +2351,10 @@ static void im_recv_mime(struct mwConversation *conv,
       gsize len;
 
       gaim_mime_part_get_data_decoded(part, &data, &len);
+
       txt = gaim_utf8_try_convert(data);
+      g_free(data);
+
       g_string_append(str, txt);
       g_free(txt);
     }

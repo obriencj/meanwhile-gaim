@@ -3365,43 +3365,48 @@ static int mw_prpl_send_typing(GaimConnection *gc, const char *name,
 
 static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
 
-  struct mwGaimPluginData *pd;
   struct mwAwareIdBlock idb = { mwAware_USER, (char *) who, NULL };
 
+  struct mwGaimPluginData *pd;
   GaimAccount *acct;
   GaimBuddy *b;
   
   GString *str;
   const char *tmp;
-  guint32 type;
+
+  g_return_if_fail(who != NULL);
+  g_return_if_fail(*who != '\0');
 
   pd = gc->proto_data;
 
   acct = gaim_connection_get_account(gc);
   b = gaim_find_buddy(acct, who);
 
-  g_return_if_fail(b != NULL);
-
   str = g_string_new(NULL);
 
-  g_string_append_printf(str, "<b>User ID:</b> %s<br>", b->name);
+  g_string_append_printf(str, "<b>User ID:</b> %s<br>", who);
 
-  if(b->server_alias) {
-    g_string_append_printf(str, "<b>Full Name:</b> %s<br>",
-			   b->server_alias);
-  }
 
-  type = gaim_blist_node_get_int((GaimBlistNode *) b, BUDDY_KEY_CLIENT);
-  if(type) {
-    g_string_append(str, "<b>Last Known Client:</b> ");
+  if(b) {
+    guint32 type;
 
-    tmp = mwLoginType_getName(type);
-    if(tmp) {
-      g_string_append(str, tmp);
-      g_string_append(str, "<br>");
+    if(b->server_alias) {
+      g_string_append_printf(str, "<b>Full Name:</b> %s<br>",
+			     b->server_alias);
+    }
 
-    } else {
-      g_string_append_printf(str, "Unknown (0x%04x)<br>", type);
+    type = gaim_blist_node_get_int((GaimBlistNode *) b, BUDDY_KEY_CLIENT);
+    if(type) {
+      g_string_append(str, "<b>Last Known Client:</b> ");
+
+      tmp = mwLoginType_getName(type);
+      if(tmp) {
+	g_string_append(str, tmp);
+	g_string_append(str, "<br>");
+	
+      } else {
+	g_string_append_printf(str, "Unknown (0x%04x)<br>", type);
+      }
     }
   }
 
@@ -3411,13 +3416,15 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
     g_free((char *) tmp);
   }
 
-  tmp = status_text(b);
-  g_string_append_printf(str, "<b>Status:</b> %s", tmp);
+  if(b) {
+    tmp = status_text(b);
+    g_string_append_printf(str, "<b>Status:</b> %s", tmp);
 
-  g_string_append(str, "<hr>");
-
-  tmp = mwServiceAware_getText(pd->srvc_aware, &idb);
-  g_string_append(str, tmp);
+    g_string_append(str, "<hr>");
+    
+    tmp = mwServiceAware_getText(pd->srvc_aware, &idb);
+    if(tmp) g_string_append(str, tmp);
+  }
 
   /* @todo emit a signal to allow a plugin to override the display of
      this notification, so that it can create its own */

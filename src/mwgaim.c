@@ -3270,11 +3270,23 @@ static int mw_prpl_send_im(GaimConnection *gc,
   struct mwGaimPluginData *pd;
   struct mwIdBlock who = { (char *) name, NULL };
   struct mwConversation *conv;
+  char *msg = NULL;
+  GError *error = NULL;
 
   g_return_val_if_fail(gc != NULL, 0);
   pd = gc->proto_data;
 
   g_return_val_if_fail(pd != NULL, 0);
+
+  /* gaim uses UTF-8 for everything, but Sametime clients want 8859-1 */
+  msg = g_convert(message, -1, "ISO-8859-1", "UTF-8", NULL, NULL, &error);
+  if(error) {
+    /* if there's something that just won't convert, leave it as UTF-8 */
+    DEBUG_INFO("problem converting to ISO-8859-1, preserving UTF-8: %s\n",
+	       NSTR(error->message));
+    g_error_free(error);
+    msg = g_strdup(message);
+  }
 
   conv = mwServiceIm_getConversation(pd->srvc_im, &who);
 
@@ -3286,39 +3298,49 @@ static int mw_prpl_send_im(GaimConnection *gc,
      conversation will receive a plaintext message with html contents,
      which is bad. I'm not sure how to fix this correctly. */
 
-  if(strstr(message, "<img ") || strstr(message, "<IMG "))
+  if(strstr(msg, "<img ") || strstr(msg, "<IMG "))
     flags |= GAIM_CONV_IM_IMAGES;
 
   if(mwConversation_isOpen(conv)) {
-    char *msg = NULL;
+    char *tmp;
     int ret;
 
     if((flags & GAIM_CONV_IM_IMAGES) &&
        mwConversation_supports(conv, mwImSend_MIME)) {
+      /* send a MIME message */
 
-      msg = im_mime_convert(message);
-      ret = mwConversation_send(conv, mwImSend_MIME, msg);
+      tmp = im_mime_convert(msg);
+      g_free(msg);
+
+      ret = mwConversation_send(conv, mwImSend_MIME, tmp);
+      g_free(tmp);
       
     } else if(mwConversation_supports(conv, mwImSend_HTML)) {
+      /* send an HTML message */
 
       /* need to do this to get the \n to <br> conversion */
-      msg = gaim_strdup_withhtml(message);
-      ret = mwConversation_send(conv, mwImSend_HTML, msg);
+      tmp = gaim_strdup_withhtml(msg);
+      g_free(msg);
+
+      ret = mwConversation_send(conv, mwImSend_HTML, tmp);
+      g_free(tmp);
 
     } else {
-      ret = mwConversation_send(conv, mwImSend_PLAIN, message);
+      /* default to text */
+      ret = mwConversation_send(conv, mwImSend_PLAIN, msg);
+      g_free(msg);
     }
     
-    g_free(msg);
     return !ret;
 
   } else {
-    char *msg;
 
     /* queue up the message safely as plain text */
-    msg = gaim_markup_strip_html(message);
-    convo_queue(conv, mwImSend_PLAIN, msg);
+    char *tmp = gaim_markup_strip_html(msg);
     g_free(msg);
+
+    convo_queue(conv, mwImSend_PLAIN, tmp);
+    g_free(tmp);
 
     if(! mwConversation_isPending(conv))
       mwConversation_open(conv);

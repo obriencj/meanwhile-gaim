@@ -1,7 +1,10 @@
 
 version 1.2.5 (cvs)
-
-
+	
+	- fix #1239210 Unspecified fatal error when VPN disconnects
+	
+	- fix #1208464 Charset selection (attempt to convert outgoing
+	messages to ISO-8859-1, fall back to UTF-8)
 
 version 1.2.4 (2004-07-14)
 

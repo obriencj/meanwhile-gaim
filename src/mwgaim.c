@@ -2598,8 +2598,8 @@ static const char *mw_prpl_list_icon(GaimAccount *a, GaimBuddy *b) {
 
 
 static void mw_prpl_list_emblems(GaimBuddy *b,
-				 const char **se, const char **sw,
-				 const char **nw, const char **ne) {
+				 char **se, char **sw,
+				 char **nw, char **ne) {
 
   /* we have to add the UC_UNAVAILABLE flag so that Gaim will recognie
      certain away states as indicating the buddy is unavailable */
@@ -2610,6 +2610,14 @@ static void mw_prpl_list_emblems(GaimBuddy *b,
     *se = "away";
   } else if(b->uc == (mwStatus_BUSY | UC_UNAVAILABLE)) {
     *se = "dnd";
+  }
+
+  if(g_str_has_prefix(b->name, "@E ")) {
+    if(*se) {
+      *ne = "internet";
+    } else {
+      *se = "internet";
+    }
   }
 }
 
@@ -3789,6 +3797,12 @@ static void mw_prpl_add_buddy(GaimConnection *gc,
 
   pd = gc->proto_data;
   srvc = pd->srvc_resolve;
+
+  /* catch external buddies. They won't be in the resolve service */
+  if(g_str_has_prefix(buddy->name, "@E ")) {
+    buddy_add(pd, buddy);
+    return;
+  }
 
   query = g_list_prepend(NULL, buddy->name);
   flags = mwResolveFlag_FIRST | mwResolveFlag_USERS;

@@ -2625,7 +2625,7 @@ static void mw_prpl_list_emblems(GaimBuddy *b,
   /** @todo create a good icon to indicate "external" users */
   if(buddy_external(b)) {
     if(*se) {
-      *ne = "internet";
+      *sw = "internet";
     } else {
       *se = "internet";
     }

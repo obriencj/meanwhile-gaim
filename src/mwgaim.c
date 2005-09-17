@@ -229,6 +229,8 @@ static void blist_schedule(struct mwGaimPluginData *pd);
 
 static void blist_import(GaimConnection *gc, struct mwSametimeList *stlist);
 
+static gboolean buddy_external(GaimBuddy *b);
+
 static void buddy_add(struct mwGaimPluginData *pd, GaimBuddy *buddy);
 
 static GaimBuddy *
@@ -669,6 +671,12 @@ static void blist_schedule(struct mwGaimPluginData *pd) {
 
   pd->save_event = gaim_timeout_add(BLIST_SAVE_SECONDS * 1000,
 				    blist_save_cb, pd);
+}
+
+
+static gboolean buddy_external(GaimBuddy *b) {
+  g_return_val_if_fail(b != NULL, FALSE);
+  return g_str_has_prefix(b->name, "@E ");
 }
 
 
@@ -2546,6 +2554,7 @@ static struct mwGaimPluginData *mwGaimPluginData_new(GaimConnection *gc) {
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_store));
 
   mwSession_addCipher(pd->session, mwCipher_new_RC2_40(pd->session));
+  mwSession_addCipher(pd->session, mwCipher_new_RC2_128(pd->session));
 
   mwSession_setClientData(pd->session, pd, NULL);
   gc->proto_data = pd;
@@ -2612,7 +2621,9 @@ static void mw_prpl_list_emblems(GaimBuddy *b,
     *se = "dnd";
   }
 
-  if(g_str_has_prefix(b->name, "@E ")) {
+
+  /** @todo create a good icon to indicate "external" users */
+  if(buddy_external(b)) {
     if(*se) {
       *ne = "internet";
     } else {
@@ -2707,6 +2718,10 @@ static char *mw_prpl_tooltip_text(GaimBuddy *b) {
   pd = gc->proto_data;
 
   str = g_string_new(NULL);
+
+  if(buddy_external(b)) {
+    g_string_append(str, "\n<b>External User</b>");
+  }
 
   tmp = status_text(b);
   g_string_append_printf(str, "\n<b>Status</b>: %s", tmp);
@@ -3414,8 +3429,11 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
 
   str = g_string_new(NULL);
 
-  g_string_append_printf(str, "<b>User ID:</b> %s<br>", who);
+  if(g_str_has_prefix(who, "@E ")) {
+    g_string_append(str, "External User<br>");
+  }
 
+  g_string_append_printf(str, "<b>User ID:</b> %s<br>", who);
 
   if(b) {
     guint32 type;

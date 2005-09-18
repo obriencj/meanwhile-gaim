@@ -2717,10 +2717,6 @@ static char *mw_prpl_tooltip_text(GaimBuddy *b) {
 
   str = g_string_new(NULL);
 
-  if(buddy_external(b)) {
-    g_string_append(str, "\n<b>External User</b>");
-  }
-
   tmp = status_text(b);
   g_string_append_printf(str, "\n<b>Status</b>: %s", tmp);
 
@@ -2735,6 +2731,10 @@ static char *mw_prpl_tooltip_text(GaimBuddy *b) {
   if(tmp) {
     g_string_append_printf(str, "\n<b>Supports</b>: %s", tmp);
     g_free((char *) tmp);
+  }
+
+  if(buddy_external(b)) {
+    g_string_append(str, "\n<b>This is an External User</b>");
   }
 
   tmp = str->str;
@@ -3428,7 +3428,7 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
   str = g_string_new(NULL);
 
   if(g_str_has_prefix(who, "@E ")) {
-    g_string_append(str, "External User<br>");
+    g_string_append(str, "<b>This is an External User</b><br>");
   }
 
   g_string_append_printf(str, "<b>User ID:</b> %s<br>", who);

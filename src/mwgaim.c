@@ -2613,6 +2613,9 @@ static void mw_prpl_list_emblems(GaimBuddy *b,
   /* we have to add the UC_UNAVAILABLE flag so that Gaim will recognie
      certain away states as indicating the buddy is unavailable */
 
+  /* speaking of custom icons, the external icon here is an ugly
+     little example of what happens when I use Gimp */
+
   if(! GAIM_BUDDY_IS_ONLINE(b)) {
     *se = "offline";
   } else if(b->uc == (mwStatus_AWAY | UC_UNAVAILABLE)) {
@@ -2621,13 +2624,9 @@ static void mw_prpl_list_emblems(GaimBuddy *b,
     *se = "dnd";
   }
 
-  /* speaking of new icons, here's an ugly little example */
   if(buddy_external(b)) {
-    if(*se) {
-      *sw = "external";
-    } else {
-      *se = "external";
-    }
+    /* best assignment ever */
+    *(*se?sw:se) = "external";
   }
 }
 

@@ -1,5 +1,5 @@
 
-icon_DATA = meanwhile.png
+icon_DATA = meanwhile.png external.png
 
 icondir = $(datadir)/pixmaps/gaim/status/default
 

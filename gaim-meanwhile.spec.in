@@ -47,9 +47,13 @@ Lotus Sametime Community Client library plugin for Gaim
 %defattr(-,root,root,-)
 %{_libdir}/gaim/libmwgaim.so
 %{_datadir}/pixmaps/gaim/status/default/meanwhile.png
+%{_datadir}/pixmaps/gaim/status/default/external.png
 
 
 %changelog
+* Sat Sep 17 2005  <siege@preoccupied.net>
+- added external.png to files
+
 * Wed May 11 2005  <siege@preoccupied.net>
 - Removed static package
 

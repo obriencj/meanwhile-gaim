@@ -147,12 +147,11 @@ AC_SUBST(MEANWHILE_LIBS)
 MEANWHILE_LIBA=`$PKG_CONFIG meanwhile --variable=libarchive`
 AC_SUBST(MEANWHILE_LIBA)
 
-if test -n "$MEANWHILE_LIBA" ; then
-   AC_ARG_ENABLE(static,
-	[  --enable-static         statically link in Meanwhile],,
-	enable_static="no")
-fi
-AM_CONDITIONAL(MEANWHILE_STATIC, test $enable_static = yes)
+AC_ARG_ENABLE(static-meanwhile,
+	[  --enable-static-meanwhile  statically link in Meanwhile],
+	meanwhile_static="yes", meanwhile_static="no")
+
+AM_CONDITIONAL(MEANWHILE_STATIC, test $meanwhile_static = yes)
 
 
 # Check for GLib
@@ -177,11 +176,11 @@ AC_OUTPUT()
 
 echo
 echo -n "Meanwhile linking mode... : "
-if test "$enable_static" != "yes" ; then
-   echo "dynamic"
-else
+if test "$meanwhile_static" = "yes" ; then
    echo "static"
    echo "Meanwhile library...      : $MEANWHILE_LIBA"
+else
+   echo "dynamic"
 fi
 
 echo

@@ -2581,6 +2581,7 @@ static void mwGaimPluginData_free(struct mwGaimPluginData *pd) {
   mwService_free(MW_SERVICE(pd->srvc_store));
 
   mwCipher_free(mwSession_getCipher(pd->session, mwCipher_RC2_40));
+  mwCipher_free(mwSession_getCipher(pd->session, mwCipher_RC2_128));
 
   mwSession_free(pd->session);
 

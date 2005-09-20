@@ -1106,12 +1106,6 @@ static void services_starting(struct mwGaimPluginData *pd) {
     here */
 static void session_started(struct mwGaimPluginData *pd) {
 
-#if 0
-  /* announce our status */
-  /* in later versions of Gaim, this may need to be removed */
-  serv_set_away(pd->gc, MW_STATE_ACTIVE, NULL);
-#endif
-
   /* use our services to do neat things */
   services_starting(pd);
 }
@@ -3154,6 +3148,8 @@ static char *im_mime_content_type() {
 }
 
 
+/** determine content type from extension. Not so happy about this,
+    but I don't want to actually write image type detection */
 static const char *im_mime_img_content_type(GaimStoredImage *img) {
   const char *fn = gaim_imgstore_get_filename(img);
 
@@ -3185,6 +3181,7 @@ static char *im_mime_img_content_disp(GaimStoredImage *img) {
 }
 
 
+/** turn an IM with embedded images into a multi-part mime document */
 static char *im_mime_convert(const char *message) {
   GString *str;
   GaimMimeDocument *doc;

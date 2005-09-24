@@ -137,6 +137,7 @@
 #define MW_KEY_BUSY_MSG    "busy_msg"
 #define MW_KEY_MSG_PROMPT  "msg_prompt"
 #define MW_KEY_INVITE      "conf_invite"
+#define MW_KEY_ENCODING    "encoding"
 
 
 /** number of seconds from the first blist change before a save to the
@@ -2210,21 +2211,110 @@ static void mw_conversation_closed(struct mwConversation *conv,
 }
 
 
+/**
+   refine utf8 string to avoid garbled characters in CP932 conversion.
+   should be applied after g_convert to UTF-8 from CP392
+
+   (created by "yaz" originally)
+   
+   mapping:
+
+   from                                      to
+   ----------------------------------------  -----------------------------------------
+   U+301C(e3809c), WAVE DASH                 U+FF5E(efbd9e), FULLWIDTH TILDE
+   U+2016(e28096), DOUBLE VERTICAL LINE      U+2225(e288a5), PARALLEL TO
+   ----------------------------------------  -----------------------------------------
+   
+*/
+static char *refine_utf_reverse(const char *msg, size_t len, size_t *newlen) {
+  gint i;
+  size_t bytes;
+  unsigned char *utf;
+  
+  utf = g_strndup(msg, len);
+  
+  bytes = len;
+  
+  for(i=0; i<len; i++){
+    switch(*(utf+i)){
+    case 0xe3:
+      if(*(utf+i+1) == 0x80) { 
+	if(*(utf+i+2) == 0x9c) {
+	  /* <- WAVE DASH */
+	  *(utf+i) = 0xef;
+	  *(utf+i+1) = 0xbd;
+	  *(utf+i+2) = 0x9e;
+	  /* -> FULLWIDTH TIDLE */
+	}
+      }
+      break;
+    case 0xe2:
+     if(*(utf+i+1)==0x80) {
+	if(*(utf+i+2) == 0x96) {
+	  /* <- DOUBLE VERTICAL LINE (e28096) */
+	  *(utf+i) = 0xe2;
+	  *(utf+i+1) = 0x88;
+	  *(utf+i+2) = 0xa5;
+	  /* -> PARALLEL TO (e288a5) */
+	}
+      }
+      break;
+    }
+  }
+
+  /* terminate */
+  *(utf+bytes) = 0x00;
+
+  if(newlen)
+    *newlen = bytes;
+
+  return utf;
+}
+
+
+static char *im_decode(GaimConnection *gc, const char *msg) {
+  GaimAccount *acct;
+  char *ret;
+  const char *enc;
+  
+  acct = gaim_connection_get_account(gc);
+  g_return_val_if_fail(acct != NULL, NULL);
+
+  enc = gaim_account_get_string(acct, MW_KEY_ENCODING,
+				MW_PLUGIN_DEFAULT_ENCODING);
+
+  /* specialty handling for cp932 */
+  if(enc && !g_ascii_strcasecmp(enc, "cp932")) {
+    char *tmp;
+    tmp = refine_utf_reverse(msg, strlen(msg), NULL);
+    ret = gaim_utf8_try_convert(msg);
+    g_free(tmp);
+
+  } else {
+    ret = gaim_utf8_try_convert(msg);
+  }
+
+  return ret; 
+}
+
+
 static void im_recv_text(struct mwConversation *conv,
 			 struct mwGaimPluginData *pd,
 			 const char *msg) {
 
   struct mwIdBlock *idb;
-  char *txt, *esc;
+  char *txt, *esc, *t;
 
   idb = mwConversation_getTarget(conv);
-  txt = gaim_utf8_try_convert(msg);
-  esc = g_markup_escape_text(txt, -1);
+  txt = im_decode(pd->gc, msg);
 
+  t = txt? txt: msg;
+
+  esc = g_markup_escape_text(t, -1);
   serv_got_im(pd->gc, idb->user, esc, 0, time(NULL));
+  g_free(esc);
 
   g_free(txt);
-  g_free(esc);
 }
 
 
@@ -2245,12 +2335,14 @@ static void im_recv_html(struct mwConversation *conv,
 			 const char *msg) {
 
   struct mwIdBlock *idb;
-  char *txt;
+  char *txt, *t;
 
   idb = mwConversation_getTarget(conv);
-  txt = gaim_utf8_try_convert(msg);
+  txt = im_decode(pd->gc, msg);
   
-  serv_got_im(pd->gc, idb->user, txt, 0, time(NULL));
+  t = txt? txt: msg;
+
+  serv_got_im(pd->gc, idb->user, t, 0, time(NULL));
 
   g_free(txt);
 }
@@ -2354,13 +2446,13 @@ static void im_recv_mime(struct mwConversation *conv,
 
       gaim_mime_part_get_data_decoded(part, &data, &len);
 
-      txt = gaim_utf8_try_convert(data);
-      g_free(data);
+      txt = im_decode(pd->gc, data);
+      g_string_append(str, txt?txt:data);
 
-      g_string_append(str, txt);
+      g_free(data);
       g_free(txt);
     }
-  }
+  }  
 
   gaim_mime_document_free(doc);
 
@@ -3281,6 +3373,171 @@ static char *im_mime_convert(const char *message) {
 }
 
 
+/**
+   refine utf8 string to avoid garbled characters in CP932 conversion.
+   should be used before g_convert from UTF-8 to CP932
+
+   (created by "yaz" originally)
+  
+   mapping:
+   
+   from                                      to
+   ----------------------------------------  -----------------------------------------
+   U+2225(e288a5), PARALLEL TO               U+2016(e28096), DOUBLE VERTICAL LINE
+   U+FF5E(efbd9e), FULLWIDTH TILDE           U+301C(e3809c), WAVE DASH
+   U+FF5E(efbc8d), FULLWIDTH HYPHEN-MINUS    U+2212(e28892), MINUS SIGN
+   U+FFE0(efbfa0), FULLWIDTH CENT SIGN       U+00A2(c2a2),   CENT SIGN
+   U+FFE1(efbfa1), FULLWIDTH POUND SIGN      U+00A3(c2a3),   POND SIGN
+   U+FFE2(efbfa2), FULLWIDTH NOT SIGN        U+00AC(c2ac),   NOT SIGN
+   U+301C(e3809c), WAVE DASH                 U+FF5E(efbd9e), FULLWIDTH TILDE (REVERSE)
+   ----------------------------------------  -----------------------------------------
+   
+*/
+static char *refine_utf(const char *msg, size_t len, size_t *newlen) {
+  gint i;
+  size_t bytes;
+  unsigned char *utf;
+  
+  utf = g_strndup(msg, len);
+  
+  bytes = len;
+  
+  for(i=0; i<len; i++){
+    switch(*(utf+i)){
+    case 0xe3:
+      /* @@@@ REVERSE !! */
+      if(*(utf+i+1) == 0x80) { 
+	if(*(utf+i+2) == 0x9c) {
+	  /* <- WAVE DASH */
+	  *(utf+i) = 0xef;
+	  *(utf+i+1) = 0xbd;
+	  *(utf+i+2) = 0x9e;
+	  /* -> FULLWIDTH TIDLE */
+	}
+      }
+      break;
+    case 0xe2:
+      if(*(utf+i+1) == 0x88) { 
+	if(*(utf+i+2) == 0xa5) {
+	  /* <- PARALLEL TO (e288a5) */
+	  *(utf+i) = 0xe2;
+	  *(utf+i+1) = 0x80;
+	  *(utf+i+2) = 0x96;
+	  /* -> DOUBLE VERTICAL LINE (e28096) */
+	}
+      }
+      break;
+    case 0xef:
+      /* EF???? */
+      switch(*(utf+i+1)){
+      case 0xbc:
+	/* EFBC?? */
+	if(*(utf+i+2) == 0x8d) {
+	  /* <- FULLWIDTH HYPHEN-MINUS (efbc8d) */
+	  *(utf+i) = 0xe2;
+	  *(utf+i+1) = 0x88;
+	  *(utf+i+2) = 0x92;
+	  /* -> MINUS SIGN (e28892) */
+	}
+	break;
+      case 0xbd:
+	/* EFBD?? */
+	if(*(utf+i+2) == 0x9e) {
+	  /* <- FULLWIDTH TILDE (efbd9e) */
+	  *(utf+i) = 0xe3;
+	  *(utf+i+1) = 0x80;
+	  *(utf+i+2) = 0x9c;
+	  /* -> WAVE DASH (e3809c) */
+	}
+	break;
+      case 0xbf:
+	/* EFBF?? */
+	switch(*(utf+i+2)){ 
+	case 0xa0:
+	  /* <- FULLWIDTH CENT SIGN (efbfa0) */
+	  *(utf+i) = 0xc2;
+	  *(utf+i+1) = 0xa2;
+	  memmove(utf+i+2, utf+i+3, len-i-3);
+	  /* -> CENT SIGN (c2a2) */
+	  bytes--;
+	  break;
+	case 0xa1:
+	  /* <- POUND SIGN (efbfa1) */
+	  *(utf+i) = 0xc2;
+	  *(utf+i+1) = 0xa3;
+	  memmove(utf+i+2, utf+i+3, len-i-3);
+	  /* -> POUND SIGN (c2a3) */
+	  bytes--;
+	  break;
+	case 0xa2:
+	  /* <- FULLWIDTH NOT SIGN (efbfa2) */
+	  *(utf+i) = 0xc2;
+	  *(utf+i+1) = 0xac;
+	  memmove(utf+i+2, utf+i+3, len-i-3);
+	  /* -> NOT SIGN (c2ac) */
+	  bytes--;
+	  break;
+	}
+	break;
+      }
+      break;
+    }
+  }
+
+  /* terminate */
+  *(utf+bytes)= 0x00;
+
+  if(newlen)
+    *newlen = bytes;
+
+  return utf;
+}
+
+
+static char *im_try_convert(const char *msg,
+			    const char *enc_to,
+			    const char *enc_from) {
+  char *ret;
+  GError *error = NULL;
+
+  ret = g_convert(msg, -1, enc_to, enc_from, NULL, NULL, &error);
+  if(error) {
+    /* if there's something that just won't convert, leave it as UTF-8 */
+    DEBUG_INFO("problem converting to %s, preserving %s: %s\n",
+	       NSTR(enc_to), NSTR(enc_from), NSTR(error->message));
+    g_error_free(error);
+  }
+
+  return ret;
+}
+
+
+static char *im_encode(GaimConnection *gc, const char *msg) {
+  GaimAccount *acct;
+  char *ret;
+  const char *enc;
+  
+  acct = gaim_connection_get_account(gc);
+  g_return_val_if_fail(acct != NULL, NULL);
+
+  enc = gaim_account_get_string(acct, MW_KEY_ENCODING,
+				MW_PLUGIN_DEFAULT_ENCODING);
+
+  /* specialty handling for cp932 */
+  if(enc && !g_ascii_strcasecmp(enc, "cp932")) {
+    char *tmp;
+    tmp = refine_utf(msg, strlen(msg), NULL);
+    ret = im_try_convert(msg, enc, "UTF-8");
+    g_free(tmp);
+
+  } else {
+    ret = im_try_convert(msg, enc, "UTF-8");
+  }
+
+  return ret;
+}
+
+
 static int mw_prpl_send_im(GaimConnection *gc,
 			   const char *name,
 			   const char *message,
@@ -3290,22 +3547,14 @@ static int mw_prpl_send_im(GaimConnection *gc,
   struct mwIdBlock who = { (char *) name, NULL };
   struct mwConversation *conv;
   char *msg = NULL;
-  GError *error = NULL;
 
   g_return_val_if_fail(gc != NULL, 0);
   pd = gc->proto_data;
 
   g_return_val_if_fail(pd != NULL, 0);
 
-  /* gaim uses UTF-8 for everything, but Sametime clients want 8859-1 */
-  msg = g_convert(message, -1, "ISO-8859-1", "UTF-8", NULL, NULL, &error);
-  if(error) {
-    /* if there's something that just won't convert, leave it as UTF-8 */
-    DEBUG_INFO("problem converting to ISO-8859-1, preserving UTF-8: %s\n",
-	       NSTR(error->message));
-    g_error_free(error);
-    msg = g_strdup(message);
-  }
+  msg = im_encode(gc, message);
+  if(!msg) msg = g_strdup(message);
 
   conv = mwServiceIm_getConversation(pd->srvc_im, &who);
 
@@ -3473,8 +3722,9 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
   /* @todo emit a signal to allow a plugin to override the display of
      this notification, so that it can create its own */
 
-  gaim_notify_userinfo(gc, who, "Buddy Information",
-		       "Meanwhile User Status", NULL, str->str, NULL, NULL);
+  gaim_notify_userinfo(gc, who, _("Buddy Information"),
+		       _("Meanwhile User Status"),
+		       NULL, str->str, NULL, NULL);
 
   g_string_free(str, TRUE);
 }
@@ -3694,7 +3944,7 @@ static void multi_resolved_query(struct mwResolveResult *result,
      before you add a required field to the group. Feh. */
   gaim_request_fields_add_group(fields, g);
 
-  f = gaim_request_field_list_new("user", "Possible Matches");
+  f = gaim_request_field_list_new("user", _("Possible Matches"));
   gaim_request_field_list_set_multi_select(f, FALSE);
   gaim_request_field_set_required(f, TRUE);
 
@@ -3716,16 +3966,16 @@ static void multi_resolved_query(struct mwResolveResult *result,
 
   gaim_request_field_group_add_field(g, f);
 
-  msgA = ("An ambiguous user ID was entered");
-  msgB = ("The identifier '%s' may possibly refer to any of the following"
-	  " users. Please select the correct user from the list below to"
-	  " add them to your buddy list.");
+  msgA = _("An ambiguous user ID was entered");
+  msgB = _("The identifier '%s' may possibly refer to any of the following"
+	   " users. Please select the correct user from the list below to"
+	   " add them to your buddy list.");
   msgB = g_strdup_printf(msgB, result->name);
 
-  gaim_request_fields(gc, "Select User to Add",
+  gaim_request_fields(gc, _("Select User to Add"),
 		      msgA, msgB, fields,
-		      "Add User", G_CALLBACK(multi_resolved_cb),
-		      "Cancel", G_CALLBACK(multi_resolved_cancel),
+		      _("Add User"), G_CALLBACK(multi_resolved_cb),
+		      _("Cancel"), G_CALLBACK(multi_resolved_cancel),
 		      buddy);
   g_free(msgB);
 }
@@ -3785,14 +4035,14 @@ static void add_buddy_resolved(struct mwServiceResolve *srvc,
     /* compose and display an error message */
     char *msgA, *msgB;
 
-    msgA = "Unable to add user: user not found";
+    msgA = _("Unable to add user: user not found");
 
-    msgB = ("The identifier '%s' did not match any users in your"
-	   " Sametime community. This entry has been removed from"
-	   " your buddy list.");
+    msgB = _("The identifier '%s' did not match any users in your"
+	     " Sametime community. This entry has been removed from"
+	     " your buddy list.");
     msgB = g_strdup_printf(msgB, NSTR(res->name));
 
-    gaim_notify_error(gc, "Unable to add user", msgA, msgB);
+    gaim_notify_error(gc, _("Unable to add user"), msgA, msgB);
 
     g_free(msgB);
   }
@@ -4358,8 +4608,6 @@ static void mw_prpl_send_file(GaimConnection *gc,
   GaimAccount *acct;
   GaimXfer *xfer;
 
-  DEBUG_INFO("mw_prpl_send_file\n");
-
   acct = gaim_connection_get_account(gc);
 
   xfer = gaim_xfer_new(acct, GAIM_XFER_SEND, who);
@@ -4446,19 +4694,19 @@ mw_plugin_get_plugin_pref_frame(GaimPlugin *plugin) {
   
   frame = gaim_plugin_pref_frame_new();
   
-  pref = gaim_plugin_pref_new_with_label("Remotely Stored Buddy List");
+  pref = gaim_plugin_pref_new_with_label(_("Remotely Stored Buddy List"));
   gaim_plugin_pref_frame_add(frame, pref);
   
 
   pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_BLIST_ACTION);
-  gaim_plugin_pref_set_label(pref, "Buddy List Storage Mode");
+  gaim_plugin_pref_set_label(pref, _("Buddy List Storage Mode"));
 
   gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_CHOICE);
-  gaim_plugin_pref_add_choice(pref, "Local Buddy List Only",
+  gaim_plugin_pref_add_choice(pref, _("Local Buddy List Only"),
 			      GINT_TO_POINTER(BLIST_CHOICE_NONE));
-  gaim_plugin_pref_add_choice(pref, "Merge List from Server",
+  gaim_plugin_pref_add_choice(pref, _("Merge List from Server"),
 			      GINT_TO_POINTER(BLIST_CHOICE_LOAD));
-  gaim_plugin_pref_add_choice(pref, "Merge and Save List to Server",
+  gaim_plugin_pref_add_choice(pref, _("Merge and Save List to Server"),
 			      GINT_TO_POINTER(BLIST_CHOICE_SAVE));
 
 #if 0
@@ -4466,31 +4714,31 @@ mw_plugin_get_plugin_pref_frame(GaimPlugin *plugin) {
      - mark all buddies as NO_SAVE
      - load server list, delete all local buddies not in server list
   */
-  gaim_plugin_pref_add_choice(pref, "Server Buddy List Only",
+  gaim_plugin_pref_add_choice(pref, _("Server Buddy List Only"),
 			      GINT_TO_POINTER(BLIST_CHOISE_SERVER));
 #endif
 
   gaim_plugin_pref_frame_add(frame, pref);
 
-  pref = gaim_plugin_pref_new_with_label("General Options");
+  pref = gaim_plugin_pref_new_with_label(_("General Options"));
   gaim_plugin_pref_frame_add(frame, pref);
 
   pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_FORCE_LOGIN);
   gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_NONE);
-  gaim_plugin_pref_set_label(pref, "Force Login (Ignore Login Redirects)");
+  gaim_plugin_pref_set_label(pref, _("Force Login (Ignore Login Redirects)"));
   gaim_plugin_pref_frame_add(frame, pref);
 
   pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_PSYCHIC);
   gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_NONE);
-  gaim_plugin_pref_set_label(pref, "Enable Psychic Mode");
+  gaim_plugin_pref_set_label(pref, _("Enable Psychic Mode"));
   gaim_plugin_pref_frame_add(frame, pref);
 
   pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_SAVE_DYNAMIC);
   gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_NONE);
-  gaim_plugin_pref_set_label(pref, "Save NAB group members locally");
+  gaim_plugin_pref_set_label(pref, _("Save NAB group members locally"));
   gaim_plugin_pref_frame_add(frame, pref);
 
-  pref = gaim_plugin_pref_new_with_label("Credits");
+  pref = gaim_plugin_pref_new_with_label(_("Credits"));
   gaim_plugin_pref_frame_add(frame, pref);
 
   msg = ( PLUGIN_NAME " - " PLUGIN_DESC "\n"
@@ -4517,7 +4765,6 @@ static void status_msg_action_cb(GaimConnection *gc,
   GaimAccount *acct;
   GaimRequestField *f;
   const char *msg;
-  /* gboolean prompt; */
 
   struct mwGaimPluginData *pd;
   struct mwServiceStorage *srvc;
@@ -4546,15 +4793,6 @@ static void status_msg_action_cb(GaimConnection *gc,
   unit = mwStorageUnit_newString(mwStore_BUSY_MESSAGES, msg);
   mwServiceStorage_save(srvc, unit, NULL, NULL, NULL);
 
-#if 0
-  /** @todo not yet used. It should be possible to prompt the user for
-      a message (ala the Sametime Connect client) when changing to one
-      of the default states, and that preference is here */
-  f = gaim_request_fields_get_field(fields, "prompt");
-  prompt = gaim_request_field_bool_get_value(f);
-  gaim_account_set_bool(acct, MW_KEY_MSG_PROMPT, prompt);
-#endif
-
   /* need to propagate the message change if we're in any of those
      default states */
   msg = NULL;
@@ -4582,7 +4820,6 @@ static void status_msg_action(GaimPluginAction *act) {
   
   char *msgA, *msgB;
   const char *val;
-  /* gboolean prompt; */
 
   gc = act->context;
   acct = gaim_connection_get_account(gc);
@@ -4594,37 +4831,26 @@ static void status_msg_action(GaimPluginAction *act) {
 
   val = gaim_account_get_string(acct, MW_KEY_ACTIVE_MSG,
 				MW_PLUGIN_DEFAULT_ACTIVE_MSG);
-  f = gaim_request_field_string_new("active", "Active Message", val, FALSE);
+  f = gaim_request_field_string_new("active", _("Active Message"), val, FALSE);
   gaim_request_field_set_required(f, FALSE);
   gaim_request_field_group_add_field(g, f);
   
   val = gaim_account_get_string(acct, MW_KEY_AWAY_MSG,
 				MW_PLUGIN_DEFAULT_AWAY_MSG);
-  f = gaim_request_field_string_new("away", "Away Message", val, FALSE);
+  f = gaim_request_field_string_new("away", _("Away Message"), val, FALSE);
   gaim_request_field_set_required(f, FALSE);
   gaim_request_field_group_add_field(g, f);
 
   val = gaim_account_get_string(acct, MW_KEY_BUSY_MSG,
 				MW_PLUGIN_DEFAULT_BUSY_MSG);
-  f = gaim_request_field_string_new("busy", "Busy Message", val, FALSE);
+  f = gaim_request_field_string_new("busy", _("Busy Message"), val, FALSE);
   gaim_request_field_set_required(f, FALSE);
   gaim_request_field_group_add_field(g, f);
 
-#if 0
-  /** @todo not yet used. It should be possible to prompt the user for
-      a message (ala the Sametime Connect client) when changing to one
-      of the default states, and that preference is here */
-  prompt = gaim_account_get_bool(acct, MW_KEY_MSG_PROMPT, FALSE);
-  f = gaim_request_field_bool_new("prompt",
-				  ("Prompt for message when changing"
-				   " to one of these states?"), FALSE);
-  gaim_request_field_group_add_field(g, f);
-#endif
-
-  msgA = ("Default status messages");
+  msgA = _("Default status messages");
   msgB = ("");
 
-  gaim_request_fields(gc, "Edit Status Messages",
+  gaim_request_fields(gc, _("Edit Status Messages"),
 		      msgA, msgB, fields,
 		      _("OK"), G_CALLBACK(status_msg_action_cb),
 		      _("Cancel"), NULL,
@@ -4667,7 +4893,7 @@ static void st_import_action(GaimPluginAction *act) {
 
   gc = act->context;
   account = gaim_connection_get_account(gc);
-  title = g_strdup_printf("Import Sametime List for Account %s",
+  title = g_strdup_printf(_("Import Sametime List for Account %s"),
 			  gaim_account_get_username(account));
 
   gaim_request_file(gc, title, NULL, FALSE,
@@ -4706,7 +4932,7 @@ static void st_export_action(GaimPluginAction *act) {
 
   gc = act->context;
   account = gaim_connection_get_account(gc);
-  title = g_strdup_printf("Export Sametime List for Account %s",
+  title = g_strdup_printf(_("Export Sametime List for Account %s"),
 			  gaim_account_get_username(account));
 
   gaim_request_file(gc, title, NULL, TRUE,
@@ -4757,11 +4983,11 @@ static void remote_group_done(struct mwGaimPluginData *pd,
   if(group) {
     char *msgA, *msgB;
 
-    msgA = "Unable to add group: group exists";
-    msgB = "A group named '%s' already exists in your buddy list.";
+    msgA = _("Unable to add group: group exists");
+    msgB = _("A group named '%s' already exists in your buddy list.");
     msgB = g_strdup_printf(msgB, name);
 
-    gaim_notify_error(gc, "Unable to add group", msgA, msgB);
+    gaim_notify_error(gc, _("Unable to add group"), msgA, msgB);
 
     g_free(msgB);
     return;
@@ -4818,7 +5044,7 @@ static void remote_group_multi(struct mwResolveResult *result,
   g = gaim_request_field_group_new(NULL);
   gaim_request_fields_add_group(fields, g);
 
-  f = gaim_request_field_list_new("group", "Possible Matches");
+  f = gaim_request_field_list_new("group", _("Possible Matches"));
   gaim_request_field_list_set_multi_select(f, FALSE);
   gaim_request_field_set_required(f, TRUE);
 
@@ -4834,16 +5060,16 @@ static void remote_group_multi(struct mwResolveResult *result,
 
   gaim_request_field_group_add_field(g, f);
 
-  msgA = ("Notes Address Book group results");
-  msgB = ("The identifier '%s' may possibly refer to any of the following"
+  msgA = _("Notes Address Book group results");
+  msgB = _("The identifier '%s' may possibly refer to any of the following"
 	  " Notes Address Book groups. Please select the correct group from"
 	  " the list below to add it to your buddy list.");
   msgB = g_strdup_printf(msgB, result->name);
 
-  gaim_request_fields(gc, "Select Notes Address Book",
+  gaim_request_fields(gc, _("Select Notes Address Book"),
 		      msgA, msgB, fields,
-		      "Add Group", G_CALLBACK(remote_group_multi_cb),
-		      "Cancel", G_CALLBACK(remote_group_multi_cleanup),
+		      _("Add Group"), G_CALLBACK(remote_group_multi_cb),
+		      _("Cancel"), G_CALLBACK(remote_group_multi_cleanup),
 		      pd);
 
   g_free(msgB);
@@ -4880,13 +5106,13 @@ static void remote_group_resolved(struct mwServiceResolve *srvc,
   if(res && res->name) {
     char *msgA, *msgB;
 
-    msgA = "Unable to add group: group not found";
+    msgA = _("Unable to add group: group not found");
 
-    msgB = ("The identifier '%s' did not match any Notes Address Book"
+    msgB = _("The identifier '%s' did not match any Notes Address Book"
 	    " groups in your Sametime community.");
     msgB = g_strdup_printf(msgB, res->name);
 
-    gaim_notify_error(gc, "Unable to add group", msgA, msgB);
+    gaim_notify_error(gc, _("Unable to add group"), msgA, msgB);
 
     g_free(msgB);
   }
@@ -4922,14 +5148,14 @@ static void remote_group_action(GaimPluginAction *act) {
 
   gc = act->context;
 
-  msgA = "Notes Address Book Group";
-  msgB = ("Enter the name of a Notes Address Book group in the field below"
+  msgA = _("Notes Address Book Group");
+  msgB = _("Enter the name of a Notes Address Book group in the field below"
 	  " to add the group and its members to your buddy list.");
 
-  gaim_request_input(gc, "Add Group", msgA, msgB, NULL,
+  gaim_request_input(gc, _("Add Group"), msgA, msgB, NULL,
 		     FALSE, FALSE, NULL,
-		     "Add", G_CALLBACK(remote_group_action_cb),
-		     "Cancel", NULL,
+		     _("Add"), G_CALLBACK(remote_group_action_cb),
+		     _("Cancel"), NULL,
 		     gc);
 }
 
@@ -4938,16 +5164,19 @@ static GList *mw_plugin_actions(GaimPlugin *plugin, gpointer context) {
   GaimPluginAction *act;
   GList *l = NULL;
 
-  act = gaim_plugin_action_new("Set Status Messages...", status_msg_action);
+  act = gaim_plugin_action_new(_("Set Status Messages..."),
+			       status_msg_action);
   l = g_list_append(l, act);
 
-  act = gaim_plugin_action_new("Import Sametime List...", st_import_action);
+  act = gaim_plugin_action_new(_("Import Sametime List..."),
+			       st_import_action);
   l = g_list_append(l, act);
 
-  act = gaim_plugin_action_new("Export Sametime List...", st_export_action);
+  act = gaim_plugin_action_new(_("Export Sametime List..."),
+			       st_export_action);
   l = g_list_append(l, act);
 
-  act = gaim_plugin_action_new("Add Notes Address Book Group...",
+  act = gaim_plugin_action_new(_("Add Notes Address Book Group..."),
 			       remote_group_action);
   l = g_list_append(l, act);
 
@@ -5029,13 +5258,18 @@ static void mw_plugin_init(GaimPlugin *plugin) {
     G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION;
 
   /* host to connect to */
-  opt = gaim_account_option_string_new("Server", MW_KEY_HOST,
+  opt = gaim_account_option_string_new(_("Server"), MW_KEY_HOST,
 				       MW_PLUGIN_DEFAULT_HOST);
   l = g_list_append(l, opt);
 
   /* port to connect to */
-  opt = gaim_account_option_int_new("Port", MW_KEY_PORT,
+  opt = gaim_account_option_int_new(_("Port"), MW_KEY_PORT,
 				    MW_PLUGIN_DEFAULT_PORT);
+  l = g_list_append(l, opt);
+
+  /* default attempted encoding */
+  opt = gaim_account_option_string_new(_("Encoding"), MW_KEY_ENCODING,
+				       MW_PLUGIN_DEFAULT_ENCODING);
   l = g_list_append(l, opt);
 
   mw_prpl_info.protocol_options = l;

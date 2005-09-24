@@ -110,6 +110,14 @@ AC_ARG_WITH(client,
 CONF_CLIENT_TYPE=$withval
 AC_SUBST(CONF_CLIENT_TYPE)
 
+withval="ISO-8859-1"
+AC_ARG_WITH(client-encoding,
+	[ --with-client-encoding=["ISO-8859-1"]
+                                     define the default client encoding])
+CONF_DEFAULT_ENCODING=$withval
+AC_SUBST(CONF_DEFAULT_ENCODING)
+
+
 
 # debug mode
 AC_ARG_ENABLE(debug,
@@ -174,6 +182,7 @@ AC_CONFIG_FILES(
 
 AC_OUTPUT()
 
+
 echo
 echo -n "Meanwhile linking mode... : "
 if test "$meanwhile_static" = "yes" ; then
@@ -190,6 +199,7 @@ echo Default busy message..... : \"$CONF_BUSY_MSG\"
 echo Default community host... : \"$CONF_DEFAULT_HOST\"
 echo Default community port... : $CONF_DEFAULT_PORT
 echo Client type identifier... : $CONF_CLIENT_TYPE
+echo Default encoding......... : \"$CONF_DEFAULT_ENCODING\"
 echo
 echo configure complete, now run \`make\`
 echo

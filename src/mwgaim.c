@@ -2186,7 +2186,7 @@ static void mw_conversation_closed(struct mwConversation *conv,
 
   g_return_if_fail(conv != NULL);
 
-  /* if there's a error code and a non-typing message in the queue,
+  /* if there's an error code and a non-typing message in the queue,
      print an error message to the conversation */
   cd = mwConversation_getClientData(conv);
   if(reason && cd && cd->queue) {
@@ -2456,6 +2456,7 @@ static void im_recv_mime(struct mwConversation *conv,
 
   gaim_mime_document_free(doc);
 
+  /* @todo should put this in its own function */
   { /* replace each IMG tag's SRC attribute with an ID attribute. This
        actually modifies the contents of str */
     GData *attribs;

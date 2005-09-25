@@ -8,7 +8,9 @@ pkg_LTLIBRARIES = libmwgaim.la
 noinst_HEADERS = \
 	mime.h
 
+
 libmwgaim_la_SOURCES = \
+	config.h \
 	mwgaim.c \
 	mime.c
 

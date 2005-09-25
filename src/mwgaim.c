@@ -2211,90 +2211,9 @@ static void mw_conversation_closed(struct mwConversation *conv,
 }
 
 
-/**
-   refine utf8 string to avoid garbled characters in CP932 conversion.
-   should be applied after g_convert to UTF-8 from CP392
-
-   (created by "yaz" originally)
-   
-   mapping:
-
-   from                                      to
-   ----------------------------------------  -----------------------------------------
-   U+301C(e3809c), WAVE DASH                 U+FF5E(efbd9e), FULLWIDTH TILDE
-   U+2016(e28096), DOUBLE VERTICAL LINE      U+2225(e288a5), PARALLEL TO
-   ----------------------------------------  -----------------------------------------
-   
-*/
-static char *refine_utf_reverse(const char *msg, size_t len, size_t *newlen) {
-  gint i;
-  size_t bytes;
-  unsigned char *utf;
-  
-  utf = g_strndup(msg, len);
-  
-  bytes = len;
-  
-  for(i=0; i<len; i++){
-    switch(*(utf+i)){
-    case 0xe3:
-      if(*(utf+i+1) == 0x80) { 
-	if(*(utf+i+2) == 0x9c) {
-	  /* <- WAVE DASH */
-	  *(utf+i) = 0xef;
-	  *(utf+i+1) = 0xbd;
-	  *(utf+i+2) = 0x9e;
-	  /* -> FULLWIDTH TIDLE */
-	}
-      }
-      break;
-    case 0xe2:
-     if(*(utf+i+1)==0x80) {
-	if(*(utf+i+2) == 0x96) {
-	  /* <- DOUBLE VERTICAL LINE (e28096) */
-	  *(utf+i) = 0xe2;
-	  *(utf+i+1) = 0x88;
-	  *(utf+i+2) = 0xa5;
-	  /* -> PARALLEL TO (e288a5) */
-	}
-      }
-      break;
-    }
-  }
-
-  /* terminate */
-  *(utf+bytes) = 0x00;
-
-  if(newlen)
-    *newlen = bytes;
-
-  return utf;
-}
-
 
 static char *im_decode(GaimConnection *gc, const char *msg) {
-  GaimAccount *acct;
-  char *ret;
-  const char *enc;
-  
-  acct = gaim_connection_get_account(gc);
-  g_return_val_if_fail(acct != NULL, NULL);
-
-  enc = gaim_account_get_string(acct, MW_KEY_ENCODING,
-				MW_PLUGIN_DEFAULT_ENCODING);
-
-  /* specialty handling for cp932 */
-  if(enc && !g_ascii_strcasecmp(enc, "cp932")) {
-    char *tmp;
-    tmp = refine_utf_reverse(msg, strlen(msg), NULL);
-    ret = gaim_utf8_try_convert(msg);
-    g_free(tmp);
-
-  } else {
-    ret = gaim_utf8_try_convert(msg);
-  }
-
-  return ret; 
+  return gaim_utf8_try_convert(msg);
 }
 
 
@@ -3374,127 +3293,6 @@ static char *im_mime_convert(const char *message) {
 }
 
 
-/**
-   refine utf8 string to avoid garbled characters in CP932 conversion.
-   should be used before g_convert from UTF-8 to CP932
-
-   (created by "yaz" originally)
-  
-   mapping:
-   
-   from                                      to
-   ----------------------------------------  -----------------------------------------
-   U+2225(e288a5), PARALLEL TO               U+2016(e28096), DOUBLE VERTICAL LINE
-   U+FF5E(efbd9e), FULLWIDTH TILDE           U+301C(e3809c), WAVE DASH
-   U+FF5E(efbc8d), FULLWIDTH HYPHEN-MINUS    U+2212(e28892), MINUS SIGN
-   U+FFE0(efbfa0), FULLWIDTH CENT SIGN       U+00A2(c2a2),   CENT SIGN
-   U+FFE1(efbfa1), FULLWIDTH POUND SIGN      U+00A3(c2a3),   POND SIGN
-   U+FFE2(efbfa2), FULLWIDTH NOT SIGN        U+00AC(c2ac),   NOT SIGN
-   U+301C(e3809c), WAVE DASH                 U+FF5E(efbd9e), FULLWIDTH TILDE (REVERSE)
-   ----------------------------------------  -----------------------------------------
-   
-*/
-static char *refine_utf(const char *msg, size_t len, size_t *newlen) {
-  gint i;
-  size_t bytes;
-  unsigned char *utf;
-  
-  utf = g_strndup(msg, len);
-  
-  bytes = len;
-  
-  for(i=0; i<len; i++){
-    switch(*(utf+i)){
-    case 0xe3:
-      /* @@@@ REVERSE !! */
-      if(*(utf+i+1) == 0x80) { 
-	if(*(utf+i+2) == 0x9c) {
-	  /* <- WAVE DASH */
-	  *(utf+i) = 0xef;
-	  *(utf+i+1) = 0xbd;
-	  *(utf+i+2) = 0x9e;
-	  /* -> FULLWIDTH TIDLE */
-	}
-      }
-      break;
-    case 0xe2:
-      if(*(utf+i+1) == 0x88) { 
-	if(*(utf+i+2) == 0xa5) {
-	  /* <- PARALLEL TO (e288a5) */
-	  *(utf+i) = 0xe2;
-	  *(utf+i+1) = 0x80;
-	  *(utf+i+2) = 0x96;
-	  /* -> DOUBLE VERTICAL LINE (e28096) */
-	}
-      }
-      break;
-    case 0xef:
-      /* EF???? */
-      switch(*(utf+i+1)){
-      case 0xbc:
-	/* EFBC?? */
-	if(*(utf+i+2) == 0x8d) {
-	  /* <- FULLWIDTH HYPHEN-MINUS (efbc8d) */
-	  *(utf+i) = 0xe2;
-	  *(utf+i+1) = 0x88;
-	  *(utf+i+2) = 0x92;
-	  /* -> MINUS SIGN (e28892) */
-	}
-	break;
-      case 0xbd:
-	/* EFBD?? */
-	if(*(utf+i+2) == 0x9e) {
-	  /* <- FULLWIDTH TILDE (efbd9e) */
-	  *(utf+i) = 0xe3;
-	  *(utf+i+1) = 0x80;
-	  *(utf+i+2) = 0x9c;
-	  /* -> WAVE DASH (e3809c) */
-	}
-	break;
-      case 0xbf:
-	/* EFBF?? */
-	switch(*(utf+i+2)){ 
-	case 0xa0:
-	  /* <- FULLWIDTH CENT SIGN (efbfa0) */
-	  *(utf+i) = 0xc2;
-	  *(utf+i+1) = 0xa2;
-	  memmove(utf+i+2, utf+i+3, len-i-3);
-	  /* -> CENT SIGN (c2a2) */
-	  bytes--;
-	  break;
-	case 0xa1:
-	  /* <- POUND SIGN (efbfa1) */
-	  *(utf+i) = 0xc2;
-	  *(utf+i+1) = 0xa3;
-	  memmove(utf+i+2, utf+i+3, len-i-3);
-	  /* -> POUND SIGN (c2a3) */
-	  bytes--;
-	  break;
-	case 0xa2:
-	  /* <- FULLWIDTH NOT SIGN (efbfa2) */
-	  *(utf+i) = 0xc2;
-	  *(utf+i+1) = 0xac;
-	  memmove(utf+i+2, utf+i+3, len-i-3);
-	  /* -> NOT SIGN (c2ac) */
-	  bytes--;
-	  break;
-	}
-	break;
-      }
-      break;
-    }
-  }
-
-  /* terminate */
-  *(utf+bytes)= 0x00;
-
-  if(newlen)
-    *newlen = bytes;
-
-  return utf;
-}
-
-
 static char *im_try_convert(const char *msg,
 			    const char *enc_to,
 			    const char *enc_from) {
@@ -3515,7 +3313,6 @@ static char *im_try_convert(const char *msg,
 
 static char *im_encode(GaimConnection *gc, const char *msg) {
   GaimAccount *acct;
-  char *ret;
   const char *enc;
   
   acct = gaim_connection_get_account(gc);
@@ -3524,18 +3321,7 @@ static char *im_encode(GaimConnection *gc, const char *msg) {
   enc = gaim_account_get_string(acct, MW_KEY_ENCODING,
 				MW_PLUGIN_DEFAULT_ENCODING);
 
-  /* specialty handling for cp932 */
-  if(enc && !g_ascii_strcasecmp(enc, "cp932")) {
-    char *tmp;
-    tmp = refine_utf(msg, strlen(msg), NULL);
-    ret = im_try_convert(msg, enc, "UTF-8");
-    g_free(tmp);
-
-  } else {
-    ret = im_try_convert(msg, enc, "UTF-8");
-  }
-
-  return ret;
+  return im_try_convert(msg, enc, "UTF-8");
 }
 
 

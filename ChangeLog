@@ -11,6 +11,8 @@ version 1.2.5 (cvs)
 	- rfe #1276721 Support for External buddies
 
 	- support for DH RC2/128 channel encryption
+
+	- re-introduced support for idle times
 	
 version 1.2.4 (2004-07-14)
 

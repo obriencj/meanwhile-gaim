@@ -21,8 +21,17 @@
   USA.
 */
 
-#include <stdlib.h>
 
+/* system includes */
+#include <stdlib.h>
+#include <time.h>
+
+/* glib includes */
+#include <glib.h>
+#include <glib/ghash.h>
+#include <glib/glist.h>
+
+/* gaim includes */
 #include <internal.h>
 #include <gaim.h>
 
@@ -40,10 +49,7 @@
 #include <util.h>
 #include <version.h>
 
-#include <glib.h>
-#include <glib/ghash.h>
-#include <glib/glist.h>
-
+/* meanwhile includes */
 #include <mw_cipher.h>
 #include <mw_common.h>
 #include <mw_error.h>
@@ -57,6 +63,7 @@
 #include <mw_srvc_store.h>
 #include <mw_st_list.h>
 
+/* project includes */
 #include "config.h"
 #include "mime.h"
 
@@ -408,18 +415,23 @@ static void mw_aware_list_on_aware(struct mwAwareList *list,
 
   GaimConnection *gc;
   struct mwGaimPluginData *pd;
-
-  time_t idle = 0;
-  guint stat = aware->status.status;
-
-  const char *id = aware->id.user;
+  time_t idle;
+  guint stat;
+  const char *id;
 
   gc = mwAwareList_getClientData(list);
   pd = gc->proto_data;
-  
+  idle = aware->status.time;
+  stat = aware->status.status;
+  id = aware->id.user;
+
   switch(stat) {
+  case mwStatus_ACTIVE:
+    idle = 0;
+    break;
+
   case mwStatus_IDLE:
-    idle = -1;
+    if(! idle) idle = -1;
     break;
     
   case mwStatus_AWAY:
@@ -429,6 +441,7 @@ static void mw_aware_list_on_aware(struct mwAwareList *list,
     break;
   }
   
+  /* NAB group members */
   if(aware->group) {
     GaimAccount *acct;
     GaimGroup *group;
@@ -459,6 +472,7 @@ static void mw_aware_list_on_aware(struct mwAwareList *list,
 
       mwServiceResolve_resolve(srvc, query, mwResolveFlag_USERS,
 			       blist_resolve_alias_cb, buddy, NULL);
+      g_list_free(query);
     }
 
     gaim_blist_node_set_int(bnode, BUDDY_KEY_TYPE, mwSametimeUser_NORMAL);
@@ -2741,7 +2755,7 @@ static char *mw_prpl_tooltip_text(GaimBuddy *b) {
   }
 
   if(buddy_external(b)) {
-    g_string_append(str, "\n<b>This is an External User</b>");
+    g_string_append(str, "\n<b>External User</b>");
   }
 
   tmp = str->str;
@@ -3462,7 +3476,7 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
   str = g_string_new(NULL);
 
   if(g_str_has_prefix(who, "@E ")) {
-    g_string_append(str, "<b>This is an External User</b><br>");
+    g_string_append(str, "<b>External User</b><br>");
   }
 
   g_string_append_printf(str, "<b>User ID:</b> %s<br>", who);
@@ -3596,7 +3610,7 @@ static void mw_prpl_set_away(GaimConnection *gc,
 }
 
 
-static void mw_prpl_set_idle(GaimConnection *gc, int time) {
+static void mw_prpl_set_idle(GaimConnection *gc, int t) {
   struct mwSession *session;
   struct mwUserStatus stat;
 
@@ -3605,14 +3619,15 @@ static void mw_prpl_set_idle(GaimConnection *gc, int time) {
 
   mwUserStatus_clone(&stat, mwSession_getUserStatus(session));
 
-  if(time > 0 && stat.status == mwStatus_ACTIVE) {
+  if(t > 0 && stat.status == mwStatus_ACTIVE) {
+    time_t now = time(NULL);
+    stat.time = now - t;
     stat.status = mwStatus_IDLE;
 
-  } else if(time == 0 && stat.status == mwStatus_IDLE) {
+  } else if(t == 0 && stat.status == mwStatus_IDLE) {
+    stat.time = 0;
     stat.status = mwStatus_ACTIVE;
   }
-
-  /** @todo actually put the idle time in the user status */
 
   mwSession_setUserStatus(session, &stat);
   mwUserStatus_clear(&stat);

@@ -2823,7 +2823,7 @@ static GList *mw_prpl_away_states(GaimConnection *gc) {
 
 static void conf_create_prompt_cancel(GaimBuddy *buddy,
 				      GaimRequestFields *fields) {
-  ;
+  ; /* nothing to do */
 }
 
 
@@ -3098,13 +3098,13 @@ static void prompt_host(GaimConnection *gc) {
   char *msg;
   
   acct = gaim_connection_get_account(gc);
-  msg = ("No host or IP address has been configured for the"
-	 " Meanwhile account %s. Please enter one below to"
-	 " continue logging in.");
+  msg = _("No host or IP address has been configured for the"
+	  " Meanwhile account %s. Please enter one below to"
+	  " continue logging in.");
   msg = g_strdup_printf(msg, NSTR(gaim_account_get_username(acct)));
   
-  gaim_request_input(gc, "Meanwhile Connection Setup",
-		     "No Sametime Community Server Specified", msg,
+  gaim_request_input(gc, _("Meanwhile Connection Setup"),
+		     _("No Sametime Community Server Specified"), msg,
 		     MW_PLUGIN_DEFAULT_HOST, FALSE, FALSE, NULL,
 		     "Connect", G_CALLBACK(prompt_host_ok_cb),
 		     "Cancel", G_CALLBACK(prompt_host_cancel_cb),

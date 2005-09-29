@@ -3,8 +3,6 @@ version 1.2.5 (cvs)
 
 	- building against meanwhile 0.5.0cvs
 
-	- fix #1239210 Unspecified fatal error when VPN disconnects
-	
 	- fix #1208464 Charset selection
 
 	- rfe #1276721 Support for External buddies
@@ -14,6 +12,8 @@ version 1.2.5 (cvs)
 	- re-introduced support for idle times
 
 	- rfe #1307892 Support for Announcements
+
+	- fix for crash in adding multi-resolved buddies
 	
 version 1.2.4 (2004-07-14)
 

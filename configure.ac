@@ -1,14 +1,14 @@
 
 
 # version of this package
-m4_define(gaim_meanwhile_version,	1.2.5)
+m4_define(gaim_meanwhile_version,	1.2.5cvs)
 
 # release of this package
 m4_define(gaim_meanwhile_release,	0)
 
 # lower and upper-bound versions of Meanwhile
-m4_define(meanwhile_version_min,	0.4.3)
-m4_define(meanwhile_version_max,	0.5.0)
+m4_define(meanwhile_version_min,	0.5.0)
+m4_define(meanwhile_version_max,	0.6.0)
 
 # lower and upper-bound versions of Gaim
 m4_define(gaim_version_min,		1.2.0)
@@ -65,6 +65,8 @@ PKG_CONFIG_PATH="$PKG_CONFIG_PATH":"$PREFIX/lib/pkgconfig"
 export PKG_CONFIG_PATH
 
 
+
+# our cute options which end up in config.h
 withval="Talk to me"
 AC_ARG_WITH(active_msg,
 	[ --with-active-msg=["Talk to me"]
@@ -110,6 +112,7 @@ AC_ARG_WITH(client,
 CONF_CLIENT_TYPE=$withval
 AC_SUBST(CONF_CLIENT_TYPE)
 
+
 withval="ISO-8859-1"
 AC_ARG_WITH(client-encoding,
 	[ --with-client-encoding=["ISO-8859-1"]
@@ -144,7 +147,7 @@ AC_SUBST(GAIM_LIBS)
 
 # Check for Meanwhile
 PKG_CHECK_MODULES(MEANWHILE,
-[meanwhile >= meanwhile_version_min meanwhile < meanwhile_version_max],
+[meanwhile >= meanwhile_version_min] [meanwhile < meanwhile_version_max],
 [
 	AC_DEFINE(HAVE_MEANWHILE, 1, [Define if we've found meanwhile.])
 ])
@@ -162,6 +165,7 @@ AC_ARG_ENABLE(static-meanwhile,
 AM_CONDITIONAL(MEANWHILE_STATIC, test $meanwhile_static = yes)
 
 
+
 # Check for GLib
 PKG_CHECK_MODULES(GLIB,
 [glib-2.0 >= 2.0.0],
@@ -169,11 +173,12 @@ PKG_CHECK_MODULES(GLIB,
 	AC_DEFINE(HAVE_GLIB, 1, [Define if we've found glib.])
 ])
 
-
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
 
+
+# substitutions and generated files
 AC_CONFIG_FILES(
 	[src/config.h]
 	[Makefile dist/Makefile pixmaps/Makefile src/Makefile]
@@ -181,6 +186,7 @@ AC_CONFIG_FILES(
 )
 
 AC_OUTPUT()
+
 
 
 echo

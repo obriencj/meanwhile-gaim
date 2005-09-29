@@ -298,10 +298,14 @@ struct resolved_id {
   char *name;
 };
 
-
 static struct resolved_id *resolved_id_new(const char *id, const char *name);
 
 static void resolved_id_free(struct resolved_id *rid);
+
+
+/* connection functions */
+
+static void connect_cb(gpointer data, gint source, GaimInputCondition cond);
 
 
 /* ----- session ------ */
@@ -1125,6 +1129,26 @@ static void services_starting(struct mwGaimPluginData *pd) {
 }
 
 
+static void session_loginRedirect(struct mwSession *session,
+				  const char *host) {
+  struct mwGaimPluginData *pd;
+  GaimConnection *gc;
+  GaimAccount *account;
+  guint port;
+
+  pd = mwSession_getClientData(session);
+  gc = pd->gc;
+  account = gaim_connection_get_account(gc);
+  port = gaim_account_get_int(account, "port", MW_PLUGIN_DEFAULT_PORT);
+
+  if(gaim_prefs_get_bool(MW_PRPL_OPT_FORCE_LOGIN) ||
+     gaim_proxy_connect(account, host, port, connect_cb, pd)) {
+
+    mwSession_forceLogin(session);
+  }
+}
+
+
 /** called from mw_session_stateChange when the session's state is
     mwSession_STARTED. Any finalizing of start-up stuff should go
     here */
@@ -1137,7 +1161,7 @@ static void session_started(struct mwGaimPluginData *pd) {
 
 static void mw_session_stateChange(struct mwSession *session,
 				   enum mwSessionState state,
-				   guint32 info) {
+				   gpointer info) {
   struct mwGaimPluginData *pd;
   GaimConnection *gc;
   char *msg = NULL;
@@ -1169,6 +1193,7 @@ static void mw_session_stateChange(struct mwSession *session,
   case mwSession_LOGIN_REDIR:
     msg = _("Login Redirected");
     gaim_connection_update_progress(gc, msg, 6, MW_CONNECT_STEPS);
+    session_loginRedirect(session, info);
     break;
 
   case mwSession_LOGIN_CONT:
@@ -1190,8 +1215,8 @@ static void mw_session_stateChange(struct mwSession *session,
     break;
 
   case mwSession_STOPPING:
-    if(info & ERR_FAILURE) {
-      msg = mwError(info);
+    if(GPOINTER_TO_UINT(info) & ERR_FAILURE) {
+      msg = mwError(GPOINTER_TO_UINT(info));
       gaim_connection_error(gc, msg);
       g_free(msg);
     }
@@ -1418,26 +1443,6 @@ static void mw_session_announce(struct mwSession *s,
 }
 
 
-static void mw_session_loginRedirect(struct mwSession *session,
-				     const char *host) {
-  struct mwGaimPluginData *pd;
-  GaimConnection *gc;
-  GaimAccount *account;
-  guint port;
-
-  pd = mwSession_getClientData(session);
-  gc = pd->gc;
-  account = gaim_connection_get_account(gc);
-  port = gaim_account_get_int(account, "port", MW_PLUGIN_DEFAULT_PORT);
-
-  if(gaim_prefs_get_bool(MW_PRPL_OPT_FORCE_LOGIN) ||
-     gaim_proxy_connect(account, host, port, connect_cb, pd)) {
-
-    mwSession_forceLogin(session);
-  }
-}
-
-
 static struct mwSessionHandler mw_session_handler = {
   .io_write = mw_session_io_write,
   .io_close = mw_session_io_close,
@@ -1447,7 +1452,6 @@ static struct mwSessionHandler mw_session_handler = {
   .on_setUserStatus = mw_session_setUserStatus,
   .on_admin = mw_session_admin,
   .on_announce = mw_session_announce,
-  .on_loginRedirect = mw_session_loginRedirect,
 };
 
 

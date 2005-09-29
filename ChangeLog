@@ -1,18 +1,19 @@
 
 version 1.2.5 (cvs)
 
-	- building against meanwhile 0.4.3cvs
+	- building against meanwhile 0.5.0cvs
 
 	- fix #1239210 Unspecified fatal error when VPN disconnects
 	
-	- fix #1208464 Charset selection (attempt to convert outgoing
-	messages to ISO-8859-1, fall back to UTF-8)
+	- fix #1208464 Charset selection
 
 	- rfe #1276721 Support for External buddies
 
-	- support for DH RC2/128 channel encryption
+	- support for DH RC2/128 channel and login encryption
 
 	- re-introduced support for idle times
+
+	- rfe #1307892 Support for Announcements
 	
 version 1.2.4 (2004-07-14)
 

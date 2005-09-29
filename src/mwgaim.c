@@ -299,6 +299,11 @@ struct resolved_id {
 };
 
 
+static struct resolved_id *resolved_id_new(const char *id, const char *name);
+
+static void resolved_id_free(struct resolved_id *rid);
+
+
 /* ----- session ------ */
 
 
@@ -424,6 +429,10 @@ static void mw_aware_list_on_aware(struct mwAwareList *list,
   idle = aware->status.time;
   stat = aware->status.status;
   id = aware->id.user;
+
+  /* saw a client send this once */
+  if(idle == 0xdeadbeef)
+    idle = -1;
 
   switch(stat) {
   case mwStatus_ACTIVE:
@@ -1127,7 +1136,8 @@ static void session_started(struct mwGaimPluginData *pd) {
 
 
 static void mw_session_stateChange(struct mwSession *session,
-				   enum mwSessionState state, guint32 info) {
+				   enum mwSessionState state,
+				   guint32 info) {
   struct mwGaimPluginData *pd;
   GaimConnection *gc;
   char *msg = NULL;
@@ -1377,9 +1387,39 @@ static void connect_cb(gpointer data, gint source,
 }
 
 
+static void mw_session_announce(struct mwSession *s,
+				struct mwLoginInfo *from,
+				gboolean may_reply,
+				const char *text) {
+  struct mwGaimPluginData *pd;
+  GaimAccount *acct;
+  GaimConversation *conv;
+  GSList *buddies;
+  char *who = from->user_id;
+  char *msg;
+  
+  pd = mwSession_getClientData(s);
+  acct = gaim_connection_get_account(pd->gc);
+  conv = gaim_find_conversation_with_account(who, acct);
+  if(! conv) conv = gaim_conversation_new(GAIM_CONV_IM, acct, who);
+
+  buddies = gaim_find_buddies(acct, who);
+  if(buddies) {
+    who = (char *) gaim_buddy_get_contact_alias(buddies->data);
+    g_slist_free(buddies);
+  }
+
+  who = g_strdup_printf("Announcement from %s", who);
+  msg = gaim_markup_linkify(text);
+
+  gaim_conversation_write(conv, who, msg, GAIM_MESSAGE_RECV, time(NULL));
+  g_free(who);
+  g_free(msg);
+}
+
+
 static void mw_session_loginRedirect(struct mwSession *session,
 				     const char *host) {
-
   struct mwGaimPluginData *pd;
   GaimConnection *gc;
   GaimAccount *account;
@@ -1406,6 +1446,7 @@ static struct mwSessionHandler mw_session_handler = {
   .on_setPrivacyInfo = mw_session_setPrivacyInfo,
   .on_setUserStatus = mw_session_setUserStatus,
   .on_admin = mw_session_admin,
+  .on_announce = mw_session_announce,
   .on_loginRedirect = mw_session_loginRedirect,
 };
 
@@ -3634,6 +3675,25 @@ static void mw_prpl_set_idle(GaimConnection *gc, int t) {
 }
 
 
+static struct resolved_id *resolved_id_new(const char *id,
+					   const char *name) {
+
+  struct resolved_id *rid = g_new0(struct resolved_id, 1);
+  rid->id = g_strdup(id);
+  rid->name = g_strdup(name);
+  return rid;
+}
+
+
+static void resolved_id_free(struct resolved_id *rid) {
+  if(rid) {
+    g_free(rid->id);
+    g_free(rid->name);
+    g_free(rid);
+  }
+}
+
+
 static void add_resolved_done(const char *id, const char *name,
 			      GaimBuddy *buddy) {
   GaimAccount *acct;
@@ -3661,7 +3721,6 @@ static void add_resolved_done(const char *id, const char *name,
 
 
 static void multi_resolved_cleanup(GaimRequestFields *fields) {
-
   GaimRequestField *f;
   const GList *l;
 
@@ -3673,10 +3732,7 @@ static void multi_resolved_cleanup(GaimRequestFields *fields) {
     struct resolved_id *res;
 
     res = gaim_request_field_list_get_data(f, i);
-
-    g_free(res->id);
-    g_free(res->name);
-    g_free(res);
+    resolved_id_free(res);
   }
 }
 
@@ -3719,11 +3775,23 @@ static void multi_resolved_cb(GaimBuddy *buddy,
 }
 
 
+static void foreach_resolved_id(char *key, char *val, GList **l) {
+  struct resolved_id *res = resolved_id_new(key, val);
+  *l = g_list_prepend(*l, res);
+}
+
+
+static gint resolved_id_comp(struct resolved_id *a, struct resolved_id *b) {
+  return g_ascii_strcasecmp(a->name, b->name);
+}
+
+
 static void multi_resolved_query(struct mwResolveResult *result,
 				 GaimBuddy *buddy) {
   GaimRequestFields *fields;
   GaimRequestFieldGroup *g;
   GaimRequestField *f;
+  GHashTable *hash;
   GList *l;
   char *msgA, *msgB;
 
@@ -3750,14 +3818,27 @@ static void multi_resolved_query(struct mwResolveResult *result,
   gaim_request_field_list_set_multi_select(f, FALSE);
   gaim_request_field_set_required(f, TRUE);
 
+  /* collect results into a set of identities */
+  hash = g_hash_table_new(g_str_hash, g_str_equal);
   for(l = result->matches; l; l = l->next) {
     struct mwResolveMatch *match = l->data;
-    struct resolved_id *res = g_new0(struct resolved_id, 1);
+    
+    if(!match->id || !match->name)
+      continue;
+    
+    g_hash_table_insert(hash, match->id, match->name);
+  }
+  
+  /* collect set into a list of structures */
+  l = NULL;
+  g_hash_table_foreach(hash, (GHFunc) foreach_resolved_id, &l);
+  g_list_sort(l, (GCompareFunc) resolved_id_comp);
+
+  /* populate choices in request field */
+  for(; l; l = l->next) {
+    struct resolved_id *res = l->data;
     char *label;
-
-    res->id = g_strdup(match->id);
-    res->name = g_strdup(match->name);
-
+    
     /* fixes bug 1178603 by making the selection label a combination
        of the full name and the user id. Problems arrise when multiple
        entries have identical labels */
@@ -3765,6 +3846,8 @@ static void multi_resolved_query(struct mwResolveResult *result,
     gaim_request_field_list_add(f, label, res);
     g_free(label);
   }
+
+  g_list_free(l);
 
   gaim_request_field_group_add_field(g, f);
 
@@ -3886,7 +3969,6 @@ static void mw_prpl_add_buddy(GaimConnection *gc,
 
 static void foreach_add_buddies(GaimGroup *group, GList *buddies,
 				struct mwGaimPluginData *pd) {
-
   struct mwAwareList *list;
 
   list = list_ensure(pd, group);

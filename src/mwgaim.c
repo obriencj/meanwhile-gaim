@@ -2286,7 +2286,7 @@ static void im_recv_text(struct mwConversation *conv,
   idb = mwConversation_getTarget(conv);
   txt = im_decode(pd->gc, msg);
 
-  t = txt? txt: msg;
+  t = txt? txt: (char *) msg;
 
   esc = g_markup_escape_text(t, -1);
   serv_got_im(pd->gc, idb->user, esc, 0, time(NULL));
@@ -2318,7 +2318,7 @@ static void im_recv_html(struct mwConversation *conv,
   idb = mwConversation_getTarget(conv);
   txt = im_decode(pd->gc, msg);
   
-  t = txt? txt: msg;
+  t = txt? txt: (char *) msg;
 
   serv_got_im(pd->gc, idb->user, t, 0, time(NULL));
 

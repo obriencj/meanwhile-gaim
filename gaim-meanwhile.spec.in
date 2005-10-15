@@ -45,6 +45,7 @@ Lotus Sametime Community Client library plugin for Gaim
 
 %files
 %defattr(-,root,root,-)
+%doc AUTHORS ChangeLog LICENSE
 %{_libdir}/gaim/libmwgaim.so
 %{_datadir}/pixmaps/gaim/status/default/meanwhile.png
 %{_datadir}/pixmaps/gaim/status/default/external.png

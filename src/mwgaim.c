@@ -152,28 +152,25 @@
 #define BLIST_SAVE_SECONDS  15
 
 
-/** blist storage option, local only */
-#define BLIST_CHOICE_NONE    1
-
-/** blist storage option, load from server */
-#define BLIST_CHOICE_LOAD    2
-
-/** blist storage option, load and save to server */
-#define BLIST_CHOICE_SAVE    3
-
-/** blist storage option, server only */
-#define BLIST_CHOICE_SERVER  4
+/** the possible buddy list storage settings */
+enum blist_choice {
+  blist_choice_LOCAL = 1, /**< local only */
+  blist_choice_MERGE = 2, /**< merge from server */
+  blist_choice_STORE = 3, /**< merge from and save to server */
+  blist_choice_SYNCH = 4, /**< sync with server */
+};
 
 
 /** the default blist storage option */
-#define BLIST_CHOICE_DEFAULT BLIST_CHOICE_SAVE
+#define BLIST_CHOICE_DEFAULT  blist_choice_STORE
 
 
 /* testing for the above */
-#define BLIST_CHOICE_IS(n) (gaim_prefs_get_int(MW_PRPL_OPT_BLIST_ACTION)==(n))
-#define BLIST_CHOICE_IS_NONE() BLIST_CHOICE_IS(BLIST_CHOICE_NONE)
-#define BLIST_CHOICE_IS_LOAD() BLIST_CHOICE_IS(BLIST_CHOICE_LOAD)
-#define BLIST_CHOICE_IS_SAVE() BLIST_CHOICE_IS(BLIST_CHOICE_SAVE)
+#define BLIST_PREF_IS(n) (gaim_prefs_get_int(MW_PRPL_OPT_BLIST_ACTION)==(n))
+#define BLIST_PREF_IS_LOCAL()  BLIST_PREF_IS(blist_choice_LOCAL)
+#define BLIST_PREF_IS_MERGE()  BLIST_PREF_IS(blist_choice_MERGE)
+#define BLIST_PREF_IS_STORE()  BLIST_PREF_IS(blist_choice_STORE)
+#define BLIST_PREF_IS_SYNCH()  BLIST_PREF_IS(blist_choice_SYNCH)
 
 
 /* debugging output */
@@ -235,9 +232,11 @@ static void blist_store(struct mwGaimPluginData *pd);
 
 static void blist_schedule(struct mwGaimPluginData *pd);
 
-static void blist_import(GaimConnection *gc, struct mwSametimeList *stlist);
+static void blist_merge(GaimConnection *gc, struct mwSametimeList *stlist);
 
-static gboolean buddy_external(GaimBuddy *b);
+static void blist_sync(GaimConnection *gc, struct mwSametimeList *stlist);
+
+static gboolean buddy_is_external(GaimBuddy *b);
 
 static void buddy_add(struct mwGaimPluginData *pd, GaimBuddy *buddy);
 
@@ -435,8 +434,14 @@ static void mw_aware_list_on_aware(struct mwAwareList *list,
   id = aware->id.user;
 
   /* saw a client send this once */
-  if(idle == 0xdeadbeef)
+  if(idle == 0xdeadbeef) {
+    DEBUG_INFO("\"knock knock!\""
+	       "\"who's there?\""
+	       "\"rude interrupting cow.\""
+	       "\"rude interr...\""
+	       "\"MOO!\"\n");
     idle = -1;
+  }
 
   switch(stat) {
   case mwStatus_ACTIVE:
@@ -652,17 +657,19 @@ static void blist_store(struct mwGaimPluginData *pd) {
 
   gc = pd->gc;
 
-  /* check if we should do this, according to user prefs */
-  if(! BLIST_CHOICE_IS_SAVE()) {
+  if(BLIST_PREF_IS_LOCAL() || BLIST_PREF_IS_MERGE()) {
     DEBUG_INFO("preferences indicate not to save remote blist\n");
     return;
 
   } else if(MW_SERVICE_IS_DEAD(srvc)) {
     DEBUG_INFO("aborting save of blist: storage service is not alive\n");
     return;
-  
-  } else {
+
+  } else if(BLIST_PREF_IS_STORE() || BLIST_PREF_IS_SYNCH()) {
     DEBUG_INFO("saving remote blist\n");
+
+  } else {
+    g_return_if_reached();
   }
 
   /* create and export to a list object */
@@ -702,7 +709,7 @@ static void blist_schedule(struct mwGaimPluginData *pd) {
 }
 
 
-static gboolean buddy_external(GaimBuddy *b) {
+static gboolean buddy_is_external(GaimBuddy *b) {
   g_return_val_if_fail(b != NULL, FALSE);
   return g_str_has_prefix(b->name, "@E ");
 }
@@ -827,7 +834,7 @@ static GaimGroup *group_ensure(GaimConnection *gc,
 
 
 /** merge the entries from a st list into the gaim blist */
-static void blist_import(GaimConnection *gc, struct mwSametimeList *stlist) {
+static void blist_merge(GaimConnection *gc, struct mwSametimeList *stlist) {
   struct mwSametimeGroup *stgroup;
   struct mwSametimeUser *stuser;
 
@@ -854,6 +861,201 @@ static void blist_import(GaimConnection *gc, struct mwSametimeList *stlist) {
 }
 
 
+/** remove all buddies on account from group. If del is TRUE and group
+    is left empty, remove group as well */
+static void group_clear(GaimGroup *group, GaimAccount *acct, gboolean del) {
+  GaimConnection *gc;
+  GList *prune = NULL;
+  GaimBlistNode *gn, *cn, *bn;
+
+  g_return_if_fail(group != NULL);
+
+  DEBUG_INFO("clearing members from pruned group %s\n", NSTR(group->name));
+
+  gc = gaim_account_get_connection(acct);
+  g_return_if_fail(gc != NULL);
+
+  gn = (GaimBlistNode *) group;
+
+  for(cn = gn->child; cn; cn = cn->next) {
+    if(! GAIM_BLIST_NODE_IS_CONTACT(cn)) continue;
+
+    for(bn = cn->child; bn; bn = bn->next) {
+      GaimBuddy *gb = (GaimBuddy *) bn;
+
+      if(! GAIM_BLIST_NODE_IS_BUDDY(bn)) continue;
+      
+      if(gb->account == acct)
+	prune = g_list_prepend(prune, gb);
+    }
+  }
+
+  /* quickly unsubscribe from presence for the entire group */
+  serv_remove_group(gc, group);
+
+  /* remove blist entries that need to go */
+  while(prune) {
+    gaim_blist_remove_buddy(prune->data);
+    prune = g_list_delete_link(prune, prune);
+  }
+
+  /* optionally remove group from blist */
+  if(del && !gaim_blist_get_group_size(group, TRUE)) {
+    gaim_blist_remove_group(group);
+  }
+}
+
+
+/** prune out group members that shouldn't be there */
+static void group_prune(GaimConnection *gc, GaimGroup *group,
+			struct mwSametimeGroup *stgroup) {
+
+  GaimAccount *acct;
+  GaimBlistNode *gn, *cn, *bn;
+  
+  GHashTable *stusers;
+  GList *prune = NULL;
+  GList *ul, *utl;
+
+  g_return_if_fail(group != NULL);
+
+  DEBUG_INFO("pruning membership of group %s\n", NSTR(group->name));
+
+  acct = gaim_connection_get_account(gc);
+  g_return_if_fail(acct != NULL);
+
+  stusers = g_hash_table_new(g_str_hash, g_str_equal);
+  
+  /* build a hash table for quick lookup while pruning the group
+     contents */
+  utl = mwSametimeGroup_getUsers(stgroup);
+  for(ul = utl; ul; ul = ul->next) {
+    const char *id = mwSametimeUser_getUser(ul->data);
+    g_hash_table_insert(stusers, (char *) id, ul->data);
+  }
+  g_list_free(utl);
+
+  gn = (GaimBlistNode *) group;
+
+  for(cn = gn->child; cn; cn = cn->next) {
+    if(! GAIM_BLIST_NODE_IS_CONTACT(cn)) continue;
+
+    for(bn = cn->child; bn; bn = bn->next) {
+      GaimBuddy *gb = (GaimBuddy *) bn;
+
+      if(! GAIM_BLIST_NODE_IS_BUDDY(bn)) continue;
+
+      /* if the account is correct and they're not in our table, mark
+	 them for pruning */
+      if(gb->account == acct && !g_hash_table_lookup(stusers, gb->name)) {
+	DEBUG_INFO("marking %s for pruning\n", NSTR(gb->name));
+	prune = g_list_prepend(prune, gb);
+      }
+    }
+  }
+
+  g_hash_table_destroy(stusers);
+
+  if(prune) {
+    serv_remove_buddies(gc, prune, NULL);
+    while(prune) {
+      gaim_blist_remove_buddy(prune->data);
+      prune = g_list_delete_link(prune, prune);
+    }
+  }
+}
+
+
+/** synch the entries from a st list into the gaim blist, removing any
+    existing buddies that aren't in the st list */
+static void blist_sync(GaimConnection *gc, struct mwSametimeList *stlist) {
+
+  GaimAccount *acct;
+  GaimBuddyList *blist;
+  GaimBlistNode *gn;
+  GaimGroup *grp;
+
+  GHashTable *stgroups;
+  GList *g_prune;
+
+  GList *gl, *gtl;
+
+  DEBUG_INFO("synchronizing local buddy list from server list\n");
+
+  acct = gaim_connection_get_account(gc);
+  g_return_if_fail(acct != NULL);
+
+  blist = gaim_get_blist();
+  g_return_if_fail(blist != NULL);
+
+  /* build a hash table for quick lookup while pruning the local
+     list */
+  stgroups = g_hash_table_new(g_str_hash, g_str_equal);
+
+  gtl = mwSametimeList_getGroups(stlist);
+  for(gl = gtl; gl; gl = gl->next) {
+    const char *name = mwSametimeGroup_getName(gl->data);
+    g_hash_table_insert(stgroups, (char *) name, gl->data);
+  }
+  g_list_free(gtl);
+
+  /* find all groups which should be pruned from the local list */
+  for(gn = blist->root; gn; gn = gn->next) {
+    const char *gname;
+    enum mwSametimeGroupType gtype;
+    struct mwSametimeGroup *stgrp;
+
+    if(! GAIM_BLIST_NODE_IS_GROUP(gn)) continue;
+    grp = (GaimGroup *) gn;
+
+    gtype = gaim_blist_node_get_int(gn, GROUP_KEY_TYPE);
+    if(! gtype) gtype = mwSametimeGroup_NORMAL;
+
+    /* normal group not belonging to this account */
+    if(gtype == mwSametimeGroup_NORMAL && !gaim_group_on_account(grp, acct))
+      continue;
+
+    /* we actually are synching by this key as opposed to the group
+       title, which can be different things in the st list */
+    gname = gaim_blist_node_get_string(gn, GROUP_KEY_NAME);
+    if(! gname) gname = grp->name;
+
+    stgrp = g_hash_table_lookup(stgroups, gname);
+    if(! stgrp) {
+      /* remove the whole group */
+      DEBUG_INFO("marking group %s for pruning\n", grp->name);
+      g_prune = g_list_prepend(g_prune, grp);
+
+    } else {
+      /* synch the group contents */
+      group_prune(gc, grp, stgrp);
+    }
+  }
+
+  /* don't need this anymore */
+  g_hash_table_destroy(stgroups);
+
+  /* prune all marked groups */
+  while(g_prune) {
+    const char *owner;
+    gboolean del = TRUE;
+
+    owner == gaim_blist_node_get_string(gn, GROUP_KEY_OWNER);
+    if(owner && strcmp(owner, gaim_account_get_username(acct))) {
+      /* it's a specialty group with some of our members in it, so
+	 don't fully delete it, just prune the contents */
+      del = FALSE;
+    }
+    
+    group_clear(g_prune->data, acct, del);
+    g_prune = g_list_delete_link(g_prune, g_prune);
+  }
+
+  /* done with the pruning, let's merge in the additions */
+  blist_merge(gc, stlist);
+}
+
+
 /** callback passed to the storage service when it's told to load the
     st list */
 static void fetch_blist_cb(struct mwServiceStorage *srvc,
@@ -869,7 +1071,7 @@ static void fetch_blist_cb(struct mwServiceStorage *srvc,
   g_return_if_fail(result == ERR_SUCCESS);
 
   /* check our preferences for loading */
-  if(BLIST_CHOICE_IS_NONE()) {
+  if(BLIST_PREF_IS_LOCAL()) {
     DEBUG_INFO("preferences indicate not to load remote buddy list\n");
     return;
   }
@@ -880,7 +1082,14 @@ static void fetch_blist_cb(struct mwServiceStorage *srvc,
   mwSametimeList_get(b, stlist);
 
   s = mwService_getSession(MW_SERVICE(srvc));
-  blist_import(pd->gc, stlist);
+
+  /* merge or synch depending on preferences */
+  if(BLIST_PREF_IS_MERGE() || BLIST_PREF_IS_STORE()) {
+    blist_merge(pd->gc, stlist);
+
+  } else if(BLIST_PREF_IS_SYNCH()) {
+    blist_sync(pd->gc, stlist);
+  }
 
   mwSametimeList_free(stlist);
 }
@@ -975,7 +1184,7 @@ static void conversation_created_cb(GaimConversation *g_conv,
      channel to the other side and figure out what the target can
      handle. Unfortunately, this makes us vulnerable to Psychic Mode,
      whereas a more lazy negotiation based on the first message
-     isn't */
+     would not */
 
   GaimConnection *gc;
   struct mwIdBlock who = { 0, 0 };
@@ -2690,7 +2899,7 @@ static void mw_prpl_list_emblems(GaimBuddy *b,
     *se = "dnd";
   }
 
-  if(buddy_external(b)) {
+  if(buddy_is_external(b)) {
     /* best assignment ever */
     *(*se?sw:se) = "external";
   }
@@ -2799,7 +3008,7 @@ static char *mw_prpl_tooltip_text(GaimBuddy *b) {
     g_free((char *) tmp);
   }
 
-  if(buddy_external(b)) {
+  if(buddy_is_external(b)) {
     g_string_append(str, "\n<b>External User</b>");
   }
 
@@ -4591,20 +4800,13 @@ mw_plugin_get_plugin_pref_frame(GaimPlugin *plugin) {
 
   gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_CHOICE);
   gaim_plugin_pref_add_choice(pref, _("Local Buddy List Only"),
-			      GINT_TO_POINTER(BLIST_CHOICE_NONE));
+			      GINT_TO_POINTER(blist_choice_LOCAL));
   gaim_plugin_pref_add_choice(pref, _("Merge List from Server"),
-			      GINT_TO_POINTER(BLIST_CHOICE_LOAD));
+			      GINT_TO_POINTER(blist_choice_MERGE));
   gaim_plugin_pref_add_choice(pref, _("Merge and Save List to Server"),
-			      GINT_TO_POINTER(BLIST_CHOICE_SAVE));
-
-#if 0
-  /* possible ways to handle:
-     - mark all buddies as NO_SAVE
-     - load server list, delete all local buddies not in server list
-  */
-  gaim_plugin_pref_add_choice(pref, _("Server Buddy List Only"),
-			      GINT_TO_POINTER(BLIST_CHOISE_SERVER));
-#endif
+			      GINT_TO_POINTER(blist_choice_STORE));
+  gaim_plugin_pref_add_choice(pref, _("Synchronize List with Server"),
+			      GINT_TO_POINTER(blist_choice_SYNCH));
 
   gaim_plugin_pref_frame_add(frame, pref);
 
@@ -4768,7 +4970,7 @@ static void st_import_action_cb(GaimConnection *gc, char *filename) {
   l = mwSametimeList_load(str->str);
   g_string_free(str, TRUE);
 
-  blist_import(gc, l);
+  blist_merge(gc, l);
   mwSametimeList_free(l);
 }
 

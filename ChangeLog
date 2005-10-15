@@ -14,6 +14,8 @@ version 1.2.5 (cvs)
 	- rfe #1307892 Support for Announcements
 
 	- fix for crash in adding multi-resolved buddies
+
+	- added "Synchronize with Server" buddy list option
 	
 version 1.2.4 (2004-07-14)
 

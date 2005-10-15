@@ -355,7 +355,7 @@ static int mw_session_io_write(struct mwSession *session,
 
   if(len > 0) {
     DEBUG_ERROR("write returned %i, %i bytes left unwritten\n", ret, len);
-    gaim_connection_error(pd->gc, "Connection closed (writing)");
+    gaim_connection_error(pd->gc, _("Connection closed (writing)"));
 
 #if 0
     close(pd->socket);
@@ -1227,12 +1227,12 @@ static void blist_menu_nab(GaimBlistNode *node, gpointer data) {
 
   tmp = (char *) gaim_blist_node_get_string(node, GROUP_KEY_NAME);
 
-  g_string_append_printf(str, "<b>Group Title:</b> %s<br>", group->name);
-  g_string_append_printf(str, "<b>Notes Group ID:</b> %s<br>", tmp);
+  g_string_append_printf(str, _("<b>Group Title:</b> %s<br>"), group->name);
+  g_string_append_printf(str, _("<b>Notes Group ID:</b> %s<br>"), tmp);
 
-  tmp = g_strdup_printf("Info for Group %s", group->name);
+  tmp = g_strdup_printf(_("Info for Group %s"), group->name);
 
-  gaim_notify_formatted(gc, tmp, "Notes Address Book Information",
+  gaim_notify_formatted(gc, tmp, _("Notes Address Book Information"),
 			NULL, str->str, NULL, NULL);
 
   g_free(tmp);
@@ -1259,7 +1259,7 @@ static void blist_node_menu_cb(GaimBlistNode *node,
     if(! gaim_account_is_connected(acct)) return;
     if(acct != gaim_connection_get_account(pd->gc)) return;
 
-    act = gaim_blist_node_action_new("Get Notes Address Book Info",
+    act = gaim_blist_node_action_new(_("Get Notes Address Book Info"),
 				     blist_menu_nab, pd);
 
     *menu = g_list_append(*menu, NULL);
@@ -1567,14 +1567,14 @@ static void read_cb(gpointer data, gint source,
 
   if(! ret) {
     DEBUG_INFO("connection reset\n");
-    gaim_connection_error(pd->gc, "Connection reset");
+    gaim_connection_error(pd->gc, _("Connection reset"));
 
   } else if(ret < 0) {
     char *msg = strerror(err);
 
     DEBUG_INFO("error in read callback: %s\n", msg);
 
-    msg = g_strdup_printf("Error reading from socket: %s", msg);
+    msg = g_strdup_printf(_("Error reading from socket: %s"), msg);
     gaim_connection_error(pd->gc, msg);
     g_free(msg);
   }
@@ -1603,7 +1603,7 @@ static void connect_cb(gpointer data, gint source,
 
     } else {
       /* this is a regular connect, error out */
-      gaim_connection_error(pd->gc, "Unable to connect to host");
+      gaim_connection_error(pd->gc, _("Unable to connect to host"));
     }
 
     return;
@@ -1643,7 +1643,7 @@ static void mw_session_announce(struct mwSession *s,
     g_slist_free(buddies);
   }
 
-  who = g_strdup_printf("Announcement from %s", who);
+  who = g_strdup_printf(_("Announcement from %s"), who);
   msg = gaim_markup_linkify(text);
 
   gaim_conversation_write(conv, who, msg, GAIM_MESSAGE_RECV, time(NULL));
@@ -1814,7 +1814,7 @@ static void mw_conf_closed(struct mwConference *conf, guint32 reason) {
 
   serv_got_chat_left(gc, CONF_TO_ID(conf));
 
-  gaim_notify_error(gc, "Conference Closed", NULL, msg);
+  gaim_notify_error(gc, _("Conference Closed"), NULL, msg);
   g_free(msg);
 }
 
@@ -2274,13 +2274,13 @@ static void convo_error(struct mwConversation *conv, guint32 err) {
   idb = mwConversation_getTarget(conv);
   
   tmp = mwError(err);
-  text = g_strconcat("Unable to send message: ", tmp, NULL);
+  text = g_strconcat(_("Unable to send message: "), tmp, NULL);
   
   gconv = convo_get_gconv(conv);
   if(gconv && !gaim_conv_present_error(idb->user, gconv->account, text)) {
     
     g_free(text);
-    text = g_strdup_printf("Unable to send message to %s:",
+    text = g_strdup_printf(_("Unable to send message to %s:"),
 			   (idb->user)? idb->user: "(unknown)");
     gaim_notify_error(gaim_account_get_connection(gconv->account),
 		      NULL, text, tmp);
@@ -2966,13 +2966,13 @@ char *user_supports_text(struct mwServiceAware *srvc, const char *who) {
       speak = user_supports(srvc, who, mwAttribute_SPEAKERS);
       video = user_supports(srvc, who, mwAttribute_VIDEO_CAMERA);
 
-      if(mic) *f++ = "Microphone";
-      if(speak) *f++ = "Speakers";
-      if(video) *f++ = "Video Camera";
+      if(mic) *f++ = _("Microphone");
+      if(speak) *f++ = _("Speakers");
+      if(video) *f++ = _("Video Camera");
     }
 
     if(user_supports(srvc, who, mwAttribute_FILE_TRANSFER))
-      *f++ = "File Transfer";
+      *f++ = _("File Transfer");
 
     return (*feat)? g_strjoinv(", ", feat): NULL;
     /* jenni loves siege */
@@ -2993,23 +2993,23 @@ static char *mw_prpl_tooltip_text(GaimBuddy *b) {
   str = g_string_new(NULL);
 
   tmp = status_text(b);
-  g_string_append_printf(str, "\n<b>Status</b>: %s", tmp);
+  g_string_append_printf(str, _("\n<b>Status</b>: %s"), tmp);
 
   tmp = mwServiceAware_getText(pd->srvc_aware, &idb);
   if(tmp) {
     tmp = g_markup_escape_text(tmp, -1);
-    g_string_append_printf(str, "\n<b>Message</b>: %s", tmp);
+    g_string_append_printf(str, _("\n<b>Message</b>: %s"), tmp);
     g_free((char *) tmp);
   }
 
   tmp = user_supports_text(pd->srvc_aware, b->name);
   if(tmp) {
-    g_string_append_printf(str, "\n<b>Supports</b>: %s", tmp);
+    g_string_append_printf(str, _("\n<b>Supports</b>: %s"), tmp);
     g_free((char *) tmp);
   }
 
   if(buddy_is_external(b)) {
-    g_string_append(str, "\n<b>External User</b>");
+    g_string_append(str, _("\n<b>External User</b>"));
   }
 
   tmp = str->str;
@@ -3092,21 +3092,21 @@ static void blist_menu_conf_create(GaimBuddy *buddy, const char *msg) {
   g = gaim_request_field_group_new(NULL);
   gaim_request_fields_add_group(fields, g);
   
-  f = gaim_request_field_string_new(CHAT_KEY_TOPIC, "Topic", NULL, FALSE);
+  f = gaim_request_field_string_new(CHAT_KEY_TOPIC, _("Topic"), NULL, FALSE);
   gaim_request_field_group_add_field(g, f);
 
-  f = gaim_request_field_string_new(CHAT_KEY_INVITE, "Message", msg, FALSE);
+  f = gaim_request_field_string_new(CHAT_KEY_INVITE, _("Message"), msg, FALSE);
   gaim_request_field_group_add_field(g, f);
   
-  msgA = ("Create conference with user");
-  msgB = ("Please enter a topic for the new conference, and an invitation"
-	  " message to be sent to %s");
+  msgA = _("Create conference with user");
+  msgB = _("Please enter a topic for the new conference, and an invitation"
+	   " message to be sent to %s");
   msgB = g_strdup_printf(msgB, buddy->name);
 
-  gaim_request_fields(gc, "New Conference",
+  gaim_request_fields(gc, _("New Conference"),
 		      msgA, msgB, fields,
-		      "Create", G_CALLBACK(conf_create_prompt_join),
-		      "Cancel", G_CALLBACK(conf_create_prompt_cancel),
+		      _("Create"), G_CALLBACK(conf_create_prompt_join),
+		      _("Cancel"), G_CALLBACK(conf_create_prompt_cancel),
 		      buddy);
   g_free(msgB);
 }
@@ -3167,29 +3167,29 @@ static void blist_menu_conf_list(GaimBuddy *buddy,
   g = gaim_request_field_group_new(NULL);
   gaim_request_fields_add_group(fields, g);
 
-  f = gaim_request_field_list_new("conf", "Available Conferences");
+  f = gaim_request_field_list_new("conf", _("Available Conferences"));
   gaim_request_field_list_set_multi_select(f, FALSE);
   for(; confs; confs = confs->next) {
     struct mwConference *c = confs->data;
     gaim_request_field_list_add(f, mwConference_getTitle(c), c);
   }
-  gaim_request_field_list_add(f, "Create New Conference...",
+  gaim_request_field_list_add(f, _("Create New Conference..."),
 			      GINT_TO_POINTER(0x01));
   gaim_request_field_group_add_field(g, f);
   
   f = gaim_request_field_string_new(CHAT_KEY_INVITE, "Message", NULL, FALSE);
   gaim_request_field_group_add_field(g, f);
   
-  msgA = "Invite user to a conference";
-  msgB = ("Select a conference from the list below to send an invite to"
-	  " user %s. Select \"Create New Conference\" if you'd like to"
-	  " create a new conference to invite this user to.");
+  msgA = _("Invite user to a conference");
+  msgB = _("Select a conference from the list below to send an invite to"
+	   " user %s. Select \"Create New Conference\" if you'd like to"
+	   " create a new conference to invite this user to.");
   msgB = g_strdup_printf(msgB, buddy->name);
 
-  gaim_request_fields(gc, "Invite to Conference",
+  gaim_request_fields(gc, _("Invite to Conference"),
 		      msgA, msgB, fields,
-		      "Invite", G_CALLBACK(conf_select_prompt_invite),
-		      "Cancel", G_CALLBACK(conf_select_prompt_cancel),
+		      _("Invite"), G_CALLBACK(conf_select_prompt_invite),
+		      _("Cancel"), G_CALLBACK(conf_select_prompt_cancel),
 		      buddy);
   g_free(msgB);
 }
@@ -3240,7 +3240,7 @@ static GList *mw_prpl_blist_node_menu(GaimBlistNode *node) {
 
   l = g_list_append(l, NULL);
 
-  act = gaim_blist_node_action_new("Invite to Conference...",
+  act = gaim_blist_node_action_new(_("Invite to Conference..."),
 				   blist_menu_conf, NULL);
   l = g_list_append(l, act);
 
@@ -3258,7 +3258,7 @@ static GList *mw_prpl_chat_info(GaimConnection *gc) {
   struct proto_chat_entry *pce;
   
   pce = g_new0(struct proto_chat_entry, 1);
-  pce->label = "Topic:";
+  pce->label = _("Topic:");
   pce->identifier = CHAT_KEY_TOPIC;
   l = g_list_append(l, pce);
   
@@ -3286,7 +3286,7 @@ static void mw_prpl_login(GaimAccount *acct);
 
 
 static void prompt_host_cancel_cb(GaimConnection *gc) {
-  gaim_connection_error(gc, "No Sametime Community Server specified");
+  gaim_connection_error(gc, _("No Sametime Community Server specified"));
 }
 
 
@@ -3315,8 +3315,8 @@ static void prompt_host(GaimConnection *gc) {
   gaim_request_input(gc, _("Meanwhile Connection Setup"),
 		     _("No Sametime Community Server Specified"), msg,
 		     MW_PLUGIN_DEFAULT_HOST, FALSE, FALSE, NULL,
-		     "Connect", G_CALLBACK(prompt_host_ok_cb),
-		     "Cancel", G_CALLBACK(prompt_host_cancel_cb),
+		     _("Connect"), G_CALLBACK(prompt_host_ok_cb),
+		     _("Cancel"), G_CALLBACK(prompt_host_cancel_cb),
 		     gc);
 
   g_free(msg);
@@ -3371,10 +3371,10 @@ static void mw_prpl_login(GaimAccount *account) {
   mwSession_setProperty(pd->session, mwSession_CLIENT_TYPE_ID,
 			GUINT_TO_POINTER(MW_CLIENT_TYPE_ID), NULL);
 
-  gaim_connection_update_progress(gc, "Connecting", 1, MW_CONNECT_STEPS);
+  gaim_connection_update_progress(gc, _("Connecting"), 1, MW_CONNECT_STEPS);
 
   if(gaim_proxy_connect(account, host, port, connect_cb, pd)) {
-    gaim_connection_error(gc, "Unable to connect to host");
+    gaim_connection_error(gc, _("Unable to connect to host"));
   }
 }
 
@@ -3730,22 +3730,22 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
   str = g_string_new(NULL);
 
   if(g_str_has_prefix(who, "@E ")) {
-    g_string_append(str, "<b>External User</b><br>");
+    g_string_append(str, _("<b>External User</b><br>"));
   }
 
-  g_string_append_printf(str, "<b>User ID:</b> %s<br>", who);
+  g_string_append_printf(str, _("<b>User ID:</b> %s<br>"), who);
 
   if(b) {
     guint32 type;
 
     if(b->server_alias) {
-      g_string_append_printf(str, "<b>Full Name:</b> %s<br>",
+      g_string_append_printf(str, _("<b>Full Name:</b> %s<br>"),
 			     b->server_alias);
     }
 
     type = gaim_blist_node_get_int((GaimBlistNode *) b, BUDDY_KEY_CLIENT);
     if(type) {
-      g_string_append(str, "<b>Last Known Client:</b> ");
+      g_string_append(str, _("<b>Last Known Client:</b> "));
 
       tmp = mwLoginType_getName(type);
       if(tmp) {
@@ -3753,20 +3753,20 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
 	g_string_append(str, "<br>");
 	
       } else {
-	g_string_append_printf(str, "Unknown (0x%04x)<br>", type);
+	g_string_append_printf(str, _("Unknown (0x%04x)<br>"), type);
       }
     }
   }
 
   tmp = user_supports_text(pd->srvc_aware, who);
   if(tmp) {
-    g_string_append_printf(str, "<b>Supports:</b> %s<br>", tmp);
+    g_string_append_printf(str, _("<b>Supports:</b> %s<br>"), tmp);
     g_free((char *) tmp);
   }
 
   if(b) {
     tmp = status_text(b);
-    g_string_append_printf(str, "<b>Status:</b> %s", tmp);
+    g_string_append_printf(str, _("<b>Status:</b> %s"), tmp);
 
     g_string_append(str, "<hr>");
     
@@ -4670,7 +4670,7 @@ static void ft_outgoing_init(GaimXfer *xfer) {
   /* test that we can actually send the file */
   fp = g_fopen(filename, "rb");
   if(! fp) {
-    char *msg = g_strdup_printf("Error reading %s: \n%s\n",
+    char *msg = g_strdup_printf(_("Error reading file %s: \n%s\n"),
 				filename, strerror(errno));
     gaim_xfer_error(gaim_xfer_get_type(xfer), xfer->who, msg);
     g_free(msg);

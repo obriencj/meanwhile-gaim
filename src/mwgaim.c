@@ -2811,7 +2811,7 @@ place_find_by_id(struct mwGaimPluginData *pd, int id) {
   l = (GList *) mwServicePlace_getPlaces(srvc);
   for(; l; l = l->next) {
     struct mwPlace *p = l->data;
-    GaimConvChat *h = mwPlace_getClientData(p);
+    GaimConvChat *h = GAIM_CONV_CHAT(mwPlace_getClientData(p));
 
     if(CHAT_TO_ID(h) == id) {
       place = p;
@@ -2847,10 +2847,10 @@ static void mw_place_opened(struct mwPlace *place) {
   gconf = serv_got_joined_chat(gc, PLACE_TO_ID(place),
 			       mwPlace_getTitle(place));
 
-  mwPlace_setClientData(place, GAIM_CONV_CHAT(gconf), NULL);
+  mwPlace_setClientData(place, gconf, NULL);
 
   for(l = members; l; l = l->next) {
-    struct mwIdBlock *idb = members->data;
+    struct mwIdBlock *idb = l->data;
     gaim_conv_chat_add_user(GAIM_CONV_CHAT(gconf), idb->user,
 			    NULL, GAIM_CBFLAGS_NONE, FALSE);
   }

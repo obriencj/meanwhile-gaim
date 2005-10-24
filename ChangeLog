@@ -16,6 +16,8 @@ version 1.2.5 (cvs)
 	- fix for crash in adding multi-resolved buddies
 
 	- added "Synchronize with Server" buddy list option
+
+	- fix #1218284 meanwhile ignores ICT chat invites
 	
 version 1.2.4 (2004-07-14)
 

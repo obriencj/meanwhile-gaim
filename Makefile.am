@@ -17,3 +17,4 @@ private-uninstall:
 	rm -f $(PRIVATE_PIXMAP)/meanwhile.png
 	rm -f $(PRIVATE_PIXMAP)/external.png
 
+

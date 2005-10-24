@@ -59,6 +59,7 @@
 #include <mw_srvc_conf.h>
 #include <mw_srvc_ft.h>
 #include <mw_srvc_im.h>
+#include <mw_srvc_place.h>
 #include <mw_srvc_resolve.h>
 #include <mw_srvc_store.h>
 #include <mw_st_list.h>
@@ -103,10 +104,11 @@
 
 
 /* keys to get/set chat information */
-#define CHAT_KEY_CREATOR  "chat.creator"
-#define CHAT_KEY_NAME     "chat.name"
-#define CHAT_KEY_TOPIC    "chat.topic"
-#define CHAT_KEY_INVITE   "chat.invite"
+#define CHAT_KEY_CREATOR   "chat.creator"
+#define CHAT_KEY_NAME      "chat.name"
+#define CHAT_KEY_TOPIC     "chat.topic"
+#define CHAT_KEY_INVITE    "chat.invite"
+#define CHAT_KEY_IS_PLACE  "chat.is_place"
 
 
 /* key for associating a mwLoginType with a buddy */
@@ -208,6 +210,7 @@ struct mwGaimPluginData {
   struct mwServiceConference *srvc_conf;
   struct mwServiceFileTransfer *srvc_ft;
   struct mwServiceIm *srvc_im;
+  struct mwServicePlace *srvc_place;
   struct mwServiceResolve *srvc_resolve;
   struct mwServiceStorage *srvc_store;
 
@@ -2738,7 +2741,6 @@ static void mw_conversation_recv(struct mwConversation *conv,
 }
 
 
-#if 0
 /* this will be appropriate when meanwhile supports the Place service */
 static void mw_place_invite(struct mwConversation *conv,
 			    const char *message,
@@ -2761,10 +2763,10 @@ static void mw_place_invite(struct mwConversation *conv,
   g_hash_table_insert(ht, CHAT_KEY_NAME, g_strdup(name));
   g_hash_table_insert(ht, CHAT_KEY_TOPIC, g_strdup(title));
   g_hash_table_insert(ht, CHAT_KEY_INVITE, g_strdup(message));
+  g_hash_table_insert(ht, CHAT_KEY_IS_PLACE, g_strdup("")); /* ugh */
 
   serv_got_chat_invite(pd->gc, title, idb->user, message, ht);
 }
-#endif
 
 
 static void mw_im_clear(struct mwServiceIm *srvc) {
@@ -2776,7 +2778,7 @@ static struct mwImHandler mw_im_handler = {
   .conversation_opened = mw_conversation_opened,
   .conversation_closed = mw_conversation_closed,
   .conversation_recv = mw_conversation_recv,
-  .place_invite = NULL, /* = mw_place_invite, */
+  .place_invite = mw_place_invite,
   .clear = mw_im_clear,
 };
 
@@ -2785,6 +2787,203 @@ static struct mwServiceIm *mw_srvc_im_new(struct mwSession *s) {
   struct mwServiceIm *srvc;
   srvc = mwServiceIm_new(s, &mw_im_handler);
   mwServiceIm_setClientType(srvc, mwImClient_NOTESBUDDY);
+  return srvc;
+}
+
+
+/* The following helps us relate a mwPlace to a GaimConvChat in the
+   various forms by which either may be indicated. Uses some of
+   the similar macros from the conference service above */
+
+#define PLACE_TO_ID(place)   (GPOINTER_TO_INT(place))
+#define ID_TO_PLACE(pd, id)  (place_find_by_id((pd), (id)))
+
+#define CHAT_TO_PLACE(pd, chat)  (ID_TO_PLACE((pd), CHAT_TO_ID(chat)))
+#define PLACE_TO_CHAT(place)     (ID_TO_CHAT(PLACE_TO_ID(place)))
+
+
+static struct mwPlace *
+place_find_by_id(struct mwGaimPluginData *pd, int id) {
+  struct mwServicePlace *srvc = pd->srvc_place;
+  struct mwPlace *place = NULL;
+  GList *l;
+
+  l = (GList *) mwServicePlace_getPlaces(srvc);
+  for(; l; l = l->next) {
+    struct mwPlace *p = l->data;
+    GaimConvChat *h = mwPlace_getClientData(p);
+
+    if(CHAT_TO_ID(h) == id) {
+      place = p;
+      break;
+    }
+  }
+
+  return place;
+}
+
+
+static void mw_place_opened(struct mwPlace *place) {
+  struct mwServicePlace *srvc;
+  struct mwSession *session;
+  struct mwGaimPluginData *pd;
+  GaimConnection *gc;
+  GaimConversation *gconf;
+
+  GList *members, *l;
+
+  const char *n = mwPlace_getName(place);
+
+  srvc = mwPlace_getService(place);
+  session = mwService_getSession(MW_SERVICE(srvc));
+  pd = mwSession_getClientData(session);
+  gc = pd->gc;
+
+  members = mwPlace_getMembers(place);
+
+  DEBUG_INFO("place %s opened, %u initial members\n",
+	     NSTR(n), g_list_length(members));
+
+  gconf = serv_got_joined_chat(gc, PLACE_TO_ID(place),
+			       mwPlace_getTitle(place));
+
+  mwPlace_setClientData(place, GAIM_CONV_CHAT(gconf), NULL);
+
+  for(l = members; l; l = l->next) {
+    struct mwIdBlock *idb = members->data;
+    gaim_conv_chat_add_user(GAIM_CONV_CHAT(gconf), idb->user,
+			    NULL, GAIM_CBFLAGS_NONE, FALSE);
+  }
+  g_list_free(members);
+}
+
+
+static void mw_place_closed(struct mwPlace *place, guint32 code) {
+  struct mwServicePlace *srvc;
+  struct mwSession *session;
+  struct mwGaimPluginData *pd;
+  GaimConnection *gc;
+
+  const char *n = mwPlace_getName(place);
+  char *msg = mwError(code);
+
+  DEBUG_INFO("place %s closed, 0x%08x\n", NSTR(n), code);
+
+  srvc = mwPlace_getService(place);
+  session = mwService_getSession(MW_SERVICE(srvc));
+  pd = mwSession_getClientData(session);
+  gc = pd->gc;
+
+  serv_got_chat_left(gc, PLACE_TO_ID(place));
+
+  gaim_notify_error(gc, _("Place Closed"), NULL, msg);
+  g_free(msg);
+}
+
+
+static void mw_place_peerJoined(struct mwPlace *place,
+				const struct mwIdBlock *peer) {
+  struct mwServicePlace *srvc;
+  struct mwSession *session;
+  struct mwGaimPluginData *pd;
+  GaimConnection *gc;
+  GaimConversation *gconf;
+
+  const char *n = mwPlace_getName(place);
+
+  DEBUG_INFO("%s joined place %s\n", NSTR(peer->user), NSTR(n));
+
+  srvc = mwPlace_getService(place);
+  session = mwService_getSession(MW_SERVICE(srvc));
+  pd = mwSession_getClientData(session);
+  gc = pd->gc;
+
+  gconf = mwPlace_getClientData(place);
+  g_return_if_fail(gconf != NULL);
+
+  gaim_conv_chat_add_user(GAIM_CONV_CHAT(gconf), peer->user,
+			  NULL, GAIM_CBFLAGS_NONE, TRUE);
+}
+
+
+static void mw_place_peerParted(struct mwPlace *place,
+				const struct mwIdBlock *peer) {
+  struct mwServicePlace *srvc;
+  struct mwSession *session;
+  struct mwGaimPluginData *pd;
+  GaimConnection *gc;
+  GaimConversation *gconf;
+
+  const char *n = mwPlace_getName(place);
+
+  DEBUG_INFO("%s left place %s\n", NSTR(peer->user), NSTR(n));
+
+  srvc = mwPlace_getService(place);
+  session = mwService_getSession(MW_SERVICE(srvc));
+  pd = mwSession_getClientData(session);
+  gc = pd->gc;
+
+  gconf = mwPlace_getClientData(place);
+  g_return_if_fail(gconf != NULL);
+
+  gaim_conv_chat_remove_user(GAIM_CONV_CHAT(gconf), peer->user, NULL);
+}
+
+
+static void mw_place_peerSetAttribute(struct mwPlace *place,
+				      const struct mwIdBlock *peer,
+				      guint32 attr, struct mwOpaque *o) {
+  ;
+}
+
+
+static void mw_place_peerUnsetAttribute(struct mwPlace *place,
+					const struct mwIdBlock *peer,
+					guint32 attr) {
+  ;
+}
+
+
+static void mw_place_message(struct mwPlace *place,
+			     const struct mwIdBlock *who,
+			     const char *msg) {
+  struct mwServicePlace *srvc;
+  struct mwSession *session;
+  struct mwGaimPluginData *pd;
+  GaimConnection *gc;
+  char *esc;
+
+  srvc = mwPlace_getService(place);
+  session = mwService_getSession(MW_SERVICE(srvc));
+  pd = mwSession_getClientData(session);
+  gc = pd->gc;
+
+  esc = g_markup_escape_text(msg, -1);
+  serv_got_chat_in(gc, PLACE_TO_ID(place), who->user, 0, esc, time(NULL));
+  g_free(esc);
+}
+
+
+static void mw_place_clear(struct mwServicePlace *srvc) {
+  ;
+}
+
+
+static struct mwPlaceHandler mw_place_handler = {
+  .opened = mw_place_opened,
+  .closed = mw_place_closed,
+  .peerJoined = mw_place_peerJoined,
+  .peerParted = mw_place_peerParted,
+  .peerSetAttribute = mw_place_peerSetAttribute,
+  .peerUnsetAttribute = mw_place_peerUnsetAttribute,
+  .message = mw_place_message,
+  .clear = mw_place_clear,
+};
+
+
+static struct mwServicePlace *mw_srvc_place_new(struct mwSession *s) {
+  struct mwServicePlace *srvc;
+  srvc = mwServicePlace_new(s, &mw_place_handler);
   return srvc;
 }
 
@@ -2816,6 +3015,7 @@ static struct mwGaimPluginData *mwGaimPluginData_new(GaimConnection *gc) {
   pd->srvc_conf = mw_srvc_conf_new(pd->session);
   pd->srvc_ft = mw_srvc_ft_new(pd->session);
   pd->srvc_im = mw_srvc_im_new(pd->session);
+  pd->srvc_place = mw_srvc_place_new(pd->session);
   pd->srvc_resolve = mw_srvc_resolve_new(pd->session);
   pd->srvc_store = mw_srvc_store_new(pd->session);
   pd->group_list_map = g_hash_table_new(g_direct_hash, g_direct_equal);
@@ -2824,6 +3024,7 @@ static struct mwGaimPluginData *mwGaimPluginData_new(GaimConnection *gc) {
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_conf));
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_ft));
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_im));
+  mwSession_addService(pd->session, MW_SERVICE(pd->srvc_place));
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_resolve));
   mwSession_addService(pd->session, MW_SERVICE(pd->srvc_store));
 
@@ -2842,15 +3043,19 @@ static void mwGaimPluginData_free(struct mwGaimPluginData *pd) {
 
   pd->gc->proto_data = NULL;
 
-  mwSession_removeService(pd->session, SERVICE_AWARE);
-  mwSession_removeService(pd->session, SERVICE_CONFERENCE);
-  mwSession_removeService(pd->session, SERVICE_IM);
-  mwSession_removeService(pd->session, SERVICE_RESOLVE);
-  mwSession_removeService(pd->session, SERVICE_STORAGE);
+  mwSession_removeService(pd->session, mwService_AWARE);
+  mwSession_removeService(pd->session, mwService_CONFERENCE);
+  mwSession_removeService(pd->session, mwService_FILE_TRANSFER);
+  mwSession_removeService(pd->session, mwService_IM);
+  mwSession_removeService(pd->session, mwService_PLACE);
+  mwSession_removeService(pd->session, mwService_RESOLVE);
+  mwSession_removeService(pd->session, mwService_STORAGE);
 
   mwService_free(MW_SERVICE(pd->srvc_aware));
   mwService_free(MW_SERVICE(pd->srvc_conf));
+  mwService_free(MW_SERVICE(pd->srvc_ft));
   mwService_free(MW_SERVICE(pd->srvc_im));
+  mwService_free(MW_SERVICE(pd->srvc_place));
   mwService_free(MW_SERVICE(pd->srvc_resolve));
   mwService_free(MW_SERVICE(pd->srvc_store));
 
@@ -4378,26 +4583,39 @@ static void mw_prpl_join_chat(GaimConnection *gc,
 			      GHashTable *components) {
 
   struct mwGaimPluginData *pd;
-  struct mwServiceConference *srvc;
-  struct mwConference *conf = NULL;
   char *c, *t;
-
+  
   pd = gc->proto_data;
-  srvc = pd->srvc_conf;
 
   c = g_hash_table_lookup(components, CHAT_KEY_NAME);
   t = g_hash_table_lookup(components, CHAT_KEY_TOPIC);
+  
+  if(g_hash_table_lookup(components, CHAT_KEY_IS_PLACE)) {
+    /* use place service */
+    struct mwServicePlace *srvc;
+    struct mwPlace *place = NULL;
 
-  if(c) conf = conf_find(srvc, c);
-
-  if(conf) {
-    DEBUG_INFO("accepting conference invitation\n");
-    mwConference_accept(conf);
-
+    srvc = pd->srvc_place;
+    place = mwPlace_new(srvc, c, t);
+    mwPlace_open(place);
+    
   } else {
-    DEBUG_INFO("creating new conference\n");
-    conf = mwConference_new(srvc, t);
-    mwConference_open(conf);
+    /* use conference service */
+    struct mwServiceConference *srvc;
+    struct mwConference *conf = NULL;
+
+    srvc = pd->srvc_conf;
+    if(c) conf = conf_find(srvc, c);
+
+    if(conf) {
+      DEBUG_INFO("accepting conference invitation\n");
+      mwConference_accept(conf);
+      
+    } else {
+      DEBUG_INFO("creating new conference\n");
+      conf = mwConference_new(srvc, t);
+      mwConference_open(conf);
+    }
   }
 }
 
@@ -4412,10 +4630,17 @@ static void mw_prpl_reject_chat(GaimConnection *gc,
   pd = gc->proto_data;
   srvc = pd->srvc_conf;
 
-  c = g_hash_table_lookup(components, CHAT_KEY_NAME);
-  if(c) {
-    struct mwConference *conf = conf_find(srvc, c);
-    if(conf) mwConference_reject(conf, ERR_SUCCESS, "Declined");
+  if(g_hash_table_lookup(components, CHAT_KEY_IS_PLACE)) {
+    /* find the appropriate conversation and reject it */
+    ;
+
+  } else {
+    /* reject conference */
+    c = g_hash_table_lookup(components, CHAT_KEY_NAME);
+    if(c) {
+      struct mwConference *conf = conf_find(srvc, c);
+      if(conf) mwConference_reject(conf, ERR_SUCCESS, "Declined");
+    }
   }
 }
 
@@ -4442,6 +4667,8 @@ static void mw_prpl_chat_invite(GaimConnection *gc,
   g_return_if_fail(conf != NULL);
   
   mwConference_invite(conf, &idb, invitation);
+
+  /* @todo: use Place by default instead */
 }
 
 
@@ -4456,9 +4683,15 @@ static void mw_prpl_chat_leave(GaimConnection *gc,
   g_return_if_fail(pd != NULL);
   conf = ID_TO_CONF(pd, id);
 
-  g_return_if_fail(conf != NULL);
-  
-  mwConference_destroy(conf, ERR_SUCCESS, "Leaving");
+  if(conf) {
+    mwConference_destroy(conf, ERR_SUCCESS, "Leaving");
+
+  } else {
+    struct mwPlace *place = ID_TO_PLACE(pd, id);
+    g_return_if_fail(place != NULL);
+
+    mwPlace_destroy(place, ERR_SUCCESS);
+  }
 }
 
 
@@ -4483,9 +4716,15 @@ static int mw_prpl_chat_send(GaimConnection *gc,
   g_return_val_if_fail(pd != NULL, 0);
   conf = ID_TO_CONF(pd, id);
 
-  g_return_val_if_fail(conf != NULL, 0);
-  
-  return ! mwConference_sendText(conf, message);
+  if(conf) {
+    return ! mwConference_sendText(conf, message);
+
+  } else {
+    struct mwPlace *place = ID_TO_PLACE(pd, id);
+    g_return_val_if_fail(place != NULL, 0);
+
+    return ! mwPlace_sendText(place, message);
+  }
 }
 
 

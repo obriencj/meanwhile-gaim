@@ -2741,7 +2741,6 @@ static void mw_conversation_recv(struct mwConversation *conv,
 }
 
 
-/* this will be appropriate when meanwhile supports the Place service */
 static void mw_place_invite(struct mwConversation *conv,
 			    const char *message,
 			    const char *title, const char *name) {
@@ -2766,6 +2765,9 @@ static void mw_place_invite(struct mwConversation *conv,
   g_hash_table_insert(ht, CHAT_KEY_IS_PLACE, g_strdup("")); /* ugh */
 
   serv_got_chat_invite(pd->gc, title, idb->user, message, ht);
+
+  mwConversation_close(conv, ERR_SUCCESS);
+  mwConversation_free(conv);
 }
 
 
@@ -4598,7 +4600,7 @@ static void mw_prpl_join_chat(GaimConnection *gc,
     srvc = pd->srvc_place;
     place = mwPlace_new(srvc, c, t);
     mwPlace_open(place);
-    
+     
   } else {
     /* use conference service */
     struct mwServiceConference *srvc;
@@ -4631,8 +4633,7 @@ static void mw_prpl_reject_chat(GaimConnection *gc,
   srvc = pd->srvc_conf;
 
   if(g_hash_table_lookup(components, CHAT_KEY_IS_PLACE)) {
-    /* find the appropriate conversation and reject it */
-    ;
+    ; /* nothing needs doing */
 
   } else {
     /* reject conference */

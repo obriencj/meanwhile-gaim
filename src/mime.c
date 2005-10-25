@@ -331,10 +331,10 @@ void gaim_mime_part_get_data_decoded(GaimMimePart *part,
     *len = gaim_base16_decode(part->data->str, (unsigned char **) data);
 
   } else if(! g_ascii_strcasecmp(enc, "base64")) {
-    gaim_base64_decode(part->data->str, data, len);
+    gaim_base64_decode(part->data->str, data, (int *) len);
 
   } else if(! g_ascii_strcasecmp(enc, "quoted-printable")) {
-    gaim_quotedp_decode(part->data->str, data, len);
+    gaim_quotedp_decode(part->data->str, data, (int *) len);
 
   } else {
     gaim_debug_warning("mime", "gaim_mime_part_get_data_decoded:"

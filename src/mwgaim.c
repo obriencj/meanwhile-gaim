@@ -436,13 +436,13 @@ static void mw_aware_list_on_aware(struct mwAwareList *list,
   stat = aware->status.status;
   id = aware->id.user;
 
-  /* saw a client send this once */
+  /* not sure which client sends this yet */
   if(idle == 0xdeadbeef) {
-    DEBUG_INFO("\"knock knock!\""
-	       "\"who's there?\""
-	       "\"rude interrupting cow.\""
-	       "\"rude interr...\""
-	       "\"MOO!\"\n");
+    /* knock knock!
+       who's there?
+       rude interrupting cow.
+       rude interr...
+       MOO! */
     idle = -1;
   }
 
@@ -888,12 +888,15 @@ static void group_clear(GaimGroup *group, GaimAccount *acct, gboolean del) {
 
       if(! GAIM_BLIST_NODE_IS_BUDDY(bn)) continue;
       
-      if(gb->account == acct)
+      if(gb->account == acct) {
+	DEBUG_INFO("clearing %s from group\n", NSTR(gb->name));
 	prune = g_list_prepend(prune, gb);
+      }
     }
   }
 
   /* quickly unsubscribe from presence for the entire group */
+  DEBUG_INFO("calling serv_remove_group\n");
   serv_remove_group(gc, group);
 
   /* remove blist entries that need to go */
@@ -901,9 +904,11 @@ static void group_clear(GaimGroup *group, GaimAccount *acct, gboolean del) {
     gaim_blist_remove_buddy(prune->data);
     prune = g_list_delete_link(prune, prune);
   }
+  DEBUG_INFO("cleared buddies\n");
 
   /* optionally remove group from blist */
   if(del && !gaim_blist_get_group_size(group, TRUE)) {
+    DEBUG_INFO("removing empty group\n");
     gaim_blist_remove_group(group);
   }
 }
@@ -935,6 +940,7 @@ static void group_prune(GaimConnection *gc, GaimGroup *group,
   for(ul = utl; ul; ul = ul->next) {
     const char *id = mwSametimeUser_getUser(ul->data);
     g_hash_table_insert(stusers, (char *) id, ul->data);
+    DEBUG_INFO("server copy has %s\n", NSTR(id));
   }
   g_list_free(utl);
 
@@ -956,6 +962,7 @@ static void group_prune(GaimConnection *gc, GaimGroup *group,
       }
     }
   }
+  DEBUG_INFO("done marking\n");
 
   g_hash_table_destroy(stusers);
 
@@ -976,23 +983,26 @@ static void blist_sync(GaimConnection *gc, struct mwSametimeList *stlist) {
   GaimAccount *acct;
   GaimBuddyList *blist;
   GaimBlistNode *gn;
-  GaimGroup *grp;
 
   GHashTable *stgroups;
-  GList *g_prune;
+  GList *g_prune = NULL;
 
   GList *gl, *gtl;
+
+  const char *acct_n;
 
   DEBUG_INFO("synchronizing local buddy list from server list\n");
 
   acct = gaim_connection_get_account(gc);
   g_return_if_fail(acct != NULL);
 
+  acct_n = gaim_account_get_username(acct);
+
   blist = gaim_get_blist();
   g_return_if_fail(blist != NULL);
 
   /* build a hash table for quick lookup while pruning the local
-     list */
+     list, mapping group name to group structure */
   stgroups = g_hash_table_new(g_str_hash, g_str_equal);
 
   gtl = mwSametimeList_getGroups(stlist);
@@ -1004,19 +1014,20 @@ static void blist_sync(GaimConnection *gc, struct mwSametimeList *stlist) {
 
   /* find all groups which should be pruned from the local list */
   for(gn = blist->root; gn; gn = gn->next) {
-    const char *gname;
-    enum mwSametimeGroupType gtype;
+    GaimGroup *grp = (GaimGroup *) gn;
+    const char *gname, *owner;
     struct mwSametimeGroup *stgrp;
 
     if(! GAIM_BLIST_NODE_IS_GROUP(gn)) continue;
-    grp = (GaimGroup *) gn;
 
-    gtype = gaim_blist_node_get_int(gn, GROUP_KEY_TYPE);
-    if(! gtype) gtype = mwSametimeGroup_NORMAL;
-
-    /* normal group not belonging to this account */
-    if(gtype == mwSametimeGroup_NORMAL && !gaim_group_on_account(grp, acct))
+    /* group not belonging to this account */
+    if(! gaim_group_on_account(grp, acct))
       continue;
+
+    /* dynamic group belonging to this account. don't prune contents */
+    owner = gaim_blist_node_get_string(gn, GROUP_KEY_OWNER);
+    if(owner && !strcmp(owner, acct_n))
+       continue;
 
     /* we actually are synching by this key as opposed to the group
        title, which can be different things in the st list */
@@ -1034,19 +1045,22 @@ static void blist_sync(GaimConnection *gc, struct mwSametimeList *stlist) {
       group_prune(gc, grp, stgrp);
     }
   }
+  DEBUG_INFO("done marking groups\n");
 
   /* don't need this anymore */
   g_hash_table_destroy(stgroups);
 
   /* prune all marked groups */
   while(g_prune) {
+    GaimGroup *grp = g_prune->data;
+    GaimBlistNode *gn = (GaimBlistNode *) grp;
     const char *owner;
     gboolean del = TRUE;
 
-    owner == gaim_blist_node_get_string(gn, GROUP_KEY_OWNER);
-    if(owner && strcmp(owner, gaim_account_get_username(acct))) {
-      /* it's a specialty group with some of our members in it, so
-	 don't fully delete it, just prune the contents */
+    owner = gaim_blist_node_get_string(gn, GROUP_KEY_OWNER);
+    if(owner && strcmp(owner, acct_n)) {
+      /* it's a specialty group belonging to another account with some
+	 of our members in it, so don't fully delete it */
       del = FALSE;
     }
     
@@ -3123,7 +3137,7 @@ static char *mw_prpl_status_text(GaimBuddy *b) {
   pd = gc->proto_data;
 
   ret = mwServiceAware_getText(pd->srvc_aware, &t);
-  return (ret)? g_strdup(ret): NULL;
+  return g_strdup(ret);
 }
 
 

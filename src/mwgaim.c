@@ -147,6 +147,7 @@
 #define MW_KEY_MSG_PROMPT  "msg_prompt"
 #define MW_KEY_INVITE      "conf_invite"
 #define MW_KEY_ENCODING    "encoding"
+#define MW_KEY_FORCE       "force_login"
 
 
 /** number of seconds from the first blist change before a save to the
@@ -164,7 +165,7 @@ enum blist_choice {
 
 
 /** the default blist storage option */
-#define BLIST_CHOICE_DEFAULT  blist_choice_STORE
+#define BLIST_CHOICE_DEFAULT  blist_choice_SYNCH
 
 
 /* testing for the above */
@@ -482,11 +483,6 @@ static void mw_aware_list_on_aware(struct mwAwareList *list,
       gaim_blist_add_buddy(buddy, NULL, group, NULL);
 
       bnode = (GaimBlistNode *) buddy;
-
-      /* mark buddy as transient if preferences do not indicate that
-	 we should save the buddy between gaim sessions */
-      if(! gaim_prefs_get_bool(MW_PRPL_OPT_SAVE_DYNAMIC))
-	bnode->flags |= GAIM_BLIST_NODE_FLAG_NO_SAVE;
 
       srvc = pd->srvc_resolve;
       query = g_list_append(NULL, (char *) id);
@@ -1365,9 +1361,9 @@ static void session_loginRedirect(struct mwSession *session,
   pd = mwSession_getClientData(session);
   gc = pd->gc;
   account = gaim_connection_get_account(gc);
-  port = gaim_account_get_int(account, "port", MW_PLUGIN_DEFAULT_PORT);
+  port = gaim_account_get_int(account, MW_KEY_PORT, MW_PLUGIN_DEFAULT_PORT);
 
-  if(gaim_prefs_get_bool(MW_PRPL_OPT_FORCE_LOGIN) ||
+  if(gaim_account_get_bool(account, MW_KEY_FORCE, FALSE) ||
      gaim_proxy_connect(account, host, port, connect_cb, pd)) {
 
     mwSession_forceLogin(session);
@@ -5067,19 +5063,9 @@ mw_plugin_get_plugin_pref_frame(GaimPlugin *plugin) {
   pref = gaim_plugin_pref_new_with_label(_("General Options"));
   gaim_plugin_pref_frame_add(frame, pref);
 
-  pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_FORCE_LOGIN);
-  gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_NONE);
-  gaim_plugin_pref_set_label(pref, _("Force Login (Ignore Login Redirects)"));
-  gaim_plugin_pref_frame_add(frame, pref);
-
   pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_PSYCHIC);
   gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_NONE);
   gaim_plugin_pref_set_label(pref, _("Enable Psychic Mode"));
-  gaim_plugin_pref_frame_add(frame, pref);
-
-  pref = gaim_plugin_pref_new_with_name(MW_PRPL_OPT_SAVE_DYNAMIC);
-  gaim_plugin_pref_set_type(pref, GAIM_PLUGIN_PREF_NONE);
-  gaim_plugin_pref_set_label(pref, _("Save NAB group members locally"));
   gaim_plugin_pref_frame_add(frame, pref);
 
   pref = gaim_plugin_pref_new_with_label(_("Credits"));
@@ -5601,6 +5587,14 @@ static void mw_plugin_init(GaimPlugin *plugin) {
   GLogLevelFlags logflags =
     G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION;
 
+  /* set up the preferences */
+  gaim_prefs_add_none(MW_PRPL_OPT_BASE);
+  gaim_prefs_add_int(MW_PRPL_OPT_BLIST_ACTION, BLIST_CHOICE_DEFAULT);
+  gaim_prefs_add_bool(MW_PRPL_OPT_PSYCHIC, FALSE);
+
+  /* remove dead preferences */
+  gaim_prefs_remove(MW_PRPL_OPT_SAVE_DYNAMIC);
+
   /* host to connect to */
   opt = gaim_account_option_string_new(_("Server"), MW_KEY_HOST,
 				       MW_PLUGIN_DEFAULT_HOST);
@@ -5616,15 +5610,21 @@ static void mw_plugin_init(GaimPlugin *plugin) {
 				       MW_PLUGIN_DEFAULT_ENCODING);
   l = g_list_append(l, opt);
 
+  { /* copy the old force login setting from prefs if it's
+       there. Don't delete the preference, since there may be more
+       than one account that wants to check for it. */
+    gboolean b = FALSE;
+    const char *label = _("Force Login (Ignore Server Redirects)");
+
+    if(gaim_prefs_exists(MW_PRPL_OPT_FORCE_LOGIN))
+      b = gaim_prefs_get_bool(MW_PRPL_OPT_FORCE_LOGIN);
+
+    opt = gaim_account_option_bool_new(label, MW_KEY_FORCE, b);
+    l = g_list_append(l, opt);
+  }
+
   mw_prpl_info.protocol_options = l;
   l = NULL;
-
-  /* set up the prefs for blist options */
-  gaim_prefs_add_none(MW_PRPL_OPT_BASE);
-  gaim_prefs_add_int(MW_PRPL_OPT_BLIST_ACTION, BLIST_CHOICE_DEFAULT);
-  gaim_prefs_add_bool(MW_PRPL_OPT_PSYCHIC, FALSE);
-  gaim_prefs_add_bool(MW_PRPL_OPT_FORCE_LOGIN, FALSE);
-  gaim_prefs_add_bool(MW_PRPL_OPT_SAVE_DYNAMIC, TRUE);
 
   /* forward all our g_log messages to gaim. Generally all the logging
      calls are using gaim_log directly, but the g_return macros will

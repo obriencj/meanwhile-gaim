@@ -18,7 +18,13 @@ version 1.2.5 (cvs)
 	- added "Synchronize with Server" buddy list option
 
 	- fix #1218284 meanwhile ignores ICT chat invites
-	
+
+	- moved "Force Login (Ignore Login Redirects)" preference to
+	account options
+
+	- removed "Save NAB group members locally" preference, defaulted
+	to TRUE
+
 version 1.2.4 (2004-07-14)
 
 	- fix #1220550 gaim-meanwhile hangs when redirecting to Sametime

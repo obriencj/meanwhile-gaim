@@ -801,6 +801,7 @@ static GaimGroup *group_ensure(GaimConnection *gc,
 			       struct mwSametimeGroup *stgroup) {
   GaimAccount *acct;
   GaimGroup *group;
+  GaimBuddyList *blist;
   GaimBlistNode *gn;
   const char *name, *alias, *owner;
   enum mwSametimeGroupType type;
@@ -808,18 +809,35 @@ static GaimGroup *group_ensure(GaimConnection *gc,
   acct = gaim_connection_get_account(gc);
   owner = gaim_account_get_username(acct);
 
+  blist = gaim_get_blist();
+  g_return_val_if_fail(blist != NULL, NULL);
+
   name = mwSametimeGroup_getName(stgroup);
   alias = mwSametimeGroup_getAlias(stgroup);
   type = mwSametimeGroup_getType(stgroup);
 
-  group = gaim_find_group(alias);
+  /* first attempt at finding the group, by the name key */
+  for(gn = blist->root; gn; gn = gn->next) {
+    const char *n;
+    if(! GAIM_BLIST_NODE_IS_GROUP(gn)) continue;
+    n = gaim_blist_node_get_string(gn, GROUP_KEY_NAME);
+
+    if(n && !strcmp(n, name)) {
+      group = (GaimGroup *) gn;
+      break;
+    }
+  }  
+
+  /* try again, by alias */
+  if(! group) group = gaim_find_group(alias);
+
+  /* oh well, no such group. Let's create it! */
   if(! group) {
     group = gaim_group_new(alias);
     gaim_blist_add_group(group, NULL);
   }
 
   gn = (GaimBlistNode *) group;
-
   gaim_blist_node_set_string(gn, GROUP_KEY_NAME, name);
   gaim_blist_node_set_int(gn, GROUP_KEY_TYPE, type);
 

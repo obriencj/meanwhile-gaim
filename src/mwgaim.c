@@ -3796,7 +3796,7 @@ static char *im_try_convert(const char *msg,
 }
 
 
-static char *im_encode(GaimConnection *gc, const char *msg) {
+static char *nb_im_encode(GaimConnection *gc, const char *msg) {
   GaimAccount *acct;
   const char *enc;
   
@@ -3807,6 +3807,18 @@ static char *im_encode(GaimConnection *gc, const char *msg) {
 				MW_PLUGIN_DEFAULT_ENCODING);
 
   return im_try_convert(msg, enc, "UTF-8");
+}
+
+
+static gboolean is_nb(struct mwConversation *conv) {
+  /* if we're calling this, then we already know the conv supports
+     html and mime, so it's either Meanwhile, which supports UTF8 or
+     NotesBuddy, which doesn't. Either can support a non-UTF8 encoding
+     (in Meanwhile's case, because it'll be converted to back UTF8).
+     Thus, for now just return TRUE and let the nb encoding happen for
+     both */
+
+  return TRUE;
 }
 
 
@@ -3825,8 +3837,7 @@ static int mw_prpl_send_im(GaimConnection *gc,
 
   g_return_val_if_fail(pd != NULL, 0);
 
-  msg = im_encode(gc, message);
-  if(!msg) msg = g_strdup(message);
+  msg = g_strdup(message);
 
   conv = mwServiceIm_getConversation(pd->srvc_im, &who);
 
@@ -3849,6 +3860,12 @@ static int mw_prpl_send_im(GaimConnection *gc,
        mwConversation_supports(conv, mwImSend_MIME)) {
       /* send a MIME message */
 
+      /* mime messages need the notesbuddy hack */
+      if(is_nb(conv)) {
+	g_free(msg);
+	msg = nb_im_encode(gc, message);
+      }
+
       tmp = im_mime_convert(msg);
       g_free(msg);
 
@@ -3857,6 +3874,12 @@ static int mw_prpl_send_im(GaimConnection *gc,
       
     } else if(mwConversation_supports(conv, mwImSend_HTML)) {
       /* send an HTML message */
+
+      /* html messages need the notesbuddy hack */
+      if(is_nb(conv)) {
+	g_free(msg);
+	msg = nb_im_encode(gc, message);
+      }
 
       /* need to do this to get the \n to <br> conversion */
       tmp = gaim_strdup_withhtml(msg);
@@ -5605,8 +5628,9 @@ static void mw_plugin_init(GaimPlugin *plugin) {
 				    MW_PLUGIN_DEFAULT_PORT);
   l = g_list_append(l, opt);
 
-  /* default attempted encoding */
-  opt = gaim_account_option_string_new(_("Encoding"), MW_KEY_ENCODING,
+  /* notesbuddy hack encoding */
+  opt = gaim_account_option_string_new(_("NotesBuddy Encoding"),
+				       MW_KEY_ENCODING,
 				       MW_PLUGIN_DEFAULT_ENCODING);
   l = g_list_append(l, opt);
 

@@ -1,7 +1,7 @@
 
 
 # version of this package
-m4_define(gaim_meanwhile_version,	1.2.5)
+m4_define(gaim_meanwhile_version,	1.2.6cvs)
 
 # release of this package
 m4_define(gaim_meanwhile_release,	0)
@@ -111,8 +111,8 @@ AC_SUBST(CONF_CLIENT_TYPE)
 
 withval="ISO-8859-1"
 AC_ARG_WITH(client-encoding,
-	[ --with-client-encoding=["ISO-8859-1"]
-                                     define the default client encoding])
+	[ --with-nb-encoding=["ISO-8859-1"]
+                                     default encoding for use with NotesBuddy])
 CONF_DEFAULT_ENCODING=$withval
 AC_SUBST(CONF_DEFAULT_ENCODING)
 
@@ -201,7 +201,7 @@ echo Default busy message..... : \"$CONF_BUSY_MSG\"
 echo Default community host... : \"$CONF_DEFAULT_HOST\"
 echo Default community port... : $CONF_DEFAULT_PORT
 echo Client type identifier... : $CONF_CLIENT_TYPE
-echo Default encoding......... : \"$CONF_DEFAULT_ENCODING\"
+echo NotesBuddy encoding...... : \"$CONF_DEFAULT_ENCODING\"
 echo
 echo configure complete, now run \`make\`
 echo

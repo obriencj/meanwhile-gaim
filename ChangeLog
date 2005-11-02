@@ -1,4 +1,8 @@
 
+version 1.2.6 (cvs)
+
+	- another attempt at fixing #1208464 Charset selection
+	
 version 1.2.5 (2005-10-28)
 
 	- building against meanwhile 0.5.0cvs

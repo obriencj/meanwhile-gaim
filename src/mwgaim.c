@@ -3796,47 +3796,43 @@ static char *im_mime_convert(const char *message) {
 }
 
 
-static char *im_try_convert(const char *msg,
-			    const char *enc_to,
-			    const char *enc_from) {
-  char *ret;
-  GError *error = NULL;
-
-  ret = g_convert(msg, -1, enc_to, enc_from, NULL, NULL, &error);
-  if(error) {
-    /* if there's something that just won't convert, leave it as UTF-8 */
-    DEBUG_INFO("problem converting to %s, preserving %s: %s\n",
-	       NSTR(enc_to), NSTR(enc_from), NSTR(error->message));
-    g_error_free(error);
-  }
-
-  return ret;
-}
-
-
-static char *nb_im_encode(GaimConnection *gc, const char *msg) {
+static char *nb_im_encode(GaimConnection *gc, const char *message) {
   GaimAccount *acct;
   const char *enc;
+  char *ret;
+  GError *error = NULL;
   
   acct = gaim_connection_get_account(gc);
   g_return_val_if_fail(acct != NULL, NULL);
 
   enc = gaim_account_get_string(acct, MW_KEY_ENCODING,
 				MW_PLUGIN_DEFAULT_ENCODING);
+  g_return_val_if_fail(enc != NULL, NULL);
 
-  return im_try_convert(msg, enc, "UTF-8");
+  ret = g_convert_with_fallback(message, -1, enc, "UTF-8",
+				"?", NULL, NULL, &error);
+  if(error) {
+    DEBUG_INFO("problem converting to %s: %s\n",
+	       enc, NSTR(error->message));
+    g_error_free(error);
+  }
+  return ret;
 }
 
 
 static gboolean is_nb(struct mwConversation *conv) {
-  /* if we're calling this, then we already know the conv supports
-     html and mime, so it's either Meanwhile, which supports UTF8 or
-     NotesBuddy, which doesn't. Either can support a non-UTF8 encoding
-     (in Meanwhile's case, because it'll be converted to back UTF8).
-     Thus, for now just return TRUE and let the nb encoding happen for
-     both */
+  struct mwLoginInfo *info;
 
-  return TRUE;
+  info = mwConversation_getTargetInfo(conv);
+  if(! info) return FALSE;
+
+  /* NotesBuddy can be at least three different type IDs (all in the
+     0x1400 range), or it can show up as 0x1002. However, if we're
+     calling this check, then we're already in HTML or MIME mode, so
+     we can discount the real 0x1002 */
+  /* I tried really hard to avoid having any client-type-dependant
+     code in here, I really did. Oh well. */
+  return ((info->type == 0x1002) || (info->type & 0x1400));
 }
 
 
@@ -3880,8 +3876,11 @@ static int mw_prpl_send_im(GaimConnection *gc,
 
       /* mime messages need the notesbuddy hack */
       if(is_nb(conv)) {
-	g_free(msg);
-	msg = nb_im_encode(gc, message);
+	char *m = nb_im_encode(gc, message);
+	if(m) {
+	  g_free(msg);
+	  msg = m;
+	}
       }
 
       tmp = im_mime_convert(msg);

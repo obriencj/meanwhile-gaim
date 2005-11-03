@@ -3830,8 +3830,8 @@ static gboolean is_nb(struct mwConversation *conv) {
      0x1400 range), or it can show up as 0x1002. However, if we're
      calling this check, then we're already in HTML or MIME mode, so
      we can discount the real 0x1002 */
-  /* I tried really hard to avoid having any client-type-dependant
-     code in here, I really did. Oh well. */
+  /* I tried to avoid having any client-type-dependant code in here, I
+     really did. Oh well. CURSE YOU NOTESBUDDY */
   return ((info->type == 0x1002) || (info->type & 0x1400));
 }
 
@@ -3876,11 +3876,8 @@ static int mw_prpl_send_im(GaimConnection *gc,
 
       /* mime messages need the notesbuddy hack */
       if(is_nb(conv)) {
-	char *m = nb_im_encode(gc, message);
-	if(m) {
-	  g_free(msg);
-	  msg = m;
-	}
+	g_free(msg);
+	msg = nb_im_encode(gc, message);
       }
 
       tmp = im_mime_convert(msg);

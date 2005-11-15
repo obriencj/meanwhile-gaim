@@ -1,6 +1,10 @@
 
 version 1.2.6 (cvs)
 
+	- fix bug when sending mime (image) messages to notesbuddy
+
+	- fix #1354344 status message not changed when idle
+	
 	- another attempt at fixing #1208464 Charset selection
 
 	- fixes to buddy list synch and merge options

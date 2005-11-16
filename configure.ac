@@ -7,7 +7,7 @@ m4_define(gaim_meanwhile_version,	1.2.6cvs)
 m4_define(gaim_meanwhile_release,	0)
 
 # lower and upper-bound versions of Meanwhile
-m4_define(meanwhile_version_min,	0.5.0)
+m4_define(meanwhile_version_min,	0.5.1)
 m4_define(meanwhile_version_max,	0.6.0)
 
 # lower and upper-bound versions of Gaim

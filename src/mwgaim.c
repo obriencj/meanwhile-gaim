@@ -816,23 +816,36 @@ static GaimGroup *group_ensure(GaimConnection *gc,
   alias = mwSametimeGroup_getAlias(stgroup);
   type = mwSametimeGroup_getType(stgroup);
 
+  DEBUG_INFO("attempting to ensure group %s, called %s\n",
+	     NSTR(name), NSTR(alias));
+
   /* first attempt at finding the group, by the name key */
   for(gn = blist->root; gn; gn = gn->next) {
-    const char *n;
+    const char *n, *o;
     if(! GAIM_BLIST_NODE_IS_GROUP(gn)) continue;
     n = gaim_blist_node_get_string(gn, GROUP_KEY_NAME);
+    o = gaim_blist_node_get_string(gn, GROUP_KEY_OWNER);
+
+    DEBUG_INFO("found group named %s, owned by %s\n", NSTR(n), NSTR(o));
 
     if(n && !strcmp(n, name)) {
-      group = (GaimGroup *) gn;
-      break;
+      if(!o || !strcmp(o, owner)) {
+	DEBUG_INFO("that'll work\n");
+	group = (GaimGroup *) gn;
+	break;
+      }
     }
   }  
 
   /* try again, by alias */
-  if(! group) group = gaim_find_group(alias);
+  if(! group) {
+    DEBUG_INFO("searching for group by alias %s\n", NSTR(alias));
+    group = gaim_find_group(alias);
+  }
 
   /* oh well, no such group. Let's create it! */
   if(! group) {
+    DEBUG_INFO("creating group\n");
     group = gaim_group_new(alias);
     gaim_blist_add_group(group, NULL);
   }

@@ -1,7 +1,5 @@
 
-# this doesn't perfectly describe where to find the gaim plugin dir,
-# but it's the best I can currently come up with
-pkgdir = $(libdir)/gaim
+pkgdir = $(GAIM_PLUGINS)
 
 pkg_LTLIBRARIES = libmwgaim.la
 

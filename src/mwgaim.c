@@ -1684,7 +1684,7 @@ static void mw_session_announce(struct mwSession *s,
   struct mwGaimPluginData *pd;
   GaimAccount *acct;
   GaimConversation *conv;
-  GSList *buddies;
+  GaimBuddy *buddy;
   char *who = from->user_id;
   char *msg;
   
@@ -1693,11 +1693,8 @@ static void mw_session_announce(struct mwSession *s,
   conv = gaim_find_conversation_with_account(who, acct);
   if(! conv) conv = gaim_conversation_new(GAIM_CONV_IM, acct, who);
 
-  buddies = gaim_find_buddies(acct, who);
-  if(buddies) {
-    who = (char *) gaim_buddy_get_contact_alias(buddies->data);
-    g_slist_free(buddies);
-  }
+  buddy = gaim_find_buddy(acct, who);
+  if(buddy) who = (char *) gaim_buddy_get_contact_alias(buddy);
 
   who = g_strdup_printf(_("Announcement from %s"), who);
   msg = gaim_markup_linkify(text);
@@ -4350,6 +4347,7 @@ static void multi_resolved_query(struct mwResolveResult *result,
   /* collect set into a list of structures */
   l = NULL;
   g_hash_table_foreach(hash, (GHFunc) foreach_resolved_id, &l);
+  g_hash_table_destroy(hash);
   g_list_sort(l, (GCompareFunc) resolved_id_comp);
 
   /* populate choices in request field */

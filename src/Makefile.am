@@ -1,5 +1,5 @@
 
-pkgdir = $(GAIM_PLUGINS)
+pkgdir = $(_libdir)/gaim
 
 pkg_LTLIBRARIES = libmwgaim.la
 

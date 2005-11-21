@@ -141,8 +141,8 @@ AC_SUBST(GAIM_LIBS)
 
 # this isn't the best way to find Gaim's plugin dir, but it's the best
 # I could come up with
-GAIM_PLUGINS=`$PKG_CONFIG gaim --variable=libdir`/gaim
-AC_SUBST(GAIM_PLUGINS)
+GAIM_PLUGIN_DIR=`$PKG_CONFIG gaim --variable=libdir`/gaim
+AC_SUBST(GAIM_PLUGIN_DIR)
 
 
 
@@ -189,8 +189,8 @@ AC_CONFIG_FILES(
 AC_OUTPUT()
 
 
-echo
-echo Gaim plugin dir.......... : $GAIM_PLUGINS
+# echo
+# echo Gaim plugin dir.......... : $GAIM_PLUGIN_DIR
 
 echo
 echo -n "Meanwhile linking mode... : "

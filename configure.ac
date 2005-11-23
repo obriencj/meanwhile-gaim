@@ -189,8 +189,8 @@ AC_CONFIG_FILES(
 AC_OUTPUT()
 
 
-# echo
-# echo Gaim plugin dir.......... : $GAIM_PLUGIN_DIR
+echo
+echo Gaim plugin dir.......... : $GAIM_PLUGIN_DIR
 
 echo
 echo -n "Meanwhile linking mode... : "

@@ -89,8 +89,8 @@ static const char *fields_get(struct mime_fields *mf,
   char *kdown;
   const char *ret;
 
-  g_return_val_if_fail(mf != NULL);
-  g_return_val_if_fail(mf->map != NULL);
+  g_return_val_if_fail(mf != NULL, NULL);
+  g_return_val_if_fail(mf->map != NULL, NULL);
 
   kdown = g_ascii_strdown(key, -1);
   ret = g_hash_table_lookup(mf->map, kdown);
@@ -297,7 +297,7 @@ void gaim_mime_part_set_field(GaimMimePart *part,
 
 const char *gaim_mime_part_get_data(GaimMimePart *part) {
   g_return_val_if_fail(part != NULL, NULL);
-  g_return_if_fail(part->data != NULL);
+  g_return_val_if_fail(part->data != NULL, NULL);
 
   return part->data->str;
 }
@@ -347,7 +347,7 @@ void gaim_mime_part_get_data_decoded(GaimMimePart *part,
 
 gsize gaim_mime_part_get_length(GaimMimePart *part) {
   g_return_val_if_fail(part != NULL, 0);
-  g_return_val_if_fail(part->data != NULL);
+  g_return_val_if_fail(part->data != NULL, 0);
 
   return part->data->len;
 }

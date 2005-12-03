@@ -148,6 +148,7 @@
 #define MW_KEY_INVITE      "conf_invite"
 #define MW_KEY_ENCODING    "encoding"
 #define MW_KEY_FORCE       "force_login"
+#define MW_KEY_FAKE_IT     "fake_client_id"
 
 
 /** number of seconds from the first blist change before a save to the
@@ -3576,7 +3577,6 @@ static void prompt_host(GaimConnection *gc) {
 		     _("Connect"), G_CALLBACK(prompt_host_ok_cb),
 		     _("Cancel"), G_CALLBACK(prompt_host_cancel_cb),
 		     gc);
-
   g_free(msg);
 }
 
@@ -3586,7 +3586,7 @@ static void mw_prpl_login(GaimAccount *account) {
   struct mwGaimPluginData *pd;
 
   char *user, *pass, *host;
-  guint port;
+  guint port, client;
 
   gc = gaim_account_get_connection(account);
   pd = mwGaimPluginData_new(gc);
@@ -3626,8 +3626,15 @@ static void mw_prpl_login(GaimAccount *account) {
 			(char *) no_secret, NULL);
   mwSession_setProperty(pd->session, mwSession_AUTH_USER_ID, user, g_free);
   mwSession_setProperty(pd->session, mwSession_AUTH_PASSWORD, pass, NULL);
+
+  client = MW_CLIENT_TYPE_ID;
+  if(gaim_account_get_bool(account, MW_KEY_FAKE_IT, FALSE))
+    client = mwLogin_BINARY;
+
+  DEBUG_INFO("client id: 0x%04x\n", client);
+
   mwSession_setProperty(pd->session, mwSession_CLIENT_TYPE_ID,
-			GUINT_TO_POINTER(MW_CLIENT_TYPE_ID), NULL);
+			GUINT_TO_POINTER(client), NULL);
 
   gaim_connection_update_progress(gc, _("Connecting"), 1, MW_CONNECT_STEPS);
 
@@ -4004,6 +4011,58 @@ static int mw_prpl_send_typing(GaimConnection *gc, const char *name,
 }
 
 
+static const char *mw_client_name(guint16 type) {
+  switch(type) {
+  case mwLogin_LIB:
+    return "Lotus Binary Library";
+    
+  case mwLogin_JAVA_WEB:
+    return "Lotus Java Client Applet";
+
+  case mwLogin_BINARY:
+    return "Lotus Sametime Connect";
+
+  case mwLogin_JAVA_APP:
+    return "Lotus Java Client Application";
+
+  case mwLogin_LINKS:
+    return "Lotus Sametime Links";
+
+  case mwLogin_NOTES_6_5:
+  case mwLogin_NOTES_6_5_3:
+  case mwLogin_NOTES_7_0_beta:
+  case mwLogin_NOTES_7_0:
+    return "Lotus Notes Client";
+
+  case mwLogin_ICT:
+  case mwLogin_ICT_1_7_8_2:
+  case mwLogin_ICT_SIP:
+    return "IBM Community Tools";
+
+  case mwLogin_NOTESBUDDY_4_14:
+  case mwLogin_NOTESBUDDY_4_15:
+  case mwLogin_NOTESBUDDY_4_16:
+    return "Alphaworks NotesBuddy";
+
+  case mwLogin_SANITY:
+    return "Sanity";
+
+  case mwLogin_ST_PERL:
+    return "ST-Send-Message";
+
+  case mwLogin_TRILLIAN:
+  case mwLogin_TRILLIAN_IBM:
+    return "Trillian";
+
+  case mwLogin_MEANWHILE:
+    return "Meanwhile";
+
+  default:
+    return NULL;
+  }
+}
+
+
 static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
 
   struct mwAwareIdBlock idb = { mwAware_USER, (char *) who, NULL };
@@ -4043,7 +4102,7 @@ static void mw_prpl_get_info(GaimConnection *gc, const char *who) {
     if(type) {
       g_string_append(str, _("<b>Last Known Client:</b> "));
 
-      tmp = mwLoginType_getName(type);
+      tmp = mw_client_name(type);
       if(tmp) {
 	g_string_append(str, tmp);
 	g_string_append(str, "<br>");
@@ -5709,6 +5768,11 @@ static void mw_plugin_init(GaimPlugin *plugin) {
     opt = gaim_account_option_bool_new(label, MW_KEY_FORCE, b);
     l = g_list_append(l, opt);
   }
+
+  /* pretend to be Sametime Connect */
+  opt = gaim_account_option_bool_new(_("Hide Client Identity"),
+				     MW_KEY_FAKE_IT, FALSE);
+  l = g_list_append(l, opt);
 
   mw_prpl_info.protocol_options = l;
   l = NULL;

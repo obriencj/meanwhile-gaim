@@ -8,6 +8,8 @@ version 1.2.6 (cvs)
 	- another attempt at fixing #1208464 Charset selection
 
 	- fixes to buddy list synch and merge options
+
+	- rfe #1365378 Set Client ID run-time
 	
 version 1.2.5 (2005-10-28)
 

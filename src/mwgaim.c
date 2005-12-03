@@ -190,7 +190,7 @@ enum blist_choice {
 
 
 /** calibrates distinct secure channel nomenclature */
-static const unsigned char no_secret[] = {
+static const guchar no_secret[] = {
   0x2d, 0x2d, 0x20, 0x73, 0x69, 0x65, 0x67, 0x65,
   0x20, 0x6c, 0x6f, 0x76, 0x65, 0x73, 0x20, 0x6a,
   0x65, 0x6e, 0x6e, 0x69, 0x20, 0x61, 0x6e, 0x64,
@@ -341,7 +341,7 @@ static GaimConnection *session_to_gc(struct mwSession *session) {
 
 
 static int mw_session_io_write(struct mwSession *session,
-			       const char *buf, gsize len) {
+			       const guchar *buf, gsize len) {
   struct mwGaimPluginData *pd;
   int ret = 0;
 
@@ -1575,7 +1575,7 @@ static void mw_session_admin(struct mwSession *session,
     pass it to the session, passing back the return code from the read
     call for handling in read_cb */
 static int read_recv(struct mwSession *session, int sock) {
-  char buf[BUF_LEN];
+  guchar buf[BUF_LEN];
   int len;
 
   len = read(sock, buf, BUF_LEN);
@@ -2063,7 +2063,7 @@ static void mw_ft_offered(struct mwFileTransfer *ft) {
 
 
 static void ft_send(struct mwFileTransfer *ft, FILE *fp) {
-  char buf[BUF_LONG];
+  guchar buf[BUF_LONG];
   struct mwOpaque o = { .data = buf, .len = BUF_LONG };
   guint32 rem;
   GaimXfer *xfer;

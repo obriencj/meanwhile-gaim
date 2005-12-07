@@ -1,6 +1,8 @@
 
-version 1.2.6 (cvs)
+version 1.2.6 (2005-12-07)
 
+	- building against meanwhile 0.6.0
+	
 	- fix bug when sending mime (image) messages to notesbuddy
 
 	- fix #1354344 status message not changed when idle
@@ -9,11 +11,14 @@ version 1.2.6 (cvs)
 
 	- fixes to buddy list synch and merge options
 
-	- rfe #1365378 Set Client ID run-time
+	- rfe #1365378 Set Client ID run-time (added "Hide Client
+	Identity" option to account preferences)
+
+	- decode unicode entity values for logging
 	
 version 1.2.5 (2005-10-28)
 
-	- building against meanwhile 0.5.0cvs
+	- building against meanwhile 0.5.0
 
 	- fix #1208464 Charset selection
 

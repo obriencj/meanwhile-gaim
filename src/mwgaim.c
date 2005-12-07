@@ -2533,13 +2533,6 @@ static void mw_conversation_closed(struct mwConversation *conv,
 }
 
 
-
-static char *im_decode(GaimConnection *gc, const char *msg) {
-  /* may want to perform more magic here some day */
-  return gaim_utf8_try_convert(msg);
-}
-
-
 static void im_recv_text(struct mwConversation *conv,
 			 struct mwGaimPluginData *pd,
 			 const char *msg) {
@@ -2548,8 +2541,8 @@ static void im_recv_text(struct mwConversation *conv,
   char *txt, *esc, *t;
 
   idb = mwConversation_getTarget(conv);
-  txt = im_decode(pd->gc, msg);
 
+  txt = gaim_utf8_try_convert(msg);
   t = txt? txt: (char *) msg;
 
   esc = g_markup_escape_text(t, -1);
@@ -2580,10 +2573,16 @@ static void im_recv_html(struct mwConversation *conv,
   char *txt, *t;
 
   idb = mwConversation_getTarget(conv);
-  txt = im_decode(pd->gc, msg);
-  
-  t = txt? txt: (char *) msg;
 
+  /* ensure we're receiving UTF8 */
+  txt = gaim_utf8_try_convert(msg);
+  t = txt? txt: (char *) msg;
+  g_free(txt);
+
+  /* convert entities to UTF8 so they'll log correctly */
+  txt = gaim_utf8_ncr_decode(t);
+  t = txt? txt: (char *) msg;
+  
   serv_got_im(pd->gc, idb->user, t, 0, time(NULL));
 
   g_free(txt);
@@ -2688,7 +2687,7 @@ static void im_recv_mime(struct mwConversation *conv,
 
       gaim_mime_part_get_data_decoded(part, &data, &len);
 
-      txt = im_decode(pd->gc, data);
+      txt = gaim_utf8_try_convert(data);
       g_string_append(str, txt?txt:data);
 
       g_free(data);

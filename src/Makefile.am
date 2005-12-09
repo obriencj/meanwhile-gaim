@@ -1,11 +1,10 @@
 
-pkgdir = $(GAIM_PLUGIN_DIR)/gaim
+pkgdir = $(libdir)/gaim
 
 pkg_LTLIBRARIES = libmwgaim.la
 
 noinst_HEADERS = \
 	mime.h
-
 
 libmwgaim_la_SOURCES = \
 	config.h \
@@ -32,3 +31,4 @@ endif
 AM_CPPFLAGS = \
 	-DG_LOG_DOMAIN=\"@PACKAGE@\" \
 	-DGAIM_PLUGINS
+

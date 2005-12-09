@@ -7,8 +7,8 @@ m4_define(gaim_meanwhile_version,	1.2.6)
 m4_define(gaim_meanwhile_release,	0)
 
 # lower and upper-bound versions of Meanwhile
-m4_define(meanwhile_version_min,	0.6.0)
-m4_define(meanwhile_version_max,	0.7.0)
+m4_define(meanwhile_version_min,	1.0.0)
+m4_define(meanwhile_version_max,	2.0.0)
 
 # lower and upper-bound versions of Gaim
 m4_define(gaim_version_min,		1.2.0)
@@ -141,8 +141,11 @@ AC_SUBST(GAIM_LIBS)
 
 # this isn't the best way to find Gaim's plugin dir, but it's the best
 # I could come up with
-GAIM_PLUGIN_DIR=`$PKG_CONFIG gaim --variable=libdir`/gaim
-AC_SUBST(GAIM_PLUGIN_DIR)
+#GAIM_PLUGIN_DIR=`$PKG_CONFIG gaim --variable=libdir`/gaim
+#AC_SUBST(GAIM_PLUGIN_DIR)
+
+#GAIM_PIXMAP_DIR=`$PKG_CONFIG gaim --variable=datadir`/pixmaps/gaim
+#AC_SUBST(GAIM_PIXMAP_DIR)
 
 
 
@@ -189,8 +192,9 @@ AC_CONFIG_FILES(
 AC_OUTPUT()
 
 
-echo
-echo Gaim plugin dir.......... : $GAIM_PLUGIN_DIR
+#echo
+#echo Gaim plugin dir.......... : $GAIM_PLUGIN_DIR
+#echo Gaim pixmap dir.......... : $GAIM_PIXMAP_DIR
 
 echo
 echo -n "Meanwhile linking mode... : "

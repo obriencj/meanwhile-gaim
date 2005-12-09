@@ -2570,22 +2570,23 @@ static void im_recv_html(struct mwConversation *conv,
 			 const char *msg) {
 
   struct mwIdBlock *idb;
-  char *txt, *t;
+  char *t1, *t2;
+  const char *t;
 
   idb = mwConversation_getTarget(conv);
 
   /* ensure we're receiving UTF8 */
-  txt = gaim_utf8_try_convert(msg);
-  t = txt? txt: (char *) msg;
-  g_free(txt);
+  t1 = gaim_utf8_try_convert(msg);
+  t = t1? t1: msg;
 
   /* convert entities to UTF8 so they'll log correctly */
-  txt = gaim_utf8_ncr_decode(t);
-  t = txt? txt: (char *) msg;
-  
+  t2 = gaim_utf8_ncr_decode(t1? t1: msg);
+  t = t2? t2: t;
+
   serv_got_im(pd->gc, idb->user, t, 0, time(NULL));
 
-  g_free(txt);
+  g_free(t1);
+  g_free(t2);
 }
 
 

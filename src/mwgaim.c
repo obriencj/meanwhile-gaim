@@ -2580,7 +2580,7 @@ static void im_recv_html(struct mwConversation *conv,
   t = t1? t1: msg;
 
   /* convert entities to UTF8 so they'll log correctly */
-  t2 = gaim_utf8_ncr_decode(t1? t1: msg);
+  t2 = gaim_utf8_ncr_decode(t);
   t = t2? t2: t;
 
   serv_got_im(pd->gc, idb->user, t, 0, time(NULL));

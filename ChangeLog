@@ -1,7 +1,7 @@
 
-version 1.2.6 (2005-12-07)
+version 1.2.6 (2005-12-13)
 
-	- building against meanwhile 0.6.0
+	- building against meanwhile 1.0.0
 	
 	- fix bug when sending mime (image) messages to notesbuddy
 

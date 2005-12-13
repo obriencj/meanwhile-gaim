@@ -3214,27 +3214,27 @@ static gboolean user_supports(struct mwServiceAware *srvc,
 }
 
 
-char *user_supports_text(struct mwServiceAware *srvc, const char *who) {
-    char *feat[] = {NULL, NULL, NULL, NULL, NULL};
-    char **f = feat;
-
-    if(user_supports(srvc, who, mwAttribute_AV_PREFS_SET)) {
-      gboolean mic, speak, video;
-
-      mic = user_supports(srvc, who, mwAttribute_MICROPHONE);
-      speak = user_supports(srvc, who, mwAttribute_SPEAKERS);
-      video = user_supports(srvc, who, mwAttribute_VIDEO_CAMERA);
-
-      if(mic) *f++ = _("Microphone");
-      if(speak) *f++ = _("Speakers");
-      if(video) *f++ = _("Video Camera");
-    }
-
-    if(user_supports(srvc, who, mwAttribute_FILE_TRANSFER))
-      *f++ = _("File Transfer");
-
-    return (*feat)? g_strjoinv(", ", feat): NULL;
-    /* jenni loves siege */
+static char *user_supports_text(struct mwServiceAware *srvc, const char *who) {
+  char *feat[] = {NULL, NULL, NULL, NULL, NULL};
+  char **f = feat;
+  
+  if(user_supports(srvc, who, mwAttribute_AV_PREFS_SET)) {
+    gboolean mic, speak, video;
+    
+    mic = user_supports(srvc, who, mwAttribute_MICROPHONE);
+    speak = user_supports(srvc, who, mwAttribute_SPEAKERS);
+    video = user_supports(srvc, who, mwAttribute_VIDEO_CAMERA);
+    
+    if(mic) *f++ = _("Microphone");
+    if(speak) *f++ = _("Speakers");
+    if(video) *f++ = _("Video Camera");
+  }
+  
+  if(user_supports(srvc, who, mwAttribute_FILE_TRANSFER))
+    *f++ = _("File Transfer");
+  
+  return (*feat)? g_strjoinv(", ", feat): NULL;
+  /* jenni loves siege */
 }
 
 

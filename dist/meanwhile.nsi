@@ -27,11 +27,13 @@ Section ""
   SetOutPath $INSTDIR
 
   Delete libmeanwhile-0.dll
+  Delete libmeanwhile-1.dll
   Delete libmeanwhile.dll
   Delete plugins\libmwgaim.dll
   Delete plugins\meanwhile-gaim.dll
  
   File /oname=pixmaps\gaim\status\default\meanwhile.png ${PREFIX}/share/pixmaps/gaim/status/default/meanwhile.png
+  File /oname=pixmaps\gaim\status\default\external.png ${PREFIX}/share/pixmaps/gaim/status/default/external.png
   File /oname=plugins\libmwgaim.dll ${PREFIX}/lib/gaim/libmwgaim.dll
-  File ${PREFIX}/bin/libmeanwhile-0.dll
+  File ${PREFIX}/bin/libmeanwhile-1.dll
 SectionEnd ; end the section

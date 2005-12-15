@@ -430,7 +430,7 @@ static void mw_aware_list_on_aware(struct mwAwareList *list,
   struct mwGaimPluginData *pd;
   time_t idle;
   guint stat;
-  const char *id;
+  char *id;
 
   gc = mwAwareList_getClientData(list);
   pd = gc->proto_data;
@@ -486,7 +486,7 @@ static void mw_aware_list_on_aware(struct mwAwareList *list,
       bnode = (GaimBlistNode *) buddy;
 
       srvc = pd->srvc_resolve;
-      query = g_list_append(NULL, (char *) id);
+      query = g_list_append(NULL, id);
 
       mwServiceResolve_resolve(srvc, query, mwResolveFlag_USERS,
 			       blist_resolve_alias_cb, buddy, NULL);
@@ -3595,7 +3595,7 @@ static void mw_prpl_login(GaimAccount *account) {
   gc->flags |= GAIM_CONNECTION_NO_IMAGES;
 
   user = g_strdup(gaim_account_get_username(account));
-  pass = (char *) gaim_account_get_password(account);
+  pass = g_strdup(gaim_account_get_password(account));
 
   host = strrchr(user, ':');
   if(host) {
@@ -3625,9 +3625,9 @@ static void mw_prpl_login(GaimAccount *account) {
   mwSession_setProperty(pd->session, mwSession_NO_SECRET,
 			(char *) no_secret, NULL);
   mwSession_setProperty(pd->session, mwSession_AUTH_USER_ID, user, g_free);
-  mwSession_setProperty(pd->session, mwSession_AUTH_PASSWORD, pass, NULL);
+  mwSession_setProperty(pd->session, mwSession_AUTH_PASSWORD, pass, g_free);
 
-  client = MW_CLIENT_TYPE_ID;
+  client = mwLogin_MEANWHILE;
   if(gaim_account_get_bool(account, MW_KEY_FAKE_IT, FALSE))
     client = mwLogin_BINARY;
 

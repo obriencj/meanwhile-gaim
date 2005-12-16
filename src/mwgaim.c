@@ -4186,8 +4186,14 @@ static void mw_prpl_set_away(GaimConnection *gc,
     stat.status = mwStatus_ACTIVE;
   }
 
-  /* determine the message */
-  if(! message) {
+  /* out with the old status message */
+  g_free(stat.desc);
+
+  if(message) {
+    /* make a stripped copy for the status */
+    stat.status = gaim_markup_strip_html(message);
+
+  } else {
     switch(stat.status) {
     case mwStatus_AWAY:
       message = gaim_account_get_string(acct, MW_KEY_AWAY_MSG,
@@ -4204,17 +4210,10 @@ static void mw_prpl_set_away(GaimConnection *gc,
 					MW_PLUGIN_DEFAULT_ACTIVE_MSG);
       break;
     }
-
-  } else {
-
-    /* all the possible non-NULL values of message up to this point
-       are const, so we don't need to free them */
-    message = gaim_markup_strip_html(message);
+    
+    /* make a copy for the status */
+    stat.status = g_strdup(message);
   }
-
-  /* out with the old, in with the new */
-  g_free(stat.desc);
-  stat.desc = (char *) message;
 
   mwSession_setUserStatus(session, &stat);
   mwUserStatus_clear(&stat);  

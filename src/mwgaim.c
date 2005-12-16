@@ -4191,7 +4191,7 @@ static void mw_prpl_set_away(GaimConnection *gc,
 
   if(message) {
     /* make a stripped copy for the status */
-    stat.status = gaim_markup_strip_html(message);
+    stat.desc = gaim_markup_strip_html(message);
 
   } else {
     switch(stat.status) {
@@ -4212,7 +4212,7 @@ static void mw_prpl_set_away(GaimConnection *gc,
     }
     
     /* make a copy for the status */
-    stat.status = g_strdup(message);
+    stat.desc = g_strdup(message);
   }
 
   mwSession_setUserStatus(session, &stat);

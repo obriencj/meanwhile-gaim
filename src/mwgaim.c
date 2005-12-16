@@ -3766,12 +3766,12 @@ static gboolean is_nb(struct mwConversation *conv) {
   if(! info) return FALSE;
 
   /* NotesBuddy can be at least three different type IDs (all in the
-     0x1400 range), or it can show up as 0x1002. However, if we're
+     0x1400 range), or it can show up as 0x1000. However, if we're
      calling this check, then we're already in HTML or MIME mode, so
-     we can discount the real 0x1002 */
+     we can discount the real 0x1000 */
   /* I tried to avoid having any client-type-dependant code in here, I
      really did. Oh well. CURSE YOU NOTESBUDDY */
-  return ((info->type == 0x1002) || ((info->type & 0xff00) == 0x1400));
+  return ((info->type == 0x1000) || ((info->type & 0xff00) == 0x1400));
 }
 
 
@@ -3939,15 +3939,14 @@ static int mw_prpl_send_im(GaimConnection *gc,
     } else if(mwConversation_supports(conv, mwImSend_HTML)) {
       /* send an HTML message */
 
-      /* need to do this to get the \n to <br> conversion */
       if(is_nb(conv)) {
-
 	/* html messages need the notesbuddy hack */
 	char *msg = nb_im_encode(gc, message);
-	tmp = gaim_strdup_withhtml(msg);	
+	tmp = gaim_strdup_withhtml(msg);
 	g_free(msg);
 
       } else {
+	/* need to do this to get the \n to <br> conversion */
 	tmp = gaim_strdup_withhtml(message);
       }
 

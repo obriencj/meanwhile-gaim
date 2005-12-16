@@ -1,4 +1,8 @@
 
+version 1.2.7 (cvs)
+
+	- fix #1382062 Angled brackets (<text>) in status break gaim
+	
 version 1.2.6 (2005-12-13)
 
 	- building against meanwhile 1.0.0

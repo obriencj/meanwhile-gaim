@@ -4204,9 +4204,9 @@ static void mw_prpl_set_away(GaimConnection *gc,
 					MW_PLUGIN_DEFAULT_ACTIVE_MSG);
       break;
     }
-  }
 
-  if(message) {
+  } else {
+
     /* all the possible non-NULL values of message up to this point
        are const, so we don't need to free them */
     message = gaim_markup_strip_html(message);

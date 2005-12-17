@@ -2541,8 +2541,8 @@ static void im_recv_text(struct mwConversation *conv,
   char *txt, *esc, *t;
 
   idb = mwConversation_getTarget(conv);
-
   txt = gaim_utf8_try_convert(msg);
+
   t = txt? txt: (char *) msg;
 
   esc = g_markup_escape_text(t, -1);
@@ -2683,16 +2683,12 @@ static void im_recv_mime(struct mwConversation *conv,
     } else if(gaim_str_has_prefix(type, "text")) {
 
       /* concatenate all the text parts together */
-      char *data, *txt;
+      char *data;
       gsize len;
 
       gaim_mime_part_get_data_decoded(part, &data, &len);
-
-      txt = gaim_utf8_try_convert(data);
-      g_string_append(str, txt?txt:data);
-
+      g_string_append(str, data);
       g_free(data);
-      g_free(txt);
     }
   }  
 
@@ -2738,8 +2734,7 @@ static void im_recv_mime(struct mwConversation *conv,
     }
   }
 
-  /* actually display the message */
-  serv_got_im(pd->gc, idb->user, str->str, 0, time(NULL));
+  im_recv_html(conv, pd, str->str);
 
   g_string_free(str, TRUE);
   
@@ -3955,7 +3950,9 @@ static int mw_prpl_send_im(GaimConnection *gc,
 
     } else {
       /* default to text */
-      ret = mwConversation_send(conv, mwImSend_PLAIN, message);
+      tmp = gaim_markup_strip_html(message);
+      ret = mwConversation_send(conv, mwImSend_PLAIN, tmp);
+      g_free(tmp);
     }
     
     return !ret;
@@ -5756,7 +5753,7 @@ static void mw_plugin_init(GaimPlugin *plugin) {
   l = g_list_append(l, opt);
 
   /* notesbuddy hack encoding */
-  opt = gaim_account_option_string_new(_("NotesBuddy Encoding"),
+  opt = gaim_account_option_string_new(_("NotesBuddy encoding"),
 				       MW_KEY_ENCODING,
 				       MW_PLUGIN_DEFAULT_ENCODING);
   l = g_list_append(l, opt);
@@ -5765,7 +5762,7 @@ static void mw_plugin_init(GaimPlugin *plugin) {
        there. Don't delete the preference, since there may be more
        than one account that wants to check for it. */
     gboolean b = FALSE;
-    const char *label = _("Force Login (Ignore Server Redirects)");
+    const char *label = _("Force login (ignore server redirects)");
 
     if(gaim_prefs_exists(MW_PRPL_OPT_FORCE_LOGIN))
       b = gaim_prefs_get_bool(MW_PRPL_OPT_FORCE_LOGIN);
@@ -5775,7 +5772,7 @@ static void mw_plugin_init(GaimPlugin *plugin) {
   }
 
   /* pretend to be Sametime Connect */
-  opt = gaim_account_option_bool_new(_("Hide Client Identity"),
+  opt = gaim_account_option_bool_new(_("Hide client identity"),
 				     MW_KEY_FAKE_IT, FALSE);
   l = g_list_append(l, opt);
 

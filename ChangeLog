@@ -2,6 +2,8 @@
 version 1.2.7 (cvs)
 
 	- fix #1382062 Angled brackets (<text>) in status break gaim
+
+	- fix #1385556 merge buddy list crash
 	
 version 1.2.6 (2005-12-13)
 

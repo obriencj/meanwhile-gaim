@@ -801,7 +801,7 @@ static void group_add(struct mwGaimPluginData *pd,
 static GaimGroup *group_ensure(GaimConnection *gc,
 			       struct mwSametimeGroup *stgroup) {
   GaimAccount *acct;
-  GaimGroup *group;
+  GaimGroup *group = NULL;
   GaimBuddyList *blist;
   GaimBlistNode *gn;
   const char *name, *alias, *owner;

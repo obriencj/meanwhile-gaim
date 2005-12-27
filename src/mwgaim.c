@@ -3427,6 +3427,7 @@ static void blist_menu_conf_list(GaimBuddy *buddy,
     struct mwConference *c = confs->data;
     gaim_request_field_list_add(f, mwConference_getTitle(c), c);
   }
+
   gaim_request_field_list_add(f, _("Create New Conference..."),
 			      GINT_TO_POINTER(0x01));
   gaim_request_field_group_add_field(g, f);

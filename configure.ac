@@ -4,7 +4,7 @@
 m4_define(gaim_meanwhile_version,	1.2.7)
 
 # release of this package. 0 for cvs, 1 for release
-m4_define(gaim_meanwhile_release,	0)
+m4_define(gaim_meanwhile_release,	1)
 
 # lower and upper-bound versions of Meanwhile
 m4_define(meanwhile_version_min,	1.0.0)
@@ -24,8 +24,9 @@ AC_PREREQ([2.50])
 AC_DISABLE_STATIC
 
 AC_PROG_CC
-AC_PROG_LIBTOOL
 AC_PROG_INSTALL
+AC_PROG_LIBTOOL
+LIBTOOL="$LIBTOOL --silent"
 
 AC_HEADER_STDC
 

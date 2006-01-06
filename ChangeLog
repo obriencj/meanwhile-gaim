@@ -1,4 +1,8 @@
 
+version 1.2.8 (cvs)
+
+	- fix #1398218 Crash when receiving invite with blank details
+	
 version 1.2.7 (2005-12-29)
 
 	- fix #1382062 Angled brackets (<text>) in status break gaim

@@ -1,10 +1,10 @@
 
 
 # version of this package
-m4_define(gaim_meanwhile_version,	1.2.7)
+m4_define(gaim_meanwhile_version,	1.2.8)
 
 # release of this package. 0 for cvs, 1 for release
-m4_define(gaim_meanwhile_release,	1)
+m4_define(gaim_meanwhile_release,	0)
 
 # lower and upper-bound versions of Meanwhile
 m4_define(meanwhile_version_min,	1.0.0)

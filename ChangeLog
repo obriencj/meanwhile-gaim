@@ -2,6 +2,8 @@
 version 1.2.8 (cvs)
 
 	- fix #1398218 Crash when receiving invite with blank details
+
+	- fix #1403224 Empty message in group chat causes crash
 	
 version 1.2.7 (2005-12-29)
 

@@ -1941,7 +1941,7 @@ static void mw_conf_text(struct mwConference *conf,
   pd = mwSession_getClientData(session);
   gc = pd->gc;
 
-  esc = g_markup_escape_text(text, -1);
+  esc = g_markup_escape_text(text? text: "", -1);
   serv_got_chat_in(gc, CONF_TO_ID(conf), who->user_id, 0, esc, time(NULL));
   g_free(esc);
 }
@@ -3013,7 +3013,7 @@ static void mw_place_message(struct mwPlace *place,
   pd = mwSession_getClientData(session);
   gc = pd->gc;
 
-  esc = g_markup_escape_text(msg, -1);
+  esc = g_markup_escape_text(msg? msg: "", -1);
   serv_got_chat_in(gc, PLACE_TO_ID(place), who->user, 0, esc, time(NULL));
   g_free(esc);
 }

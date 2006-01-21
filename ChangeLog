@@ -1,5 +1,5 @@
 
-version 1.2.8 (cvs)
+version 1.2.8 (2006-01-20)
 
 	- fix #1398218 Crash when receiving invite with blank details
 
